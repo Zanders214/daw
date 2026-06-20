@@ -1,0 +1,61 @@
+/* ============================================================
+   APP THEME LAYER — product surfaces layered on top of the
+   design-system tokens. Three themes selected via data-theme on
+   the app root. Spectrum / accent / danger stay constant (brand);
+   only the --app-* surfaces (and, in light, the text/layer tokens)
+   change. Values lifted verbatim from the design prototype.
+   ============================================================ */
+
+:root,
+[data-theme="dark"] {
+  --app-bg: radial-gradient(140% 90% at 50% -20%, #11151f 0%, #07080d 62%);
+  --app-topbar: linear-gradient(180deg, #11151f, #0b0e15);
+  --app-surface: linear-gradient(180deg, #0c0f17, #090b11);
+  --app-surface-2: #0b0e15;
+  --app-arrange: linear-gradient(180deg, #080a0f, #06070b);
+  --app-ruler: #0a0d14;
+  --app-trackhead: #090c12;
+}
+
+[data-theme="light"] {
+  --app-bg: radial-gradient(140% 90% at 50% -20%, #f6f8fc 0%, #e2e7f0 70%);
+  --app-topbar: linear-gradient(180deg, #ffffff, #eef1f6);
+  --app-surface: linear-gradient(180deg, #f8fafc, #eef1f6);
+  --app-surface-2: #f1f4f9;
+  --app-arrange: linear-gradient(180deg, #fcfdff, #eef2f7);
+  --app-ruler: #eef1f6;
+  --app-trackhead: #f1f4f9;
+
+  --text-1: #1b2230;
+  --text-2: #3c4453;
+  --text-3: #646c7b;
+  --text-faint: #9aa3b2;
+  --text-label: #7c8593;
+
+  --layer-1: rgba(20, 28, 46, 0.035);
+  --layer-2: rgba(20, 28, 46, 0.07);
+  --layer-3: rgba(20, 28, 46, 0.11);
+  --layer-4: rgba(20, 28, 46, 0.15);
+  --layer-5: rgba(20, 28, 46, 0.2);
+
+  --well: #eaeef4;
+  --panel: #ffffff;
+  --knob-face: #e7ebf2;
+
+  --accent-soft: rgba(94, 147, 255, 0.14);
+  --accent-line: rgba(94, 147, 255, 0.45);
+
+  --inset-top: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --shadow-window: inset 0 1px 3px rgba(20, 28, 46, 0.08);
+  --shadow-knob: 0 2px 6px rgba(20, 28, 46, 0.16);
+}
+
+[data-theme="midnight"] {
+  --app-bg: radial-gradient(140% 90% at 50% -20%, #0a0c14 0%, #000000 70%);
+  --app-topbar: linear-gradient(180deg, #0a0c14, #050609);
+  --app-surface: linear-gradient(180deg, #070910, #040508);
+  --app-surface-2: #06070d;
+  --app-arrange: linear-gradient(180deg, #04050a, #000000);
+  --app-ruler: #06070d;
+  --app-trackhead: #050609;
+}

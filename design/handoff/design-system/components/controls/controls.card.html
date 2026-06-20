@@ -1,0 +1,54 @@
+<!-- @dsCard group="Components" viewport="700x320" name="Controls" subtitle="Knob, Dial, Slider (cool/warm), Meter — live & draggable" -->
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>
+  body { margin:0; font-family:'Space Grotesk',system-ui,sans-serif; }
+  .stage { padding:24px; background:radial-gradient(120% 80% at 50% -10%, #1a2030, #0a0b12); display:flex; gap:34px; align-items:center; }
+  .lbl { font-size:10px; letter-spacing:0.16em; color:#7e8794; font-weight:600; margin-bottom:10px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { Knob, Dial, Slider, Meter } = window.NeonPluginsDesignSystem_54a692;
+function Demo(){
+  const [amt,setAmt] = React.useState(0.74);
+  const [main,setMain] = React.useState(0.85);
+  const [tone,setTone] = React.useState(0.6);
+  const [key,setKey] = React.useState(0.4);
+  return (
+    <div className="stage">
+      <div>
+        <div className="lbl">KNOB</div>
+        <Knob value={amt} onChange={setAmt} size={150} label="AMOUNT" />
+      </div>
+      <div>
+        <div className="lbl">DIALS</div>
+        <div style={{display:'flex',gap:18}}>
+          <Dial value={0.35} onChange={()=>{}} color="#34d8ff" label="CLOSE" />
+          <Dial value={main} onChange={setMain} color="#8b7bff" label="MAIN" />
+          <Dial value={0.45} onChange={()=>{}} color="#ff5fa8" label="ROOM" />
+        </div>
+      </div>
+      <div style={{flex:1,minWidth:200}}>
+        <div className="lbl">SLIDERS &amp; METER</div>
+        <div style={{display:'flex',flexDirection:'column',gap:14}}>
+          <Slider label="TONE" valueLabel={Math.round(tone*100)+'%'} value={tone} onChange={setTone} />
+          <Slider label="KEY NOISE" valueLabel={Math.round(key*100)+'%'} value={key} onChange={setKey} gradient="var(--ramp-warm)" />
+          <Meter value={0.72} />
+        </div>
+      </div>
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo/>);
+</script>
+</body>
+</html>

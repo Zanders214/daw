@@ -1,0 +1,1156 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/neon-plugins-design-system-54a6927b-f60d-4c67-b0ec-c3df07090b3b/styles.css">
+<script src="_ds/neon-plugins-design-system-54a6927b-f60d-4c67-b0ec-c3df07090b3b/_ds_bundle.js"></script>
+<style>
+  html,body{margin:0;background:#06070b;}
+  *{box-sizing:border-box;}
+  .zd-scroll::-webkit-scrollbar{width:8px;height:8px;}
+  .zd-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.10);border-radius:4px;}
+  .zd-scroll::-webkit-scrollbar-track{background:transparent;}
+  @keyframes zd-rec{0%,100%{opacity:1}50%{opacity:0.25}}
+  /* ----- theme surfaces ----- */
+  [data-screen-label="Zanders DAW"]{
+    --app-bg: radial-gradient(140% 90% at 50% -20%, #11151f 0%, #07080d 62%);
+    --app-topbar: linear-gradient(180deg,#11151f,#0b0e15);
+    --app-surface: linear-gradient(180deg,#0c0f17,#090b11);
+    --app-surface-2: #0b0e15;
+    --app-arrange: linear-gradient(180deg,#080a0f,#06070b);
+    --app-ruler: #0a0d14;
+    --app-trackhead: #090c12;
+  }
+  [data-theme="light"]{
+    --app-bg: radial-gradient(140% 90% at 50% -20%, #f6f8fc 0%, #e2e7f0 70%);
+    --app-topbar: linear-gradient(180deg,#ffffff,#eef1f6);
+    --app-surface: linear-gradient(180deg,#f8fafc,#eef1f6);
+    --app-surface-2: #f1f4f9;
+    --app-arrange: linear-gradient(180deg,#fcfdff,#eef2f7);
+    --app-ruler: #eef1f6;
+    --app-trackhead: #f1f4f9;
+    --text-1:#1b2230; --text-2:#3c4453; --text-3:#646c7b; --text-faint:#9aa3b2; --text-label:#7c8593;
+    --layer-1: rgba(20,28,46,0.035); --layer-2: rgba(20,28,46,0.07); --layer-3: rgba(20,28,46,0.11); --layer-4: rgba(20,28,46,0.15); --layer-5: rgba(20,28,46,0.20);
+    --well:#eaeef4; --panel:#ffffff; --knob-face:#e7ebf2;
+    --accent-soft: rgba(94,147,255,0.14); --accent-line: rgba(94,147,255,0.45);
+    --inset-top: inset 0 1px 0 rgba(255,255,255,0.9);
+    --shadow-window: inset 0 1px 3px rgba(20,28,46,0.08);
+    --shadow-knob: 0 2px 6px rgba(20,28,46,0.16);
+  }
+  [data-theme="light"] .zd-scroll::-webkit-scrollbar-thumb{background:rgba(20,28,46,0.18);}
+  [data-theme="midnight"]{
+    --app-bg: radial-gradient(140% 90% at 50% -20%, #0a0c14 0%, #000000 70%);
+    --app-topbar: linear-gradient(180deg,#0a0c14,#050609);
+    --app-surface: linear-gradient(180deg,#070910,#040508);
+    --app-surface-2: #06070d;
+    --app-arrange: linear-gradient(180deg,#04050a,#000000);
+    --app-ruler: #06070d;
+    --app-trackhead: #050609;
+  }
+</style>
+</helmet>
+
+<div data-screen-label="Zanders DAW" data-theme="{{ theme }}" style="width:1920px;height:1080px;background:var(--app-bg);color:var(--text-1);font-family:var(--font-display);display:flex;flex-direction:column;overflow:hidden;user-select:none;position:relative;">
+
+  <!-- ===================== TRANSPORT BAR ===================== -->
+  <div style="height:68px;flex:none;display:flex;align-items:center;gap:22px;padding:0 22px;border-bottom:1px solid var(--layer-3);background:var(--app-topbar);box-shadow:0 1px 0 rgba(255,255,255,0.04), 0 8px 24px rgba(0,0,0,0.4);">
+
+    <div style="display:flex;align-items:center;gap:11px;">
+      <div onClick="{{ openSettings }}" title="Settings" style="width:30px;height:30px;border-radius:8px;background:var(--knob-face);border:1px solid var(--layer-5);box-shadow:var(--shadow-knob);display:flex;align-items:center;justify-content:center;cursor:pointer;">
+        <span style="width:11px;height:11px;border-radius:50%;background:var(--spectrum-ramp);box-shadow:0 0 9px rgba(120,160,255,0.7);"></span>
+      </div>
+      <x-import component-from-global-scope="NeonPluginsDesignSystem_54a692.Wordmark" product="Studio" color="var(--spectrum-cyan)" size="18" hint-size="120px,22px"></x-import>
+    </div>
+
+    <div style="width:1px;height:34px;background:var(--layer-3);"></div>
+
+    <!-- transport controls -->
+    <div style="display:flex;align-items:center;gap:9px;">
+      <button type="button" onClick="{{ rewind }}" style="width:40px;height:40px;border-radius:10px;background:var(--layer-2);border:1px solid var(--layer-5);color:var(--text-2);cursor:pointer;box-shadow:var(--inset-top);display:flex;align-items:center;justify-content:center;font-size:13px;">⏮</button>
+      <div style="width:128px;"><x-import component-from-global-scope="NeonPluginsDesignSystem_54a692.GlowButton" engaged="{{ playing }}" idle-label="PLAY" on-click="{{ togglePlay }}" hint-size="128px,48px">PLAYING</x-import></div>
+      <button type="button" onClick="{{ stop }}" style="width:48px;height:48px;border-radius:10px;background:var(--layer-2);border:1px solid var(--layer-5);color:var(--text-1);cursor:pointer;box-shadow:var(--inset-top);display:flex;align-items:center;justify-content:center;"><span style="width:13px;height:13px;border-radius:2px;background:var(--text-1);"></span></button>
+      <div style="width:120px;"><x-import component-from-global-scope="NeonPluginsDesignSystem_54a692.GlowButton" variant="danger" engaged="{{ recording }}" idle-label="REC" on-click="{{ toggleRecord }}" hint-size="120px,48px">REC</x-import></div>
+      <button type="button" onClick="{{ toggleLoop }}" style="{{ loopBtnStyle }}">LOOP</button>
+    </div>
+
+    <div style="width:1px;height:34px;background:var(--layer-3);"></div>
+
+    <!-- metronome -->
+    <div style="display:flex;align-items:center;gap:11px;">
+      <button type="button" onClick="{{ toggleMetronome }}" title="Metronome" style="{{ metroBtnStyle }}"><span style="font-size:17px;line-height:1;">♩</span></button>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <sc-for list="{{ beats }}" as="bt" hint-placeholder-count="4"><span style="{{ bt.style }}"></span></sc-for>
+      </div>
+    </div>
+
+    <div style="width:1px;height:34px;background:var(--layer-3);"></div>
+
+    <!-- readouts -->
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div style="display:flex;flex-direction:column;align-items:flex-start;padding:6px 14px;border-radius:10px;background:var(--well);box-shadow:var(--shadow-window);border:1px solid var(--layer-2);min-width:128px;">
+        <span style="font-size:8.5px;letter-spacing:0.18em;color:var(--text-label);font-family:var(--font-display);">POSITION</span>
+        <span style="font-family:var(--font-mono);font-size:22px;color:var(--text-1);letter-spacing:0.04em;line-height:1.1;">{{ positionLabel }}</span>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-start;padding:6px 14px;border-radius:10px;background:var(--well);box-shadow:var(--shadow-window);border:1px solid var(--layer-2);">
+        <span style="font-size:8.5px;letter-spacing:0.18em;color:var(--text-label);font-family:var(--font-display);">TEMPO</span>
+        <span style="font-family:var(--font-mono);font-size:22px;color:var(--spectrum-cyan);letter-spacing:0.04em;line-height:1.1;">{{ bpmLabel }}<span style="font-size:11px;color:var(--text-3);"> BPM</span></span>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-start;padding:6px 14px;border-radius:10px;background:var(--well);box-shadow:var(--shadow-window);border:1px solid var(--layer-2);">
+        <span style="font-size:8.5px;letter-spacing:0.18em;color:var(--text-label);font-family:var(--font-display);">SIG</span>
+        <span style="font-family:var(--font-mono);font-size:22px;color:var(--text-1);line-height:1.1;">4/4</span>
+      </div>
+    </div>
+
+    <div style="flex:1;"></div>
+
+    <!-- master meter -->
+    <div style="display:flex;align-items:center;gap:13px;">
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:7px;width:200px;">
+        <div style="display:flex;justify-content:space-between;width:100%;font-size:9px;letter-spacing:0.14em;color:var(--text-label);"><span>MASTER</span><span style="font-family:var(--font-mono);color:var(--text-2);">{{ masterDb }}</span></div>
+        <div style="width:100%;"><x-import component-from-global-scope="NeonPluginsDesignSystem_54a692.Meter" value="{{ masterVal }}" height="7" hint-size="200px,7px"></x-import></div>
+      </div>
+      <div style="width:42px;height:42px;border-radius:50%;background:var(--knob-face);border:1px solid var(--layer-5);box-shadow:var(--shadow-knob);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:10px;color:var(--text-2);">0.0</div>
+    </div>
+  </div>
+
+  <!-- ===================== MIDDLE ROW ===================== -->
+  <div style="flex:1;display:flex;min-height:0;">
+
+    <!-- ---------- BROWSER ---------- -->
+    <div style="{{ browserPanelStyle }}">
+      <div style="padding:14px 16px 13px;border-bottom:1px solid var(--layer-2);background:var(--app-surface-2);flex:none;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <span style="font-size:11px;letter-spacing:0.16em;color:var(--text-2);font-weight:600;">BROWSER</span>
+          <button type="button" onClick="{{ toggleBrowser }}" title="Hide browser" style="width:24px;height:24px;border-radius:7px;background:var(--layer-2);border:1px solid var(--layer-5);color:var(--text-3);cursor:pointer;font-size:13px;line-height:1;display:flex;align-items:center;justify-content:center;">«</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:9px;height:34px;padding:0 11px;border-radius:9px;background:var(--well);border:1px solid var(--layer-3);box-shadow:var(--inset-top);">
+          <span style="color:var(--text-faint);font-size:13px;">⌕</span>
+          <input value="{{ query }}" onInput="{{ onSearch }}" placeholder="Search instruments, FX, MIDI…" style="flex:1;min-width:0;background:transparent;border:none;outline:none;color:var(--text-1);font-family:var(--font-display);font-size:12px;" />
+        </div>
+        <div style="display:flex;gap:5px;margin-top:11px;flex-wrap:wrap;">
+          <sc-for list="{{ tabs }}" as="tb" hint-placeholder-count="6">
+            <button type="button" onClick="{{ tb.onClick }}" style="{{ tb.style }}">{{ tb.label }}</button>
+          </sc-for>
+        </div>
+      </div>
+      <div class="zd-scroll" style="flex:1;overflow-y:auto;min-height:0;">
+        <sc-for list="{{ browser }}" as="cat" hint-placeholder-count="5">
+          <div style="padding:13px 13px 3px;">
+            <div style="display:flex;align-items:center;gap:9px;margin-bottom:9px;padding:0 4px;">
+              <span style="{{ cat.dotStyle }}"></span>
+              <span style="font-size:10px;letter-spacing:0.16em;color:var(--text-3);font-weight:600;flex:1;">{{ cat.name }}</span>
+              <span style="font-size:9px;color:var(--text-faint);font-family:var(--font-mono);">{{ cat.count }}</span>
+            </div>
+            <sc-for list="{{ cat.items }}" as="it" hint-placeholder-count="3">
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 11px;border-radius:8px;background:var(--layer-1);border:1px solid transparent;margin-bottom:5px;cursor:grab;" style-hover="background:var(--layer-3);border:1px solid var(--layer-4);">
+                <span style="{{ it.glyphStyle }}">{{ it.glyph }}</span>
+                <span style="flex:1;font-size:12px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ it.name }}</span>
+                <span style="{{ it.metaStyle }}">{{ it.meta }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </sc-for>
+        <div style="{{ emptyStyle }}">No matches</div>
+      </div>
+    </div>
+    <!-- collapsed browser rail -->
+    <div onClick="{{ toggleBrowser }}" title="Show browser" style="{{ browserRailStyle }}">
+      <span style="font-size:14px;color:var(--text-3);">»</span>
+      <span style="writing-mode:vertical-rl;font-size:10px;letter-spacing:0.22em;color:var(--text-3);font-weight:600;">BROWSER</span>
+    </div>
+
+    <!-- ---------- ARRANGE ---------- -->
+    <div style="flex:1;display:flex;flex-direction:column;min-width:0;background:var(--app-arrange);">
+
+      <!-- ruler -->
+      <div style="{{ rulerRowStyle }}">
+        <div style="{{ rulerLabelStyle }}">
+          <span style="font-size:9px;letter-spacing:0.16em;color:var(--text-label);flex:1;">TRACKS</span>
+          <button type="button" onClick="{{ toggleTracksSide }}" title="Move track list to other side" style="width:24px;height:20px;border-radius:6px;background:var(--layer-2);border:1px solid var(--layer-5);color:var(--text-3);cursor:pointer;font-size:11px;line-height:1;display:flex;align-items:center;justify-content:center;flex:none;">⇆</button>
+        </div>
+        <div style="flex:1;position:relative;display:flex;">
+          <sc-for list="{{ bars }}" as="b" hint-placeholder-count="32">
+            <div style="{{ b.cellStyle }}">{{ b.label }}</div>
+          </sc-for>
+          <div style="{{ playheadHeadStyle }}"></div>
+        </div>
+      </div>
+
+      <!-- track rows -->
+      <div class="zd-scroll" style="{{ tracksRowStyle }}">
+        <!-- header column -->
+        <div style="{{ headerColStyle }}">
+          <sc-for list="{{ rows }}" as="r" hint-placeholder-count="11">
+            <sc-if value="{{ r.isGroup }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ r.g.headerStyle }}">
+                <button type="button" onClick="{{ r.g.onToggle }}" style="{{ r.g.chevronStyle }}">{{ r.g.chevron }}</button>
+                <span style="{{ r.g.dotStyle }}"></span>
+                <span style="flex:1;font-size:11px;font-weight:700;letter-spacing:0.1em;color:var(--text-1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ r.g.name }}</span>
+                <span style="font-size:9px;font-family:var(--font-mono);color:var(--text-faint);">{{ r.g.countLabel }}</span>
+                <button type="button" onClick="{{ r.g.onMute }}" style="{{ r.g.mStyle }}">M</button>
+                <button type="button" onClick="{{ r.g.onSolo }}" style="{{ r.g.sStyle }}">S</button>
+              </div>
+            </sc-if>
+            <sc-if value="{{ r.isTrack }}" hint-placeholder-val="{{ true }}">
+              <div onClick="{{ r.t.onSelect }}" onDoubleClick="{{ r.t.onOpenChain }}" style="{{ r.t.headerStyle }}">
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <span style="{{ r.t.dotStyle }}" onClick="{{ r.t.onMute }}" title="Mute / unmute"></span>
+                  <span style="flex:1;font-size:13px;font-weight:600;color:var(--text-1);letter-spacing:0.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ r.t.name }}</span>
+                  <span style="font-size:9px;font-family:var(--font-mono);color:var(--text-faint);">{{ r.t.io }}</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:7px;margin-top:9px;">
+                  <button type="button" onClick="{{ r.t.onMute }}" style="{{ r.t.mStyle }}">M</button>
+                  <button type="button" onClick="{{ r.t.onSolo }}" style="{{ r.t.sStyle }}">S</button>
+                  <button type="button" onClick="{{ r.t.onArm }}" style="{{ r.t.aStyle }}">●</button>
+                  <button type="button" onClick="{{ r.t.onToggleAuto }}" title="Automation lane" style="{{ r.t.autoBtnStyle }}">A</button>
+                  <div style="flex:1;"><x-import component-from-global-scope="NeonPluginsDesignSystem_54a692.Meter" value="{{ r.t.level }}" height="5" hint-size="80px,5px"></x-import></div>
+                </div>
+                <div style="display:flex;align-items:center;gap:9px;margin-top:9px;">
+                  <span style="font-size:9px;color:var(--text-label);letter-spacing:0.1em;flex:none;">VOL</span>
+                  <div style="flex:1;"><x-import component-from-global-scope="NeonPluginsDesignSystem_54a692.Slider" value="{{ r.t.volume }}" on-change="{{ r.t.onVolume }}" hint-size="130px,14px"></x-import></div>
+                  <span style="font-family:var(--font-mono);font-size:9px;color:var(--text-faint);width:48px;text-align:right;flex:none;">{{ r.t.volDb }}</span>
+                </div>
+              </div>
+              <div style="{{ r.t.autoHeaderStyle }}">
+                <span style="font-size:9px;letter-spacing:0.12em;color:var(--text-label);">AUTO</span>
+                <div style="display:flex;gap:4px;"><sc-for list="{{ r.t.paramChips }}" as="pc" hint-placeholder-count="3"><button type="button" onClick="{{ pc.onClick }}" style="{{ pc.style }}">{{ pc.label }}</button></sc-for></div>
+                <span style="flex:1;"></span>
+                <span style="font-family:var(--font-mono);font-size:11px;color:{{ r.t.autoColor }};">{{ r.t.autoValueLabel }}</span>
+              </div>
+            </sc-if>
+          </sc-for>
+        </div>
+        <!-- lanes -->
+        <div style="flex:1;position:relative;min-width:0;">
+          <sc-for list="{{ rows }}" as="r" hint-placeholder-count="11">
+            <sc-if value="{{ r.isGroup }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ r.g.laneStyle }}"></div>
+            </sc-if>
+            <sc-if value="{{ r.isTrack }}" hint-placeholder-val="{{ true }}">
+              <div style="{{ r.t.laneStyle }}">
+                <sc-for list="{{ r.t.clips }}" as="clip" hint-placeholder-count="2">
+                  <div onClick="{{ clip.onSelect }}" style="{{ clip.boxStyle }}">
+                    <div style="{{ clip.labelStyle }}">{{ clip.name }}</div>
+                    <div style="{{ clip.rollStyle }}">
+                      <sc-for list="{{ clip.notes }}" as="n" hint-placeholder-count="6">
+                        <div style="{{ n.style }}"></div>
+                      </sc-for>
+                    </div>
+                    <div style="{{ clip.waveStyle }}"></div>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="{{ r.t.autoLaneStyle }}">
+                <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;">
+                  <polyline points="{{ r.t.autoPoly }}" fill="none" stroke="{{ r.t.autoColor }}" stroke-width="1.5" vector-effect="non-scaling-stroke"></polyline>
+                </svg>
+                <sc-for list="{{ r.t.autoPoints }}" as="p" hint-placeholder-count="5"><div onMouseDown="{{ p.onDown }}" style="{{ p.style }}"></div></sc-for>
+              </div>
+            </sc-if>
+          </sc-for>
+          <div style="{{ playheadStyle }}"></div>
+          <div style="{{ loopRegionStyle }}"></div>
+        </div>
+      </div>
+
+      <!-- master bar -->
+      <div style="{{ masterBarStyle }}">
+        <div onClick="{{ openMasterChain }}" title="Open master chain" style="{{ masterCellStyle }}">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="{{ masterDotStyle }}"></span>
+            <span style="flex:1;font-size:13px;font-weight:700;color:var(--text-1);letter-spacing:0.05em;">MASTER</span>
+            <span style="{{ masterChainBtnStyle }}">CHAIN ▸</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:7px;margin-top:9px;">
+            <span style="height:22px;padding:0 9px;border-radius:6px;background:var(--layer-2);border:1px solid var(--layer-5);color:var(--text-3);font-size:9px;font-weight:700;letter-spacing:0.08em;font-family:var(--font-display);display:flex;align-items:center;">DIM</span>
+            <span style="height:22px;padding:0 9px;border-radius:6px;background:var(--layer-2);border:1px solid var(--layer-5);color:var(--text-3);font-size:9px;font-weight:700;letter-spacing:0.08em;font-family:var(--font-display);display:flex;align-items:center;">MONO</span>
+            <span style="flex:1;"></span>
+            <span style="font-size:9px;font-family:var(--font-mono);color:var(--text-faint);">−14 LUFS</span>
+          </div>
+        </div>
+        <div style="flex:1;display:flex;align-items:center;gap:18px;padding:0 20px;min-width:0;">
+          <div style="flex:1;max-width:460px;display:flex;flex-direction:column;gap:7px;">
+            <div style="display:flex;justify-content:space-between;font-size:9px;letter-spacing:0.14em;color:var(--text-label);"><span>MASTER OUT</span><span style="font-family:var(--font-mono);color:var(--text-2);">{{ masterDb }}</span></div>
+            <x-import component-from-global-scope="NeonPluginsDesignSystem_54a692.Meter" value="{{ masterVal }}" height="9" hint-size="460px,9px"></x-import>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="{{ masterEqDotStyle }}"></span>
+            <span style="font-size:10px;font-weight:600;color:var(--text-2);font-family:var(--font-mono);">EQ</span>
+            <span style="width:1px;height:14px;background:var(--layer-3);"></span>
+            <span style="{{ masterLimDotStyle }}"></span>
+            <span style="font-size:10px;font-weight:600;color:var(--text-2);font-family:var(--font-mono);">LIMITER</span>
+          </div>
+          <div style="flex:1;"></div>
+          <span style="font-size:9px;font-family:var(--font-mono);color:var(--text-faint);letter-spacing:0.08em;">double-click a track to open its chain</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== DEVICE RACK ===================== -->
+  <div style="{{ rackOuterStyle }}">
+    <div style="height:42px;flex:none;display:flex;align-items:center;gap:14px;padding:0 22px;border-bottom:1px solid var(--layer-2);">
+      <span style="font-size:11px;letter-spacing:0.16em;color:var(--text-2);font-weight:600;">DEVICE CHAIN</span>
+      <span style="display:flex;align-items:center;gap:8px;padding:4px 12px;border-radius:8px;background:var(--layer-1);border:1px solid var(--layer-3);">
+        <span style="{{ selDotStyle }}"></span>
+        <span style="font-size:12px;color:var(--text-1);font-weight:600;">{{ selectedTrackName }}</span>
+      </span>
+      <span style="font-size:9px;color:var(--text-faint);font-family:var(--font-mono);letter-spacing:0.08em;">signal flows left → right</span>
+      <div style="flex:1;"></div>
+      <span style="font-size:9px;color:var(--text-faint);font-family:var(--font-mono);">3 devices · 2 slots open</span>
+      <button type="button" onClick="{{ toggleRack }}" title="Toggle device chain" style="width:26px;height:26px;border-radius:7px;background:var(--layer-2);border:1px solid var(--layer-5);color:var(--text-3);cursor:pointer;font-size:11px;line-height:1;display:flex;align-items:center;justify-content:center;">{{ rackChevron }}</button>
+    </div>
+
+    <div class="zd-scroll" style="{{ rackBodyStyle }}">
+
+      <!-- EQ device -->
+      <div style="{{ eqModStyle }}">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <x-import component-from-global-scope="NeonPluginsDesignSystem_54a692.Wordmark" product="EQ" color="var(--spectrum-cyan)" size="15" hint-size="90px,18px"></x-import>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <x-import component-from-global-scope="NeonPluginsDesignSystem_54a692.Badge" hint-size="56px,20px">VST3</x-import>
+            <button type="button" onClick="{{ toggleEq }}" style="{{ eqPwrStyle }}"></button>
+          </div>
+        </div>
+        <div style="height:118px;border-radius:10px;background:var(--well);box-shadow:var(--shadow-window);border:1px solid var(--layer-2);position:relative;overflow:hidden;">
+          <svg viewBox="0 0 320 118" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;">
+            <line x1="0" y1="59" x2="320" y2="59" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+            <line x1="80" y1="0" x2="80" y2="118" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+            <line x1="160" y1="0" x2="160" y2="118" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+            <line x1="240" y1="0" x2="240" y2="118" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+            <path d="M0,86 C50,86 60,30 110,30 C150,30 150,80 200,80 C250,80 260,44 320,44" fill="none" stroke="url(#eqgrad)" stroke-width="2.5" style="filter:drop-shadow(0 0 6px rgba(120,160,255,0.5));"/>
+            <defs><linearGradient id="eqgrad" x1="0" y1="0" x2="320" y2="0"><stop offset="0" stop-color="#34d8ff"/><stop offset="0.5" stop-color="#8b7bff"/><stop offset="1" stop-color="#ffc24b"/></linearGradient></defs>
+            <circle cx="110" cy="30" r="4" fill="#8b7bff" style="filter:drop-shadow(0 0 5px #8b7bff);"/>
+            <circle cx="240" cy="52" r="4" fill="#ffc24b" style="filter:drop-shadow(0 0 5px #ffc24b);"/>
+          </svg>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:11px;">
+          <span style="font-size:9px;font-family:var(--font-mono);color:var(--text-faint);">ZandersEQ.vst3</span>
+          <span style="font-size:9px;font-family:var(--font-mono);color:var(--spectrum-cyan);letter-spacing:0.06em;">4 BANDS</span>
+        </div>
+      </div>
+
+      <!-- TapeStop device -->
+      <div style="{{ tapeModStyle }}">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <x-import component-from-global-scope="NeonPluginsDesignSystem_54a692.Wordmark" product="TapeStop" color="var(--spectrum-cyan)" size="15" hint-size="120px,18px"></x-import>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <x-import component-from-global-scope="NeonPluginsDesignSystem_54a692.Badge" hint-size="56px,20px">VST3</x-import>
+            <button type="button" onClick="{{ toggleTape }}" style="{{ tapePwrStyle }}"></button>
+          </div>
+        </div>
+        <div style="height:118px;border-radius:10px;background:var(--well);box-shadow:var(--shadow-window);border:1px solid var(--layer-2);display:flex;align-items:center;justify-content:space-around;padding:0 18px;position:relative;">
+          <div style="position:relative;width:64px;height:64px;">
+            <div style="position:absolute;inset:0;border-radius:50%;background:repeating-radial-gradient(circle,#1c2129 0 2px,#12161c 2px 4px);box-shadow:inset 0 0 9px rgba(0,0,0,.6);"></div>
+            <div style="{{ reelSpinStyle }}"></div>
+            <div style="position:absolute;inset:24px;border-radius:50%;background:radial-gradient(circle at 38% 30%,#34d8ff,#8b7bff);box-shadow:0 0 9px rgba(52,216,255,.45);"></div>
+          </div>
+          <div style="position:absolute;top:50%;left:18px;right:18px;height:2px;background:var(--layer-2);transform:translateY(-50%);"></div>
+          <div style="position:relative;width:64px;height:64px;">
+            <div style="position:absolute;inset:0;border-radius:50%;background:repeating-radial-gradient(circle,#1c2129 0 2px,#12161c 2px 4px);box-shadow:inset 0 0 9px rgba(0,0,0,.6);"></div>
+            <div style="{{ reelSpinStyle }}"></div>
+            <div style="position:absolute;inset:24px;border-radius:50%;background:radial-gradient(circle at 38% 30%,#ff5fa8,#ffc24b);box-shadow:0 0 9px rgba(255,95,168,.45);"></div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:11px;">
+          <span style="font-size:9px;font-family:var(--font-mono);color:var(--text-faint);">ZandersTapeStop.vst3</span>
+          <span style="font-size:9px;font-family:var(--font-mono);color:var(--text-3);letter-spacing:0.06em;">WIND-DOWN</span>
+        </div>
+      </div>
+
+      <!-- PreDrop device -->
+      <div style="{{ preModStyle }}">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <x-import component-from-global-scope="NeonPluginsDesignSystem_54a692.Wordmark" product="PreDrop" color="var(--spectrum-pink)" size="15" hint-size="110px,18px"></x-import>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <x-import component-from-global-scope="NeonPluginsDesignSystem_54a692.Badge" hint-size="56px,20px">VST3</x-import>
+            <button type="button" onClick="{{ togglePre }}" style="{{ prePwrStyle }}"></button>
+          </div>
+        </div>
+        <div style="height:118px;border-radius:10px;background:var(--well);box-shadow:var(--shadow-window);border:1px solid var(--layer-2);display:flex;align-items:center;gap:16px;padding:0 18px;">
+          <x-import component-from-global-scope="NeonPluginsDesignSystem_54a692.Dial" value="{{ preAmount }}" on-change="{{ setPreAmount }}" color="var(--spectrum-pink)" label="AMOUNT" size="30" hint-size="30px,50px"></x-import>
+          <div style="flex:1;display:flex;flex-direction:column;gap:7px;">
+            <sc-for list="{{ preChips }}" as="ch" hint-placeholder-count="4">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="{{ ch.dotStyle }}"></span>
+                <span style="flex:1;font-size:10px;font-weight:600;color:var(--text-2);">{{ ch.label }}</span>
+                <span style="font-size:9px;font-family:var(--font-mono);color:var(--text-faint);">{{ ch.value }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:11px;">
+          <span style="font-size:9px;font-family:var(--font-mono);color:var(--text-faint);">ZandersPreDrop.vst3</span>
+          <span style="font-size:9px;font-family:var(--font-mono);color:var(--spectrum-pink);letter-spacing:0.06em;">BUILD-UP</span>
+        </div>
+      </div>
+
+      <!-- add device slot -->
+      <div style="width:200px;flex:none;border-radius:14px;border:1.5px dashed var(--layer-5);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--text-faint);cursor:pointer;background:rgba(255,255,255,0.012);">
+        <div style="width:40px;height:40px;border-radius:50%;border:1.5px solid var(--layer-5);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:300;color:var(--text-3);">+</div>
+        <span style="font-size:10px;letter-spacing:0.16em;font-weight:600;">ADD DEVICE</span>
+        <span style="font-size:9px;font-family:var(--font-mono);color:var(--text-faint);">drop .vst3</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== SETTINGS OVERLAY ===================== -->
+  <div onClick="{{ closeSettings }}" style="{{ settingsOverlayStyle }}">
+    <div onClick="{{ stopProp }}" style="{{ settingsPanelStyle }}">
+      <div style="display:flex;align-items:center;gap:14px;padding:20px 26px;border-bottom:1px solid var(--layer-2);flex:none;">
+        <span style="width:30px;height:30px;border-radius:8px;background:var(--knob-face);border:1px solid var(--layer-5);box-shadow:var(--shadow-knob);display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--text-2);">⚙</span>
+        <div style="flex:1;">
+          <div style="font-size:16px;font-weight:700;color:var(--text-1);letter-spacing:0.02em;">Settings</div>
+          <div style="font-size:11px;color:var(--text-3);font-family:var(--font-mono);">Zanders Studio · session preferences</div>
+        </div>
+        <button type="button" onClick="{{ closeSettings }}" title="Close" style="width:32px;height:32px;border-radius:8px;background:var(--layer-2);border:1px solid var(--layer-5);color:var(--text-2);cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;">✕</button>
+      </div>
+      <div class="zd-scroll" style="flex:1;overflow-y:auto;padding:2px 26px 24px;">
+
+        <div style="font-size:10px;letter-spacing:0.18em;color:var(--text-label);font-weight:700;margin:22px 0 4px;">APPEARANCE</div>
+
+        <div style="{{ rowStyle }}">
+          <div style="flex:1;"><div style="{{ rowLabelStyle }}">Theme</div><div style="{{ rowDescStyle }}">Color treatment for the whole workspace</div></div>
+          <div style="display:flex;gap:5px;"><sc-for list="{{ themeOpts }}" as="o" hint-placeholder-count="3"><button type="button" onClick="{{ o.onClick }}" style="{{ o.style }}">{{ o.label }}</button></sc-for></div>
+        </div>
+
+        <div style="{{ rowStyle }}">
+          <div style="flex:1;"><div style="{{ rowLabelStyle }}">Track list side</div><div style="{{ rowDescStyle }}">Place track headers on the left or right</div></div>
+          <div style="display:flex;gap:5px;"><sc-for list="{{ sideOpts }}" as="o" hint-placeholder-count="2"><button type="button" onClick="{{ o.onClick }}" style="{{ o.style }}">{{ o.label }}</button></sc-for></div>
+        </div>
+
+        <div style="{{ rowStyle }}">
+          <div style="flex:1;"><div style="{{ rowLabelStyle }}">Show grid</div><div style="{{ rowDescStyle }}">Bar and beat guide lines in the arrange</div></div>
+          <div onClick="{{ toggleGrid }}" style="{{ gridSw.track }}"><div style="{{ gridSw.knob }}"></div></div>
+        </div>
+
+        <div style="{{ rowStyle }}">
+          <div style="flex:1;"><div style="{{ rowLabelStyle }}">Spectrum clips</div><div style="{{ rowDescStyle }}">Vibrant color-coded clip fills</div></div>
+          <div onClick="{{ toggleVibrant }}" style="{{ vibrantSw.track }}"><div style="{{ vibrantSw.knob }}"></div></div>
+        </div>
+
+        <div style="font-size:10px;letter-spacing:0.18em;color:var(--text-label);font-weight:700;margin:26px 0 4px;">AUDIO ENGINE</div>
+
+        <div style="{{ rowStyle }}">
+          <div style="flex:1;"><div style="{{ rowLabelStyle }}">Output device</div><div style="{{ rowDescStyle }}">Hardware audio interface</div></div>
+          <select value="{{ outputDevice }}" onChange="{{ setOutputDevice }}" style="{{ selectStyle }}"><sc-for list="{{ outputDevices }}" as="d" hint-placeholder-count="3"><option value="{{ d }}">{{ d }}</option></sc-for></select>
+        </div>
+
+        <div style="{{ rowStyle }}">
+          <div style="flex:1;"><div style="{{ rowLabelStyle }}">Sample rate</div><div style="{{ rowDescStyle }}">Higher rates cost more CPU</div></div>
+          <div style="display:flex;gap:5px;align-items:center;"><sc-for list="{{ srOpts }}" as="o" hint-placeholder-count="3"><button type="button" onClick="{{ o.onClick }}" style="{{ o.style }}">{{ o.label }}</button></sc-for><span style="font-size:10px;font-family:var(--font-mono);color:var(--text-faint);margin-left:4px;">kHz</span></div>
+        </div>
+
+        <div style="{{ rowStyle }}">
+          <div style="flex:1;"><div style="{{ rowLabelStyle }}">Buffer size</div><div style="{{ rowDescStyle }}">Smaller = lower latency, more CPU</div></div>
+          <div style="display:flex;gap:5px;align-items:center;"><sc-for list="{{ bufOpts }}" as="o" hint-placeholder-count="4"><button type="button" onClick="{{ o.onClick }}" style="{{ o.style }}">{{ o.label }}</button></sc-for><span style="font-size:10px;font-family:var(--font-mono);color:var(--text-faint);margin-left:4px;">smp</span></div>
+        </div>
+
+        <div style="{{ rowStyle }}">
+          <div style="flex:1;"><div style="{{ rowLabelStyle }}">Round-trip latency</div><div style="{{ rowDescStyle }}">Calculated from buffer and sample rate</div></div>
+          <span style="font-family:var(--font-mono);font-size:16px;color:var(--spectrum-cyan);">{{ latencyMs }}<span style="font-size:11px;color:var(--text-3);"> ms</span></span>
+        </div>
+
+        <div style="font-size:10px;letter-spacing:0.18em;color:var(--text-label);font-weight:700;margin:26px 0 4px;">MIDI</div>
+
+        <div style="{{ rowStyle }}">
+          <div style="flex:1;"><div style="{{ rowLabelStyle }}">Input device</div><div style="{{ rowDescStyle }}">Controller routed to armed tracks</div></div>
+          <select value="{{ midiInput }}" onChange="{{ setMidiInput }}" style="{{ selectStyle }}"><sc-for list="{{ midiInputs }}" as="d" hint-placeholder-count="4"><option value="{{ d }}">{{ d }}</option></sc-for></select>
+        </div>
+
+        <div style="{{ rowStyle }}">
+          <div style="flex:1;"><div style="{{ rowLabelStyle }}">MIDI thru</div><div style="{{ rowDescStyle }}">Echo input to the track's instrument</div></div>
+          <div onClick="{{ toggleMidiThru }}" style="{{ midiSw.track }}"><div style="{{ midiSw.knob }}"></div></div>
+        </div>
+
+        <div style="font-size:10px;letter-spacing:0.18em;color:var(--text-label);font-weight:700;margin:26px 0 4px;">RECORDING</div>
+
+        <div style="{{ rowStyle }}">
+          <div style="flex:1;"><div style="{{ rowLabelStyle }}">Metronome</div><div style="{{ rowDescStyle }}">Click during playback and recording</div></div>
+          <div onClick="{{ toggleMetronome }}" style="{{ metroSw.track }}"><div style="{{ metroSw.knob }}"></div></div>
+        </div>
+
+        <div style="{{ rowStyle }}">
+          <div style="flex:1;"><div style="{{ rowLabelStyle }}">Count-in</div><div style="{{ rowDescStyle }}">Bars of click before recording starts</div></div>
+          <div style="display:flex;gap:5px;"><sc-for list="{{ countOpts }}" as="o" hint-placeholder-count="3"><button type="button" onClick="{{ o.onClick }}" style="{{ o.style }}">{{ o.label }}</button></sc-for></div>
+        </div>
+
+        <div style="{{ rowStyleLast }}">
+          <div style="flex:1;"><div style="{{ rowLabelStyle }}">Auto-save</div><div style="{{ rowDescStyle }}">Save the session every few minutes</div></div>
+          <div onClick="{{ toggleAutoSave }}" style="{{ autoSw.track }}"><div style="{{ autoSw.knob }}"></div></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1920,&quot;height&quot;:1080},&quot;bpm&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:124,&quot;min&quot;:70,&quot;max&quot;:180,&quot;tsType&quot;:&quot;number&quot;},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;dark&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;,&quot;midnight&quot;],&quot;tsType&quot;:&quot;string&quot;},&quot;tracksRight&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;showGrid&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;vibrantClips&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;}}">
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.totalBars = 32;
+    this.totalBeats = 128;
+    this._lv = {};
+    this._reel = 0;
+    this._lastBeat = -1;
+    this.state = {
+      playing: false,
+      recording: false,
+      loop: true,
+      playhead: 64,
+      master: 0.55,
+      selTrack: "lead",
+      selClip: "lead-drop",
+      mutes: {},
+      solos: {},
+      arms: { kick: true },
+      devices: { eq: true, tape: false, pre: true },
+      preAmount: 0.62,
+      query: "",
+      tab: "all",
+      browserOpen: true,
+      rackOpen: true,
+      theme: props.theme ?? "dark",
+      tracksRight: props.tracksRight ?? false,
+      settingsOpen: false,
+      showGrid: props.showGrid ?? true,
+      vibrantClips: props.vibrantClips ?? false,
+      sampleRate: 48,
+      bufferSize: 256,
+      outputDevice: "Built-in Output",
+      midiInput: "All MIDI Inputs",
+      midiThru: true,
+      metronome: true,
+      countIn: 1,
+      autoSave: true,
+      autoLanes: {},
+      autoParam: {},
+      autoData: {},
+      volumes: {},
+      groupCollapsed: {},
+    };
+    this.trackDefs = [
+      { id: "kick",  name: "KICK",      color: "#34d8ff", io: "A1", type: "drum",  clips: [ {id:"kick-i",bar:0,len:16,name:"4-on-floor"}, {id:"kick-drop",bar:16,len:16,name:"Drop Kick"} ] },
+      { id: "sub",   name: "SUB BASS",  color: "#59c6f5", io: "A1", type: "midi",  clips: [ {id:"sub-d",bar:16,len:16,name:"Sub 808"} ] },
+      { id: "reese", name: "REESE",     color: "#8b7bff", io: "A2", type: "midi",  clips: [ {id:"reese-d",bar:16,len:8,name:"Reese"}, {id:"reese-d2",bar:24,len:8,name:"Reese"} ] },
+      { id: "pluck", name: "PLUCKS",    color: "#b06fe0", io: "A2", type: "midi",  clips: [ {id:"pl-b",bar:8,len:8,name:"Pluck Arp"}, {id:"pl-d",bar:24,len:8,name:"Pluck Arp"} ] },
+      { id: "lead",  name: "LEAD SYNTH",color: "#ff5fa8", io: "A3", type: "midi",  clips: [ {id:"lead-drop",bar:16,len:8,name:"Lead Hook"}, {id:"lead-b",bar:26,len:6,name:"Lead B"} ] },
+      { id: "vox",   name: "VOX CHOP",  color: "#ff8a7a", io: "A3", type: "audio", clips: [ {id:"vox-b",bar:8,len:4,name:"Vox"}, {id:"vox-d",bar:20,len:4,name:"Vox Chop"} ] },
+      { id: "riser", name: "RISER FX",  color: "#ffc24b", io: "FX", type: "audio", clips: [ {id:"ri-1",bar:12,len:4,name:"Riser"}, {id:"ri-2",bar:28,len:4,name:"Impact"} ] },
+    ];
+    this.groupDefs = [
+      { id: "g-drums", name: "DRUMS",   color: "#34d8ff", tracks: ["kick"] },
+      { id: "g-bass",  name: "BASS",    color: "#8b7bff", tracks: ["sub", "reese"] },
+      { id: "g-synth", name: "SYNTHS",  color: "#ff5fa8", tracks: ["pluck", "lead"] },
+      { id: "g-fx",    name: "VOX & FX", color: "#ffc24b", tracks: ["vox", "riser"] },
+    ];
+  }
+
+  componentDidMount() {
+    this._last = performance.now();
+    this._raf = requestAnimationFrame(this.loop);
+    document.addEventListener("mousemove", this._autoMove);
+    document.addEventListener("mouseup", this._autoUp);
+  }
+  componentWillUnmount() {
+    cancelAnimationFrame(this._raf);
+    document.removeEventListener("mousemove", this._autoMove);
+    document.removeEventListener("mouseup", this._autoUp);
+  }
+  componentDidUpdate(prevProps) {
+    if (prevProps.theme !== this.props.theme && this.props.theme && this.props.theme !== this.state.theme) this.setState({ theme: this.props.theme });
+    if (prevProps.tracksRight !== this.props.tracksRight && !!this.props.tracksRight !== this.state.tracksRight) this.setState({ tracksRight: !!this.props.tracksRight });
+    if (prevProps.showGrid !== this.props.showGrid && this.props.showGrid !== undefined && this.props.showGrid !== this.state.showGrid) this.setState({ showGrid: this.props.showGrid });
+    if (prevProps.vibrantClips !== this.props.vibrantClips && this.props.vibrantClips !== undefined && this.props.vibrantClips !== this.state.vibrantClips) this.setState({ vibrantClips: this.props.vibrantClips });
+  }
+
+  loop = (t) => {
+    const dt = Math.min(0.05, (t - this._last) / 1000);
+    this._last = t;
+    const bpm = this.props.bpm ?? 124;
+    let ph = this.state.playhead;
+    if (this.state.playing) {
+      ph += dt * (bpm / 60);
+      if (ph >= this.totalBeats) ph -= this.totalBeats;
+      this._reel = (this._reel + dt * 300) % 360;
+    }
+    const curBeat = Math.floor(ph);
+    if (this.state.playing && this.state.metronome && curBeat !== this._lastBeat) this.click(curBeat % 4 === 0);
+    this._lastBeat = curBeat;
+    const solos = this.state.solos;
+    const soloActive = Object.values(solos).some(Boolean);
+    let peak = 0;
+    for (const td of this.trackDefs) {
+      const muted = !!this.state.mutes[td.id];
+      const solo = !!solos[td.id];
+      const audible = !muted && (!soloActive || solo);
+      const covered = td.clips.some(c => ph >= c.bar * 4 && ph < (c.bar + c.len) * 4);
+      const vol = this.state.volumes[td.id] ?? 0.8;
+      const target = (this.state.playing && audible && covered) ? (0.42 + 0.5 * Math.random()) * vol : 0;
+      const cur = this._lv[td.id] || 0;
+      this._lv[td.id] = cur + (target - cur) * 0.3;
+      if (audible) peak = Math.max(peak, this._lv[td.id]);
+    }
+    this._master = this.state.playing ? Math.min(0.97, peak * 0.95 + 0.04) : 0.04;
+    this.setState({ playhead: ph });
+    this._raf = requestAnimationFrame(this.loop);
+  };
+
+  togglePlay = () => this.setState(s => ({ playing: !s.playing }));
+  stop = () => this.setState({ playing: false, playhead: 0 });
+  rewind = () => this.setState({ playhead: 0 });
+  toggleRecord = () => this.setState(s => ({ recording: !s.recording }));
+  toggleLoop = () => this.setState(s => ({ loop: !s.loop }));
+  selectTrack = (id) => this.setState({ selTrack: id });
+  toggleMute = (id) => this.setState(s => ({ mutes: { ...s.mutes, [id]: !s.mutes[id] } }));
+  toggleSolo = (id) => this.setState(s => ({ solos: { ...s.solos, [id]: !s.solos[id] } }));
+  toggleArm = (id) => this.setState(s => ({ arms: { ...s.arms, [id]: !s.arms[id] } }));
+  toggleDevice = (k) => this.setState(s => ({ devices: { ...s.devices, [k]: !s.devices[k] } }));
+  setPreAmount = (v) => this.setState({ preAmount: v });
+
+  onSearch = (e) => this.setState({ query: e.target.value });
+  setTab = (id) => this.setState({ tab: id });
+  toggleBrowser = () => this.setState(s => ({ browserOpen: !s.browserOpen }));
+  toggleRack = () => this.setState(s => ({ rackOpen: !s.rackOpen }));
+  cycleTheme = () => this.setState(s => ({ theme: s.theme === "dark" ? "light" : s.theme === "light" ? "midnight" : "dark" }));
+  toggleTracksSide = () => this.setState(s => ({ tracksRight: !s.tracksRight }));
+  openTrackChain = (id) => this.setState({ selTrack: id, rackOpen: true });
+  openMasterChain = () => this.setState({ selTrack: "master", rackOpen: true });
+  openSettings = () => this.setState({ settingsOpen: true });
+  closeSettings = () => this.setState({ settingsOpen: false });
+  stopProp = (e) => e.stopPropagation();
+  setTheme = (v) => this.setState({ theme: v });
+  setTracksRight = (v) => this.setState({ tracksRight: v });
+  toggleGrid = () => this.setState(s => ({ showGrid: !s.showGrid }));
+  toggleVibrant = () => this.setState(s => ({ vibrantClips: !s.vibrantClips }));
+  setSampleRate = (v) => this.setState({ sampleRate: v });
+  setBufferSize = (v) => this.setState({ bufferSize: v });
+  setOutputDevice = (e) => this.setState({ outputDevice: e.target.value });
+  setMidiInput = (e) => this.setState({ midiInput: e.target.value });
+  toggleMidiThru = () => this.setState(s => ({ midiThru: !s.midiThru }));
+  toggleMetronome = () => this.setState(s => ({ metronome: !s.metronome }));
+  setCountIn = (v) => this.setState({ countIn: v });
+  toggleAutoSave = () => this.setState(s => ({ autoSave: !s.autoSave }));
+
+  _ensureAudio() {
+    if (this._ac === undefined) { try { this._ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { this._ac = null; } }
+    if (this._ac && this._ac.state === "suspended") this._ac.resume();
+    return this._ac;
+  }
+  click(accent) {
+    const ac = this._ensureAudio(); if (!ac) return;
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.frequency.value = accent ? 1600 : 1000;
+    o.connect(g); g.connect(ac.destination);
+    const t = ac.currentTime;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(accent ? 0.3 : 0.18, t + 0.001);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+    o.start(t); o.stop(t + 0.06);
+  }
+
+  toggleAuto = (id) => this.setState(s => ({ autoLanes: { ...s.autoLanes, [id]: !s.autoLanes[id] } }));
+  setAutoParam = (id, param) => this.setState(s => ({ autoParam: { ...s.autoParam, [id]: param } }));
+  getAutoPts(id, param) {
+    const k = id + ":" + param;
+    if (this.state.autoData[k]) return this.state.autoData[k];
+    if (!this._autoCache) this._autoCache = {};
+    if (!this._autoCache[k]) this._autoCache[k] = this.defaultAuto(id, param);
+    return this._autoCache[k];
+  }
+  defaultAuto(id, param) {
+    const rng = this.seed(id + param);
+    const n = 5, pts = [];
+    for (let i = 0; i < n; i++) {
+      const t = i / (n - 1) * this.totalBeats;
+      let v;
+      if (param === "pan") v = 0.5 + (rng() - 0.5) * 0.5;
+      else if (param === "vol") v = 0.55 + rng() * 0.4;
+      else v = 0.25 + rng() * 0.6;
+      pts.push({ t, v });
+    }
+    return pts;
+  }
+  valAt(pts, ph) {
+    if (!pts.length) return 0;
+    if (ph <= pts[0].t) return pts[0].v;
+    for (let i = 1; i < pts.length; i++) {
+      if (ph <= pts[i].t) { const a = pts[i-1], b = pts[i]; const f = (ph - a.t) / ((b.t - a.t) || 1); return a.v + (b.v - a.v) * f; }
+    }
+    return pts[pts.length - 1].v;
+  }
+  fmt(param, v) {
+    if (param === "pan") { if (v < 0.48) return "L" + Math.round((0.5 - v) * 200); if (v > 0.52) return "R" + Math.round((v - 0.5) * 200); return "C"; }
+    if (param === "filt") return Math.round(200 * Math.pow(100, v)) + " Hz";
+    return Math.round(v * 100) + "%";
+  }
+  startAutoDrag(id, param, idx, e) {
+    e.preventDefault(); e.stopPropagation();
+    const lane = e.currentTarget.parentElement;
+    const rect = lane.getBoundingClientRect();
+    this._drag = { k: id + ":" + param, id, param, idx, top: rect.top, h: rect.height };
+  }
+  _autoMove = (e) => {
+    const d = this._drag; if (!d) return;
+    let v = 1 - (e.clientY - d.top) / d.h; v = Math.max(0, Math.min(1, v));
+    const cur = this.getAutoPts(d.id, d.param);
+    const pts = cur.map((p, i) => i === d.idx ? { ...p, v } : p);
+    this.setState(s => ({ autoData: { ...s.autoData, [d.k]: pts } }));
+  };
+  _autoUp = () => { this._drag = null; };
+
+  setVolume = (id, v) => this.setState(s => ({ volumes: { ...s.volumes, [id]: v } }));
+  toggleGroup = (gid) => this.setState(s => ({ groupCollapsed: { ...s.groupCollapsed, [gid]: !s.groupCollapsed[gid] } }));
+  toggleGroupMute = (gid) => { const g = this.groupDefs.find(x => x.id === gid); this.setState(s => { const all = g.tracks.every(id => s.mutes[id]); const m = { ...s.mutes }; g.tracks.forEach(id => { m[id] = !all; }); return { mutes: m }; }); };
+  toggleGroupSolo = (gid) => { const g = this.groupDefs.find(x => x.id === gid); this.setState(s => { const all = g.tracks.every(id => s.solos[id]); const so = { ...s.solos }; g.tracks.forEach(id => { so[id] = !all; }); return { solos: so }; }); };
+
+  seed(str) {
+    let h = 2166136261;
+    for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return () => { h += 0x6D2B79F5; let t = Math.imul(h ^ (h >>> 15), 1 | h); t ^= t + Math.imul(t ^ (t >>> 7), 61 | t); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  }
+
+  genNotes(clip, td) {
+    const rng = this.seed(clip.id);
+    const notes = [];
+    if (td.type === "drum") {
+      const steps = clip.len * 4;
+      for (let i = 0; i < steps; i++) {
+        if (i % 4 === 0) notes.push({ x: i / steps, w: 0.7 / steps, row: 7 });
+        if (i % 2 === 1 && rng() > 0.45) notes.push({ x: i / steps, w: 0.6 / steps, row: 4 });
+        if (rng() > 0.7) notes.push({ x: i / steps, w: 0.5 / steps, row: 1 });
+      }
+    } else {
+      const steps = clip.len * 2;
+      let row = 2 + Math.floor(rng() * 4);
+      for (let i = 0; i < steps; i++) {
+        if (rng() > 0.42) {
+          row = Math.max(0, Math.min(7, row + Math.floor(rng() * 3) - 1));
+          const len = rng() > 0.72 ? 2 : 1;
+          notes.push({ x: i / steps, w: (len * 0.9) / steps, row });
+        }
+      }
+    }
+    return notes;
+  }
+
+  hexA(h, a) {
+    const n = h.replace("#", "");
+    const r = parseInt(n.slice(0, 2), 16), g = parseInt(n.slice(2, 4), 16), b = parseInt(n.slice(4, 6), 16);
+    return `rgba(${r},${g},${b},${a})`;
+  }
+
+  renderVals() {
+    const s = this.state;
+    const bpm = this.props.bpm ?? 124;
+    const showGrid = s.showGrid;
+    const vibrant = s.vibrantClips;
+    const ph = s.playhead;
+    const soloActive = Object.values(s.solos).some(Boolean);
+
+    // position label
+    const bar = Math.floor(ph / 4) + 1;
+    const beat = Math.floor(ph % 4) + 1;
+    const six = Math.floor((ph % 1) * 4) + 1;
+    const pad = (n) => String(n).padStart(2, "0");
+    const positionLabel = `${pad(bar)}.${beat}.${six}`;
+
+    const master = this._master || 0.04;
+    const masterDb = s.playing ? (-(1 - master) * 18).toFixed(1) + " dB" : "-∞";
+
+    const beatInBar = Math.floor(ph % 4);
+    const metroOn = s.metronome;
+    const beats = [0,1,2,3].map(i => {
+      const lit = s.playing && metroOn && i === beatInBar;
+      const c = i === 0 ? "#ffc24b" : "var(--accent)";
+      return { style: { width: i === 0 ? 9 : 7, height: i === 0 ? 9 : 7, borderRadius: "50%", flex: "none", background: lit ? c : "var(--layer-4)", boxShadow: lit ? `0 0 8px ${c}` : "none", transition: "background 0.05s, box-shadow 0.05s" } };
+    });
+    const metroBtnStyle = "width:40px;height:40px;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);" + (metroOn ? "background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent-line);box-shadow:0 0 12px var(--accent-glow);" : "background:var(--layer-2);color:var(--text-3);border:1px solid var(--layer-5);box-shadow:var(--inset-top);");
+
+    const idleBtn = "width:34px;height:34px;border-radius:8px;border:1px solid var(--layer-5);background:var(--layer-2);color:var(--text-3);font-size:11px;font-weight:700;cursor:pointer;font-family:var(--font-display);display:flex;align-items:center;justify-content:center;box-shadow:var(--inset-top);";
+
+    const tracks = this.trackDefs.map(td => {
+      const muted = !!s.mutes[td.id];
+      const solo = !!s.solos[td.id];
+      const armed = !!s.arms[td.id];
+      const vol = s.volumes[td.id] ?? 0.8;
+      const selected = s.selTrack === td.id;
+      const audible = !muted && (!soloActive || solo);
+      const dimmed = !audible;
+      const clipAlpha = vibrant ? 0.30 : 0.17;
+
+      const clips = td.clips.map(c => {
+        const csel = s.selClip === c.id;
+        const isMidi = td.type === "drum" || td.type === "midi";
+        const notes = isMidi ? this.genNotes(c, td) : [];
+        return {
+          id: c.id, name: c.name,
+          onSelect: () => this.setState({ selClip: c.id, selTrack: td.id }),
+          boxStyle: {
+            position: "absolute",
+            left: (c.bar / this.totalBars * 100) + "%",
+            width: (c.len / this.totalBars * 100) + "%",
+            top: 7, bottom: 7,
+            borderRadius: 6,
+            background: `linear-gradient(180deg, ${this.hexA(td.color, clipAlpha + 0.08)}, ${this.hexA(td.color, clipAlpha)})`,
+            border: `1px solid ${this.hexA(td.color, 0.5)}`,
+            borderLeft: `3px solid ${td.color}`,
+            boxShadow: csel
+              ? `0 0 0 1px ${td.color}, 0 0 18px ${this.hexA(td.color, 0.5)}`
+              : "inset 0 1px 0 rgba(255,255,255,0.06)",
+            overflow: "hidden", cursor: "pointer", opacity: dimmed ? 0.4 : 1,
+          },
+          labelStyle: {
+            position: "absolute", top: 0, left: 0, right: 0,
+            padding: "4px 8px", fontSize: 10, fontWeight: 600, color: td.color,
+            letterSpacing: "0.03em", whiteSpace: "nowrap", overflow: "hidden",
+            textOverflow: "ellipsis", textShadow: "0 1px 2px rgba(0,0,0,0.7)",
+            fontFamily: "var(--font-display)",
+          },
+          waveStyle: isMidi ? { display: "none" } : {
+            position: "absolute", left: 0, right: 0, bottom: 0, height: "56%",
+            opacity: 0.5,
+            background: `repeating-linear-gradient(90deg, ${td.color} 0 1.5px, transparent 1.5px 4px)`,
+            WebkitMaskImage: "linear-gradient(180deg, transparent, #000 65%)",
+            maskImage: "linear-gradient(180deg, transparent, #000 65%)",
+          },
+          rollStyle: isMidi ? { position: "absolute", left: 6, right: 4, top: 17, bottom: 5 } : { display: "none" },
+          notes: notes.map(n => ({
+            style: {
+              position: "absolute", left: (n.x * 100) + "%",
+              width: "calc(" + Math.max(1.6, n.w * 100) + "% - 1px)",
+              top: (n.row / 8 * 100) + "%", height: "calc(" + (100 / 8) + "% - 2px)",
+              background: td.color, borderRadius: 1.5,
+              boxShadow: `0 0 4px ${this.hexA(td.color, 0.55)}`, opacity: 0.92,
+            },
+          })),
+        };
+      });
+
+      const aOpen = !!s.autoLanes[td.id];
+      const aParam = s.autoParam[td.id] || "vol";
+      const aPts = this.getAutoPts(td.id, aParam);
+      const aPoly = aPts.map(p => `${(p.t / this.totalBeats * 100).toFixed(2)},${((1 - p.v) * 100).toFixed(2)}`).join(" ");
+      const aVal = this.valAt(aPts, ph);
+      const chip = (active) => "padding:3px 8px;border-radius:6px;font-size:9px;font-weight:700;letter-spacing:0.06em;cursor:pointer;font-family:var(--font-display);" + (active ? "background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent-line);" : "background:var(--layer-1);color:var(--text-3);border:1px solid var(--layer-3);");
+      const paramChips = [["vol","VOL"],["pan","PAN"],["filt","FILT"]].map(([v,l]) => ({ label: l, onClick: (e) => { e.stopPropagation(); this.setAutoParam(td.id, v); }, style: chip(aParam === v) }));
+      const autoPoints = aPts.map((p, idx) => ({
+        style: { position: "absolute", left: (p.t / this.totalBeats * 100) + "%", top: ((1 - p.v) * 100) + "%", width: 11, height: 11, marginLeft: -6, marginTop: -6, borderRadius: "50%", background: td.color, boxShadow: `0 0 7px ${td.color}`, cursor: "ns-resize", zIndex: 3, touchAction: "none" },
+        onDown: (e) => this.startAutoDrag(td.id, aParam, idx, e),
+      }));
+
+      const laneStyle = {
+        position: "relative", height: 108, borderBottom: "1px solid var(--layer-2)",
+        backgroundColor: selected ? "rgba(94,147,255,0.05)" : "transparent",
+      };
+      if (showGrid) {
+        laneStyle.backgroundImage = "linear-gradient(90deg, var(--layer-1) 1px, transparent 1px), linear-gradient(90deg, var(--layer-3) 1px, transparent 1px)";
+        laneStyle.backgroundSize = "calc(100% / 32) 100%, calc(100% / 8) 100%";
+      }
+
+      return {
+        id: td.id, name: td.name, color: td.color, io: td.io,
+        level: this._lv[td.id] || 0,
+        volume: vol,
+        onVolume: (v) => this.setVolume(td.id, v),
+        volDb: vol <= 0.001 ? "-∞" : (20 * Math.log10(vol)).toFixed(1) + " dB",
+        onSelect: () => this.selectTrack(td.id),
+        onOpenChain: () => this.openTrackChain(td.id),
+        onMute: (e) => { e.stopPropagation(); this.toggleMute(td.id); },
+        onSolo: (e) => { e.stopPropagation(); this.toggleSolo(td.id); },
+        onArm: (e) => { e.stopPropagation(); this.toggleArm(td.id); },
+        dotStyle: { width: 11, height: 11, borderRadius: 3, background: td.color, boxShadow: muted ? "none" : `0 0 9px ${td.color}`, flex: "none", cursor: "pointer", opacity: muted ? 0.3 : 1, transition: "opacity 0.1s, box-shadow 0.1s" },
+        headerStyle: {
+          height: 108, padding: "10px 16px", borderBottom: "1px solid var(--layer-2)",
+          cursor: "pointer", boxSizing: "border-box",
+          background: selected ? "linear-gradient(90deg, rgba(94,147,255,0.10), transparent)" : "transparent",
+          borderLeft: selected ? "2px solid var(--accent)" : "2px solid transparent",
+        },
+        mStyle: idleBtn + (muted ? "background:var(--danger-grad);color:#fff;border-color:rgba(255,120,120,0.6);box-shadow:0 0 12px var(--danger-glow);" : ""),
+        sStyle: idleBtn + (solo ? "background:var(--accent-grad);color:#fff;border-color:rgba(150,170,255,0.6);box-shadow:0 0 12px var(--accent-glow);" : ""),
+        aStyle: idleBtn + (armed ? "color:var(--danger);border-color:var(--danger);box-shadow:0 0 10px var(--danger-glow);" : ""),
+        laneStyle,
+        clips,
+        autoOpen: aOpen,
+        onToggleAuto: (e) => { e.stopPropagation(); this.toggleAuto(td.id); },
+        autoBtnStyle: idleBtn + (aOpen ? "background:var(--accent-soft);color:var(--accent);border-color:var(--accent-line);box-shadow:0 0 10px var(--accent-glow);" : ""),
+        autoColor: td.color,
+        autoValueLabel: this.fmt(aParam, aVal),
+        autoPoly: aPoly,
+        autoPoints,
+        paramChips,
+        autoHeaderStyle: { display: aOpen ? "flex" : "none", height: 64, alignItems: "center", gap: 8, padding: "0 16px", borderBottom: "1px solid var(--layer-2)", background: "var(--app-trackhead)" },
+        autoLaneStyle: { display: aOpen ? "block" : "none", position: "relative", height: 64, borderBottom: "1px solid var(--layer-2)", background: this.hexA(td.color, 0.04) },
+      };
+    });
+
+    const trackMap = {};
+    tracks.forEach(t => { trackMap[t.id] = t; });
+    const idleBtnSm = "width:24px;height:22px;border-radius:6px;border:1px solid var(--layer-5);background:var(--layer-2);color:var(--text-3);font-size:10px;font-weight:700;cursor:pointer;font-family:var(--font-display);display:flex;align-items:center;justify-content:center;flex:none;";
+    const rows = [];
+    this.groupDefs.forEach(g => {
+      const collapsed = !!s.groupCollapsed[g.id];
+      const allMuted = g.tracks.length > 0 && g.tracks.every(id => s.mutes[id]);
+      const anySolo = g.tracks.some(id => s.solos[id]);
+      rows.push({ isGroup: true, isTrack: false, g: {
+        name: g.name,
+        chevron: collapsed ? "▸" : "▾",
+        onToggle: () => this.toggleGroup(g.id),
+        chevronStyle: "width:20px;height:20px;border-radius:6px;background:var(--layer-2);border:1px solid var(--layer-5);color:var(--text-2);cursor:pointer;font-size:10px;line-height:1;display:flex;align-items:center;justify-content:center;flex:none;",
+        dotStyle: { width: 9, height: 9, borderRadius: 2, background: g.color, boxShadow: `0 0 8px ${g.color}`, flex: "none" },
+        countLabel: g.tracks.length + " TRK",
+        onMute: (e) => { e.stopPropagation(); this.toggleGroupMute(g.id); },
+        onSolo: (e) => { e.stopPropagation(); this.toggleGroupSolo(g.id); },
+        mStyle: idleBtnSm + (allMuted ? "background:var(--danger-grad);color:#fff;border-color:rgba(255,120,120,0.6);" : ""),
+        sStyle: idleBtnSm + (anySolo ? "background:var(--accent-grad);color:#fff;border-color:rgba(150,170,255,0.6);" : ""),
+        headerStyle: { height: 34, display: "flex", alignItems: "center", gap: 8, padding: "0 12px", borderBottom: "1px solid var(--layer-2)", background: this.hexA(g.color, 0.10), borderLeft: `2px solid ${g.color}` },
+        laneStyle: { height: 34, borderBottom: "1px solid var(--layer-2)", background: this.hexA(g.color, 0.05) },
+      }});
+      if (!collapsed) g.tracks.forEach(id => { if (trackMap[id]) rows.push({ isGroup: false, isTrack: true, t: trackMap[id] }); });
+    });
+
+    const bars = [];
+    for (let i = 0; i < this.totalBars; i++) {
+      const major = i % 4 === 0;
+      bars.push({
+        label: major ? String(i + 1) : "",
+        cellStyle: {
+          flex: 1, height: "100%", display: "flex", alignItems: "center", paddingLeft: 6,
+          borderLeft: major ? "1px solid var(--layer-4)" : "1px solid var(--layer-1)",
+          fontFamily: "var(--font-mono)", fontSize: 9,
+          color: major ? "var(--text-faint)" : "transparent",
+        },
+      });
+    }
+
+    const phPct = (ph / this.totalBeats * 100) + "%";
+    const playheadStyle = {
+      position: "absolute", top: 0, bottom: 0, left: phPct, width: 2,
+      background: "#fff", boxShadow: "0 0 10px rgba(255,255,255,0.75)", zIndex: 6, pointerEvents: "none",
+    };
+    const playheadHeadStyle = {
+      position: "absolute", top: 0, bottom: 0, left: phPct, width: 0, height: 0,
+      borderLeft: "5px solid transparent", borderRight: "5px solid transparent",
+      borderTop: "7px solid #fff", transform: "translateX(-5px)", zIndex: 6,
+      filter: "drop-shadow(0 0 6px rgba(255,255,255,0.7))",
+    };
+    const loopRegionStyle = {
+      position: "absolute", top: 0, bottom: 0, left: "0%", width: "100%",
+      pointerEvents: "none", zIndex: 1,
+      borderLeft: s.loop ? "1px solid var(--accent-line)" : "none",
+      borderRight: s.loop ? "1px solid var(--accent-line)" : "none",
+      background: s.loop ? "linear-gradient(180deg, rgba(94,147,255,0.04), transparent 40px)" : "none",
+    };
+
+    const loopBtnStyle = "height:48px;padding:0 18px;border-radius:10px;font-size:12px;font-weight:700;letter-spacing:0.14em;cursor:pointer;font-family:var(--font-display);"
+      + (s.loop
+        ? "background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent-line);box-shadow:0 0 14px var(--accent-glow);"
+        : "background:var(--layer-2);color:var(--text-3);border:1px solid var(--layer-5);box-shadow:var(--inset-top);");
+
+    // ---- browser (searchable + filterable) ----
+    const kindColor = { inst: "#5e93ff", fx: "#34d8ff", audio: "#8a93a3", midi: "#ff5fa8", preset: "#ffc24b" };
+    const lib = [
+      { name: "INSTRUMENTS", color: "#5e93ff", items: [
+        { kind: "inst", glyph: "GP", name: "Zanders Grand Piano" },
+        { kind: "inst", glyph: "SS", name: "Supersaw Engine" },
+        { kind: "inst", glyph: "RS", name: "Reese Designer" },
+        { kind: "inst", glyph: "DR", name: "Drum Rack 909" },
+      ]},
+      { name: "PLUGINS / FX", color: "#34d8ff", items: [
+        { kind: "fx", glyph: "EQ", name: "ZandersEQ" },
+        { kind: "fx", glyph: "TS", name: "ZandersTapeStop" },
+        { kind: "fx", glyph: "PD", name: "ZandersPreDrop" },
+        { kind: "fx", glyph: "CMP", name: "Bus Compressor" },
+        { kind: "fx", glyph: "RV", name: "Hall Reverb" },
+      ]},
+      { name: "DRUM SAMPLES", color: "#34d8ff", items: [
+        { kind: "audio", glyph: "K", name: "Analog Kick 04" },
+        { kind: "audio", glyph: "C", name: "Clap Layered" },
+        { kind: "audio", glyph: "H", name: "Hat Roll 1/16" },
+      ]},
+      { name: "BASS", color: "#8b7bff", items: [
+        { kind: "audio", glyph: "808", name: "Distorted 808" },
+        { kind: "midi", glyph: "RB", name: "Reese Bassline" },
+      ]},
+      { name: "MIDI CLIPS", color: "#ff5fa8", items: [
+        { kind: "midi", glyph: "AP", name: "Pluck Arp 124" },
+        { kind: "midi", glyph: "CH", name: "Chord Stab" },
+        { kind: "midi", glyph: "LD", name: "Lead Hook" },
+      ]},
+      { name: "FX & RISERS", color: "#ffc24b", items: [
+        { kind: "audio", glyph: "↑", name: "Noise Riser 8b" },
+        { kind: "audio", glyph: "✷", name: "Impact Hit" },
+      ]},
+      { name: "PRESETS", color: "#5e93ff", items: [
+        { kind: "preset", glyph: "★", name: "PreDrop · 32 Bar Build" },
+        { kind: "preset", glyph: "★", name: "EQ · Drop Master" },
+      ]},
+    ];
+    const q = (s.query || "").trim().toLowerCase();
+    const browser = lib.map(cat => {
+      const items = cat.items.filter(it => (s.tab === "all" || it.kind === s.tab) && (!q || it.name.toLowerCase().includes(q)));
+      return {
+        name: cat.name, color: cat.color, count: items.length,
+        dotStyle: { width: 8, height: 8, borderRadius: "50%", background: cat.color, boxShadow: `0 0 7px ${cat.color}`, flex: "none" },
+        items: items.map(it => ({
+          glyph: it.glyph, name: it.name, meta: it.kind.toUpperCase(),
+          glyphStyle: {
+            width: 26, height: 26, borderRadius: 6, flex: "none",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontFamily: "var(--font-mono)", fontSize: 9, fontWeight: 700,
+            color: cat.color, background: this.hexA(cat.color, 0.12),
+            border: `1px solid ${this.hexA(cat.color, 0.3)}`,
+          },
+          metaStyle: {
+            fontSize: 8.5, fontFamily: "var(--font-mono)", flex: "none",
+            color: kindColor[it.kind], letterSpacing: "0.04em", padding: "2px 5px",
+            borderRadius: 4, background: this.hexA(kindColor[it.kind], 0.1),
+            border: `1px solid ${this.hexA(kindColor[it.kind], 0.25)}`,
+          },
+        })),
+      };
+    }).filter(c => c.items.length);
+
+    const tabStyle = (active) => "padding:5px 9px;border-radius:7px;font-size:9px;font-weight:700;letter-spacing:0.1em;cursor:pointer;font-family:var(--font-display);"
+      + (active ? "background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent-line);" : "background:var(--layer-1);color:var(--text-3);border:1px solid var(--layer-3);");
+    const tabs = [["all","ALL"],["inst","INST"],["fx","FX"],["audio","AUDIO"],["midi","MIDI"],["preset","PRESET"]].map(([id,label]) => ({
+      label, onClick: () => this.setTab(id), style: tabStyle(s.tab === id),
+    }));
+    const emptyStyle = { display: browser.length ? "none" : "block", padding: "28px 16px", textAlign: "center", color: "var(--text-faint)", fontSize: 12, fontFamily: "var(--font-mono)" };
+
+    const browserPanelStyle = {
+      width: s.browserOpen ? 288 : 0, flex: "none",
+      borderRight: s.browserOpen ? "1px solid var(--layer-3)" : "none",
+      background: "var(--app-surface)",
+      display: s.browserOpen ? "flex" : "none", flexDirection: "column", overflow: "hidden",
+    };
+    const browserRailStyle = {
+      width: s.browserOpen ? 0 : 36, flex: "none",
+      display: s.browserOpen ? "none" : "flex", flexDirection: "column", alignItems: "center",
+      gap: 14, paddingTop: 16, cursor: "pointer",
+      borderRight: "1px solid var(--layer-3)", background: "var(--app-surface)",
+    };
+    const rackOuterStyle = {
+      height: s.rackOpen ? 300 : 44, flex: "none", borderTop: "1px solid var(--layer-3)",
+      background: "var(--app-surface)", display: "flex", flexDirection: "column",
+      overflow: "hidden", transition: "height var(--dur-base) var(--ease)",
+    };
+    const rackBodyStyle = { flex: 1, display: s.rackOpen ? "flex" : "none", alignItems: "stretch", gap: 16, padding: "18px 22px", overflowX: "auto" };
+    const rackChevron = s.rackOpen ? "▾" : "▸";
+
+    // ---- layout side + master + theme ----
+    const tr = s.tracksRight;
+    const sb = "1px solid var(--layer-3)";
+    const rulerRowStyle = { height: 34, flex: "none", display: "flex", flexDirection: tr ? "row-reverse" : "row", borderBottom: sb, background: "var(--app-ruler)" };
+    const tracksRowStyle = { flex: 1, display: "flex", flexDirection: tr ? "row-reverse" : "row", overflowY: "auto", minHeight: 0, position: "relative" };
+    const rulerLabelStyle = { width: 258, flex: "none", display: "flex", alignItems: "center", gap: 8, padding: "0 16px", borderRight: tr ? "none" : sb, borderLeft: tr ? sb : "none" };
+    const headerColStyle = { width: 258, flex: "none", borderRight: tr ? "none" : sb, borderLeft: tr ? sb : "none", background: "var(--app-trackhead)" };
+    const masterBarStyle = { height: 62, flex: "none", display: "flex", flexDirection: tr ? "row-reverse" : "row", borderTop: sb, background: "var(--app-trackhead)" };
+    const masterCellStyle = { width: 258, flex: "none", display: "flex", flexDirection: "column", justifyContent: "center", padding: "0 16px", cursor: "pointer", borderRight: tr ? "none" : sb, borderLeft: tr ? sb : "none", background: s.selTrack === "master" ? "linear-gradient(90deg, rgba(94,147,255,0.10), transparent)" : "transparent" };
+    const dot = (c, lit) => ({ width: 9, height: 9, borderRadius: "50%", background: c, boxShadow: lit ? `0 0 8px ${c}` : "none", flex: "none", opacity: lit ? 1 : 0.4 });
+    const masterDotStyle = dot("#5e93ff", true);
+    const masterEqDotStyle = dot("#34d8ff", true);
+    const masterLimDotStyle = dot("#5e93ff", true);
+    const masterChainBtnStyle = "padding:3px 9px;border-radius:6px;font-size:9px;font-weight:700;letter-spacing:0.08em;font-family:var(--font-display);flex:none;"
+      + (s.selTrack === "master" ? "background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent-line);" : "background:var(--layer-2);color:var(--text-3);border:1px solid var(--layer-5);");
+    const themeGlyph = s.theme === "light" ? "☀" : s.theme === "midnight" ? "✦" : "☾";
+    const themeLabel = s.theme === "light" ? "LIGHT" : s.theme === "midnight" ? "MIDNIGHT" : "DARK";
+
+    // ---- settings ----
+    const seg = (active) => "padding:7px 13px;border-radius:8px;font-size:10px;font-weight:700;letter-spacing:0.06em;cursor:pointer;font-family:var(--font-display);" + (active ? "background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent-line);" : "background:var(--layer-1);color:var(--text-3);border:1px solid var(--layer-3);");
+    const sw = (on) => ({
+      track: { width: 44, height: 24, borderRadius: 12, flex: "none", cursor: "pointer", position: "relative", background: on ? "var(--accent-grad)" : "var(--layer-3)", border: "1px solid " + (on ? "var(--accent-line)" : "var(--layer-5)"), boxShadow: on ? "0 0 12px var(--accent-glow)" : "var(--inset-top)", transition: "background var(--dur-base) var(--ease)" },
+      knob: { position: "absolute", top: 2, left: on ? 21 : 2, width: 18, height: 18, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.4)", transition: "left var(--dur-base) var(--ease)" },
+    });
+    const themeOpts = [["dark","DARK"],["light","LIGHT"],["midnight","MIDNIGHT"]].map(([v,l]) => ({ label: l, onClick: () => this.setTheme(v), style: seg(s.theme === v) }));
+    const sideOpts = [[false,"LEFT"],[true,"RIGHT"]].map(([v,l]) => ({ label: l, onClick: () => this.setTracksRight(v), style: seg(s.tracksRight === v) }));
+    const srOpts = [[44.1,"44.1"],[48,"48"],[96,"96"]].map(([v,l]) => ({ label: l, onClick: () => this.setSampleRate(v), style: seg(s.sampleRate === v) }));
+    const bufOpts = [64,128,256,512].map(v => ({ label: String(v), onClick: () => this.setBufferSize(v), style: seg(s.bufferSize === v) }));
+    const countOpts = [[0,"OFF"],[1,"1 BAR"],[2,"2 BARS"]].map(([v,l]) => ({ label: l, onClick: () => this.setCountIn(v), style: seg(s.countIn === v) }));
+    const latencyMs = (s.bufferSize / (s.sampleRate * 1000) * 2000).toFixed(1);
+    const outputDevices = ["Built-in Output", "Focusrite Scarlett 2i2", "Universal Audio Apollo Twin"];
+    const midiInputs = ["All MIDI Inputs", "Launchkey 49 MK3", "Maschine Mk3", "None"];
+    const rowStyle = { display: "flex", alignItems: "center", gap: 24, padding: "15px 0", borderBottom: "1px solid var(--layer-2)" };
+    const rowStyleLast = { display: "flex", alignItems: "center", gap: 24, padding: "15px 0" };
+    const rowLabelStyle = { fontSize: 13, fontWeight: 600, color: "var(--text-1)" };
+    const rowDescStyle = { fontSize: 11, color: "var(--text-3)", marginTop: 2 };
+    const selectStyle = "height:36px;padding:0 12px;border-radius:9px;background:var(--well);border:1px solid var(--layer-3);color:var(--text-1);font-family:var(--font-display);font-size:12px;cursor:pointer;box-shadow:var(--inset-top);min-width:210px;";
+    const settingsOverlayStyle = { position: "absolute", inset: 0, zIndex: 50, display: s.settingsOpen ? "flex" : "none", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" };
+    const settingsPanelStyle = { width: 760, maxHeight: "86%", display: "flex", flexDirection: "column", background: "var(--panel)", borderRadius: 16, border: "1px solid var(--layer-3)", boxShadow: "0 30px 80px rgba(0,0,0,0.6)", overflow: "hidden" };
+
+    // device rack
+    const selDef = s.selTrack === "master" ? { name: "MASTER BUS", color: "#5e93ff" } : (this.trackDefs.find(t => t.id === s.selTrack) || this.trackDefs[0]);
+    const mod = (on, accent) => ({
+      width: 340, flex: "none", borderRadius: 14, padding: 16,
+      background: "var(--panel)", border: "1px solid var(--layer-3)",
+      boxShadow: on ? `0 10px 30px rgba(0,0,0,0.45), inset 0 0 0 1px ${this.hexA(accent, 0.18)}` : "0 10px 30px rgba(0,0,0,0.45)",
+      opacity: on ? 1 : 0.5, display: "flex", flexDirection: "column",
+      transition: "opacity var(--dur-base) var(--ease)",
+    });
+    const pwr = (on, accent) => `width:22px;height:22px;border-radius:50%;cursor:pointer;border:1px solid ${on ? this.hexA(accent,0.7) : "var(--layer-5)"};background:${on ? accent : "var(--layer-2)"};box-shadow:${on ? `0 0 10px ${this.hexA(accent,0.7)}` : "var(--inset-top)"};`;
+
+    const a = s.preAmount;
+    const cl = (x) => Math.min(1, Math.max(0, x));
+    const win = (lo, hi) => cl((a - lo) / (hi - lo));
+    const preChips = [
+      { label: "HPF", value: Math.round(20 * Math.pow(40, Math.pow(a, 1.5))) + " Hz", color: "#34d8ff", on: true },
+      { label: "REV", value: Math.round(win(0.2, 1) * 100) + "%", color: "#8b7bff", on: a >= 0.2 },
+      { label: "DLY", value: Math.round(win(0.4, 1) * 100) + "%", color: "#ff5fa8", on: a >= 0.4 },
+      { label: "RIS", value: Math.round(Math.pow(win(0.6, 1), 2) * 100) + "%", color: "#ffc24b", on: a >= 0.6 },
+    ].map(ch => ({
+      ...ch,
+      dotStyle: { width: 8, height: 8, borderRadius: "50%", background: ch.color, boxShadow: `0 0 7px ${ch.color}`, flex: "none", opacity: ch.on ? 1 : 0.3 },
+    }));
+
+    return {
+      playing: s.playing, recording: s.recording, loop: s.loop,
+      positionLabel, bpmLabel: String(bpm), masterVal: master, masterDb,
+      togglePlay: this.togglePlay, stop: this.stop, rewind: this.rewind,
+      toggleRecord: this.toggleRecord, toggleLoop: this.toggleLoop,
+      loopBtnStyle,
+      beats, metroBtnStyle,
+      rows, bars, playheadStyle, playheadHeadStyle, loopRegionStyle,
+      browser, tabs, query: s.query, emptyStyle,
+      onSearch: this.onSearch,
+      browserPanelStyle, browserRailStyle, toggleBrowser: this.toggleBrowser,
+      rackOuterStyle, rackBodyStyle, rackChevron, toggleRack: this.toggleRack,
+      theme: s.theme, themeGlyph, themeLabel, cycleTheme: this.cycleTheme,
+      toggleTracksSide: this.toggleTracksSide,
+      rulerRowStyle, tracksRowStyle, rulerLabelStyle, headerColStyle,
+      masterBarStyle, masterCellStyle, masterDotStyle, masterEqDotStyle, masterLimDotStyle,
+      masterChainBtnStyle, openMasterChain: this.openMasterChain,
+      openSettings: this.openSettings, closeSettings: this.closeSettings, stopProp: this.stopProp,
+      settingsOverlayStyle, settingsPanelStyle,
+      themeOpts, sideOpts, srOpts, bufOpts, countOpts, latencyMs,
+      outputDevices, midiInputs, outputDevice: s.outputDevice, midiInput: s.midiInput,
+      setOutputDevice: this.setOutputDevice, setMidiInput: this.setMidiInput,
+      toggleGrid: this.toggleGrid, toggleVibrant: this.toggleVibrant,
+      toggleMidiThru: this.toggleMidiThru, toggleMetronome: this.toggleMetronome, toggleAutoSave: this.toggleAutoSave,
+      gridSw: sw(s.showGrid), vibrantSw: sw(s.vibrantClips), midiSw: sw(s.midiThru), metroSw: sw(s.metronome), autoSw: sw(s.autoSave),
+      rowStyle, rowStyleLast, rowLabelStyle, rowDescStyle, selectStyle,
+      selectedTrackName: selDef.name,
+      selDotStyle: { width: 10, height: 10, borderRadius: 3, background: selDef.color, boxShadow: `0 0 8px ${selDef.color}`, flex: "none" },
+      eqModStyle: mod(s.devices.eq, "#34d8ff"),
+      tapeModStyle: mod(s.devices.tape, "#34d8ff"),
+      preModStyle: mod(s.devices.pre, "#ff5fa8"),
+      eqPwrStyle: pwr(s.devices.eq, "#34d8ff"),
+      tapePwrStyle: pwr(s.devices.tape, "#34d8ff"),
+      prePwrStyle: pwr(s.devices.pre, "#ff5fa8"),
+      toggleEq: () => this.toggleDevice("eq"),
+      toggleTape: () => this.toggleDevice("tape"),
+      togglePre: () => this.toggleDevice("pre"),
+      reelSpinStyle: { position: "absolute", inset: 18, borderRadius: "50%", transform: `rotate(${this._reel}deg)`, background: "repeating-conic-gradient(from 0deg, rgba(255,255,255,.22) 0deg 4deg, transparent 4deg 30deg)" },
+      preAmount: s.preAmount, setPreAmount: this.setPreAmount, preChips,
+    };
+  }
+}
+</script>
+</body>
+</html>

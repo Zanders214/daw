@@ -1,0 +1,74 @@
+/* Token closure + fonts + themes, then base resets.
+   @import rules must precede all other statements. */
+@import "./tokens/colors.css";
+@import "./tokens/typography.css";
+@import "./tokens/spacing.css";
+@import "./tokens/effects.css";
+@import "./fonts.css";
+@import "./themes.css";
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: #06070b;
+  color: var(--text-1);
+  font-family: var(--font-display);
+  overflow: hidden;
+}
+
+#root {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* The DAW is authored on a fixed 1920×1080 canvas; this wrapper scales it
+   uniformly to fit whatever window size the OS gives us. */
+.zd-stage {
+  width: 1920px;
+  height: 1080px;
+  flex: none;
+  transform-origin: center center;
+}
+
+button {
+  font-family: inherit;
+}
+input,
+select {
+  font-family: inherit;
+}
+
+/* Thin neon-friendly scrollbars used across scroll regions. */
+.zd-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.zd-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+.zd-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+[data-theme="light"] .zd-scroll::-webkit-scrollbar-thumb {
+  background: rgba(20, 28, 46, 0.18);
+}
+
+@keyframes zd-rec {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}

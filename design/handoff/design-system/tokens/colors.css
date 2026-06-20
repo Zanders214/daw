@@ -1,0 +1,74 @@
+:root {
+  /* ============================================================
+     SPECTRUM — the four-stop ramp. Every meter, ring, bar and
+     gradient runs cyan -> violet -> pink -> amber (the 0->100% sweep).
+     Each stop also "owns" an effect band in the products.
+     ============================================================ */
+  --spectrum-cyan:   #34d8ff; /* low  · HPF   */
+  --spectrum-violet: #8b7bff; /* mid  · Reverb */
+  --spectrum-pink:   #ff5fa8; /* high · Delay  */
+  --spectrum-amber:  #ffc24b; /* peak · Riser  */
+
+  /* The canonical sweep gradient (left -> right, 0% -> 100%). */
+  --spectrum-ramp: linear-gradient(90deg, var(--spectrum-cyan), var(--spectrum-violet), var(--spectrum-pink), var(--spectrum-amber)); /* @kind color */
+  /* Two-stop cool sub-ramp used on most single sliders. */
+  --ramp-cool: linear-gradient(90deg, var(--spectrum-cyan), var(--spectrum-violet)); /* @kind color */
+  /* Two-stop warm sub-ramp used on "noise"/character sliders. */
+  --ramp-warm: linear-gradient(90deg, var(--spectrum-pink), var(--spectrum-amber)); /* @kind color */
+
+  /* ============================================================
+     ACCENT — single blue glow. Badges, active toggles, selection.
+     Red is the only other chromatic signal: a destructive/engaged STOP.
+     ============================================================ */
+  --accent:        #5e93ff;
+  --accent-soft:   rgba(94,147,255,0.12); /* badge / chip fill         */
+  --accent-line:   rgba(94,147,255,0.30); /* accent hairline border    */
+  --accent-glow:   rgba(94,147,255,0.45); /* active-state outer glow    */
+  --accent-grad:   linear-gradient(180deg, #5e93ff, #8b7bff); /* @kind color */
+
+  --danger:        #ff5a5a;
+  --danger-deep:   #e23b3b;
+  --danger-grad:   linear-gradient(180deg, #ff5a5a, #e23b3b); /* @kind color */
+  --danger-glow:   rgba(255,80,80,0.50);
+
+  /* ============================================================
+     SURFACE — dark glass. The panel is a radial well; deepest fills
+     sit below it. Everything chromeless reads off white-alpha layers.
+     ============================================================ */
+  --panel:        radial-gradient(120% 80% at 50% -10%, #1a2030 0%, #0a0b12 60%); /* @kind color */
+  --panel-top:    #1a2030; /* radial highlight stop */
+  --panel-base:   #0a0b12; /* radial outer stop / deepest fill */
+  --well:         #070a0e; /* inset window / display well */
+  --knob-face:    radial-gradient(circle at 40% 30%, #222731, #0b0d12); /* @kind color */
+
+  /* White-alpha layer system (on the dark panel). */
+  --layer-1: rgba(255,255,255,0.05); /* chip / control fill        */
+  --layer-2: rgba(255,255,255,0.06); /* idle button fill           */
+  --layer-3: rgba(255,255,255,0.08); /* hairline border (default)  */
+  --layer-4: rgba(255,255,255,0.10); /* slider track               */
+  --layer-5: rgba(255,255,255,0.12); /* button border / strong line*/
+  --track:   rgba(255,255,255,0.10); /* unfilled slider / meter    */
+
+  /* ============================================================
+     TEXT — cool greys on dark. (On-panel scale.)
+     ============================================================ */
+  --text-bright:  #fff;      /* values inside active fills */
+  --text-1:       #e8ecf3;   /* primary on panel           */
+  --text-2:       #cfd4dc;   /* secondary / values         */
+  --text-3:       #9aa3b3;   /* tertiary / units           */
+  --text-muted:   #8a93a3;   /* dial captions              */
+  --text-label:   #7e8794;   /* small labels               */
+  --text-faint:   #5d6473;   /* axis ticks / scale numbers */
+
+  /* ============================================================
+     DOC CHROME — the light surface used for spec/specimen cards and
+     documentation shells (NOT the product). Warm paper neutrals.
+     ============================================================ */
+  --doc-bg:       #e7e5df;
+  --doc-card:     #ffffff;
+  --doc-ink:      #1c1a16;
+  --doc-ink-2:    #57534e;
+  --doc-ink-3:    #6b675f;
+  --doc-faint:    #a39e94;
+  --doc-hairline: #eeeeee;
+}

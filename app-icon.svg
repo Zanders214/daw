@@ -1,0 +1,21 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="tile" cx="50%" cy="32%" r="80%">
+      <stop offset="0%" stop-color="#1a2030"/>
+      <stop offset="60%" stop-color="#0a0b12"/>
+    </radialGradient>
+    <linearGradient id="spectrum" x1="0" y1="0" x2="1024" y2="0">
+      <stop offset="0" stop-color="#34d8ff"/>
+      <stop offset="0.36" stop-color="#8b7bff"/>
+      <stop offset="0.68" stop-color="#ff5fa8"/>
+      <stop offset="1" stop-color="#ffc24b"/>
+    </linearGradient>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="38" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect x="72" y="72" width="880" height="880" rx="196" fill="url(#tile)" stroke="rgba(255,255,255,0.10)" stroke-width="4"/>
+  <circle cx="512" cy="512" r="232" fill="url(#spectrum)" filter="url(#glow)"/>
+  <circle cx="512" cy="512" r="232" fill="url(#spectrum)"/>
+</svg>

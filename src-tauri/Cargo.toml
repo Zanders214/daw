@@ -1,0 +1,26 @@
+[package]
+name = "zanders-daw"
+version = "0.1.0"
+description = "Zanders DAW — a dark-glass / neon-spectrum digital audio workstation"
+authors = ["Zanders Studio"]
+edition = "2021"
+rust-version = "1.77"
+
+# The frontend is served from ../dist (built by Vite). The library crate keeps
+# the door open for a future native audio / VST3-hosting layer (cpal, vst3-sys,
+# or a C++/JUCE engine via FFI) to be added alongside this entry point.
+[lib]
+name = "zanders_daw_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[features]
+# Used by tauri-build during release builds.
+custom-protocol = ["tauri/custom-protocol"]

@@ -1,0 +1,46 @@
+:root {
+  /* ============================================================
+     FAMILIES
+     - Space Grotesk: display, UI labels, big numeric readouts.
+     - JetBrains Mono: any measured value, unit, code-like readout.
+     ============================================================ */
+  --font-display: "Space Grotesk", system-ui, -apple-system, sans-serif;
+  --font-mono:    "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* ============================================================
+     TYPE SCALE (px). Display numerals run large; labels run tiny
+     with wide tracking. There is no "body copy" inside the products.
+     ============================================================ */
+  --fs-readout-xl: 38px; /* the hero knob value          */
+  --fs-readout-l:  28px; /* secondary big numerals        */
+  --fs-title:      17px; /* wordmark / panel title        */
+  --fs-value:      16px; /* mono readouts                 */
+  --fs-body:       15px; /* doc prose only                */
+  --fs-label:      11px; /* badges, section labels        */
+  --fs-label-sm:   10px; /* control labels                */
+  --fs-micro:      9px;  /* axis ticks, preset captions   */
+  --fs-tick:       8.5px;/* densest mono caption          */
+
+  /* ============================================================
+     WEIGHTS — 600 is the workhorse. 700 only on engaged buttons.
+     ============================================================ */
+  --fw-regular: 400; /* @kind font */
+  --fw-medium:  500; /* @kind font */
+  --fw-semibold:600; /* @kind font */
+  --fw-bold:    700; /* @kind font */
+
+  /* ============================================================
+     TRACKING — display sets tight; labels set wide. The wide caps
+     tracking is the brand's signature for any all-caps label.
+     ============================================================ */
+  --tracking-display: -0.02em; /* big numerals      */
+  --tracking-title:   -0.01em; /* wordmark          */
+  --tracking-label:    0.14em; /* badges            */
+  --tracking-cap:      0.16em; /* button labels     */
+  --tracking-wide:     0.22em; /* dial captions     */
+  --tracking-data:     0.10em; /* mono readouts     */
+
+  --leading-tight: 1.0;  /* @kind font */
+  --leading-snug:  1.2;  /* @kind font */
+  --leading-body:  1.55; /* @kind font */
+}

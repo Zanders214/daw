@@ -1,0 +1,49 @@
+<!-- @dsCard group="Components" viewport="700x340" name="Surfaces" subtitle="Panel shell, Wordmark per product, playable Keyboard" -->
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>
+  body { margin:0; font-family:'Space Grotesk',system-ui,sans-serif; }
+  .stage { padding:24px; background:#e7e5df; display:flex; gap:20px; align-items:flex-start; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { Panel, Wordmark, Badge, Keyboard } = window.NeonPluginsDesignSystem_54a692;
+function Demo(){
+  return (
+    <div className="stage">
+      <Panel width={300}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+          <Wordmark product="PreDrop" color="#ff5fa8" />
+          <Badge>BUILD&#8209;UP</Badge>
+        </div>
+        <div style={{display:'flex',flexDirection:'column',gap:10}}>
+          <Wordmark product="TapeStop" color="#34d8ff" />
+          <Wordmark product="Piano" color="#5e93ff" />
+        </div>
+        <div style={{height:80,marginTop:18}}>
+          <Keyboard whites={14} whiteFill="#e9edf1" whitePress="#bdeeff" blackFill="#11151b" blackPress="#1f6f8f" accent="#34d8ff" keyBorder="rgba(0,0,0,0.35)" />
+        </div>
+      </Panel>
+      <div style={{flex:1}}>
+        <div style={{fontSize:13,fontWeight:600,color:'#57534e',marginBottom:8}}>Playable keyboard</div>
+        <div style={{height:120}}>
+          <Keyboard whites={21} whiteFill="#e9edf1" whitePress="#bdeeff" blackFill="#11151b" blackPress="#1f6f8f" accent="#34d8ff" keyBorder="rgba(0,0,0,0.35)" />
+        </div>
+        <p style={{fontSize:12,color:'#6b675f',marginTop:12,maxWidth:320,lineHeight:1.5}}>Press keys: each lights an accent glow and depresses 2px. The Panel surface is the dark radial shell every product face uses.</p>
+      </div>
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo/>);
+</script>
+</body>
+</html>

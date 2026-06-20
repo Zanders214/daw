@@ -1,0 +1,48 @@
+:root {
+  /* ============================================================
+     ELEVATION — the panel floats on a deep drop; controls sink in.
+     The system is mostly INSET (wells, knob faces) with a single
+     big outer drop on the panel. No mid-level card shadows on dark.
+     ============================================================ */
+  --shadow-panel:    0 18px 50px rgba(0,0,0,0.40);   /* product panel float        */
+  --shadow-window:   inset 0 2px 10px rgba(0,0,0,0.70); /* inset display well       */
+  --shadow-knob:     inset 0 2px 12px rgba(0,0,0,0.70), 0 8px 22px rgba(0,0,0,0.50);
+  --shadow-handle:   0 1px 4px rgba(0,0,0,0.50);     /* slider handle              */
+  --shadow-doc:      0 1px 3px rgba(0,0,0,0.08);     /* light spec card            */
+  --inset-top:       inset 0 1px 0 rgba(255,255,255,0.06); /* top highlight line    */
+
+  /* ============================================================
+     GLOW — the brand's defining effect. Color glows are applied
+     two ways: box-shadow (dots, buttons) and drop-shadow filter
+     (rings/arcs, which are masked donuts). Always the element's
+     own color, never a generic shadow.
+     ============================================================ */
+  --glow-dot:     0 0 7px;        /* @kind shadow */
+  --glow-dot-lg:  0 0 8px;        /* @kind shadow */
+  --glow-active:  0 0 22px;       /* @kind shadow */
+  --glow-meter:   0 0 8px rgba(255,130,90,0.40); /* full-spectrum meter halo */
+  --glow-ring:    drop-shadow(0 0 7px rgba(255,130,90,0.35)); /* @kind shadow */
+
+  /* White center indicator on the hero knob. */
+  --indicator-glow: 0 0 10px #fff, 0 0 0 3px rgba(255,255,255,0.12);
+
+  /* ============================================================
+     BORDERS — hairlines are white-alpha; the accent border is the
+     only colored stroke (selection / active wells).
+     ============================================================ */
+  --border-hairline: 1px solid rgba(255,255,255,0.06); /* @kind other */
+  --border-line:     1px solid rgba(255,255,255,0.08); /* @kind other */
+  --border-strong:   1px solid rgba(255,255,255,0.12); /* @kind other */
+  --border-accent:   1px solid rgba(94,147,255,0.30); /* @kind other */
+
+  /* ============================================================
+     MOTION — short, mechanical. No bounce. Fades + tiny translate.
+     Buttons translate 2px down on press; reels/needles are rAF-driven.
+     ============================================================ */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1); /* @kind other */
+  --dur-press:  0.04s; /* @kind other */
+  --dur-fast:   0.08s; /* @kind other */
+  --dur-base:   0.15s; /* @kind other */
+  --dur-slow:   0.12s; /* @kind other */
+  --press-shift: translateY(2px); /* @kind other */
+}

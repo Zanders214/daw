@@ -1,0 +1,231 @@
+import { useShallow } from "zustand/react/shallow";
+import { useDawStore } from "../../store/useDawStore";
+import { Meter, Slider } from "../../design-system";
+import { getAutoPts, valAt, fmtAuto } from "../../lib/automation";
+import { DEFAULT_VOLUME } from "../../lib/constants";
+import type { AutomationParam, Track } from "../../types";
+
+const idleBtn: React.CSSProperties = {
+  width: 34,
+  height: 34,
+  borderRadius: 8,
+  border: "1px solid var(--layer-5)",
+  background: "var(--layer-2)",
+  color: "var(--text-3)",
+  fontSize: 11,
+  fontWeight: 700,
+  cursor: "pointer",
+  fontFamily: "var(--font-display)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  boxShadow: "var(--inset-top)",
+};
+
+const PARAMS: [AutomationParam, string][] = [
+  ["vol", "VOL"],
+  ["pan", "PAN"],
+  ["filt", "FILT"],
+];
+
+function chipStyle(active: boolean): React.CSSProperties {
+  return {
+    padding: "3px 8px",
+    borderRadius: 6,
+    fontSize: 9,
+    fontWeight: 700,
+    letterSpacing: "0.06em",
+    cursor: "pointer",
+    fontFamily: "var(--font-display)",
+    ...(active
+      ? { background: "var(--accent-soft)", color: "var(--accent)", border: "1px solid var(--accent-line)" }
+      : { background: "var(--layer-1)", color: "var(--text-3)", border: "1px solid var(--layer-3)" }),
+  };
+}
+
+/** Live per-track level meter (subscribes to its own level only). */
+function TrackMeter({ id }: { id: string }) {
+  const level = useDawStore((s) => s.levels[id] ?? 0);
+  return (
+    <div style={{ flex: 1 }}>
+      <Meter value={level} height={5} />
+    </div>
+  );
+}
+
+/** Live automation value at the playhead (subscribes to playhead + envelope). */
+function AutoValueReadout({ track }: { track: Track }) {
+  const { ph, param, pts } = useDawStore(
+    useShallow((s) => {
+      const p = s.autoParam[track.id] || "vol";
+      return { ph: s.playhead, param: p, pts: getAutoPts(s.autoData, track.id, p) };
+    }),
+  );
+  return (
+    <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: track.color }}>
+      {fmtAuto(param, valAt(pts, ph))}
+    </span>
+  );
+}
+
+function AutomationHeader({ track }: { track: Track }) {
+  const { param, setAutoParam } = useDawStore(
+    useShallow((s) => ({ param: s.autoParam[track.id] || "vol", setAutoParam: s.setAutoParam })),
+  );
+  return (
+    <div
+      style={{
+        height: 64,
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        padding: "0 16px",
+        borderBottom: "1px solid var(--layer-2)",
+        background: "var(--app-trackhead)",
+      }}
+    >
+      <span style={{ fontSize: 9, letterSpacing: "0.12em", color: "var(--text-label)" }}>AUTO</span>
+      <div style={{ display: "flex", gap: 4 }}>
+        {PARAMS.map(([v, l]) => (
+          <button
+            key={v}
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setAutoParam(track.id, v);
+            }}
+            style={chipStyle(param === v)}
+          >
+            {l}
+          </button>
+        ))}
+      </div>
+      <span style={{ flex: 1 }} />
+      <AutoValueReadout track={track} />
+    </div>
+  );
+}
+
+export function TrackHeader({ track }: { track: Track }) {
+  const id = track.id;
+  const {
+    muted,
+    solo,
+    armed,
+    selected,
+    vol,
+    autoOpen,
+    selectTrack,
+    openTrackChain,
+    toggleMute,
+    toggleSolo,
+    toggleArm,
+    toggleAuto,
+    setVolume,
+  } = useDawStore(
+    useShallow((s) => ({
+      muted: !!s.mutes[id],
+      solo: !!s.solos[id],
+      armed: !!s.arms[id],
+      selected: s.selTrack === id,
+      vol: s.volumes[id] ?? DEFAULT_VOLUME,
+      autoOpen: !!s.autoLanes[id],
+      selectTrack: s.selectTrack,
+      openTrackChain: s.openTrackChain,
+      toggleMute: s.toggleMute,
+      toggleSolo: s.toggleSolo,
+      toggleArm: s.toggleArm,
+      toggleAuto: s.toggleAuto,
+      setVolume: s.setVolume,
+    })),
+  );
+
+  const volDb = vol <= 0.001 ? "-∞" : (20 * Math.log10(vol)).toFixed(1) + " dB";
+
+  const mStyle = { ...idleBtn, ...(muted ? { background: "var(--danger-grad)", color: "#fff", borderColor: "rgba(255,120,120,0.6)", boxShadow: "0 0 12px var(--danger-glow)" } : null) };
+  const sStyle = { ...idleBtn, ...(solo ? { background: "var(--accent-grad)", color: "#fff", borderColor: "rgba(150,170,255,0.6)", boxShadow: "0 0 12px var(--accent-glow)" } : null) };
+  const aStyle = { ...idleBtn, ...(armed ? { color: "var(--danger)", borderColor: "var(--danger)", boxShadow: "0 0 10px var(--danger-glow)" } : null) };
+  const autoBtnStyle = { ...idleBtn, ...(autoOpen ? { background: "var(--accent-soft)", color: "var(--accent)", borderColor: "var(--accent-line)", boxShadow: "0 0 10px var(--accent-glow)" } : null) };
+
+  return (
+    <>
+      <div
+        onClick={() => selectTrack(id)}
+        onDoubleClick={() => openTrackChain(id)}
+        style={{
+          height: 108,
+          padding: "10px 16px",
+          borderBottom: "1px solid var(--layer-2)",
+          cursor: "pointer",
+          boxSizing: "border-box",
+          background: selected ? "linear-gradient(90deg, rgba(94,147,255,0.10), transparent)" : "transparent",
+          borderLeft: selected ? "2px solid var(--accent)" : "2px solid transparent",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleMute(id);
+            }}
+            title="Mute / unmute"
+            style={{
+              width: 11,
+              height: 11,
+              borderRadius: 3,
+              background: track.color,
+              boxShadow: muted ? "none" : `0 0 9px ${track.color}`,
+              flex: "none",
+              cursor: "pointer",
+              opacity: muted ? 0.3 : 1,
+              transition: "opacity 0.1s, box-shadow 0.1s",
+            }}
+          />
+          <span
+            style={{
+              flex: 1,
+              fontSize: 13,
+              fontWeight: 600,
+              color: "var(--text-1)",
+              letterSpacing: "0.01em",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {track.name}
+          </span>
+          <span style={{ fontSize: 9, fontFamily: "var(--font-mono)", color: "var(--text-faint)" }}>{track.io}</span>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 9 }}>
+          <button type="button" onClick={(e) => { e.stopPropagation(); toggleMute(id); }} style={mStyle}>M</button>
+          <button type="button" onClick={(e) => { e.stopPropagation(); toggleSolo(id); }} style={sStyle}>S</button>
+          <button type="button" onClick={(e) => { e.stopPropagation(); toggleArm(id); }} style={aStyle}>●</button>
+          <button type="button" onClick={(e) => { e.stopPropagation(); toggleAuto(id); }} title="Automation lane" style={autoBtnStyle}>A</button>
+          <TrackMeter id={id} />
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 9, marginTop: 9 }}>
+          <span style={{ fontSize: 9, color: "var(--text-label)", letterSpacing: "0.1em", flex: "none" }}>VOL</span>
+          <div style={{ flex: 1 }} onClick={(e) => e.stopPropagation()}>
+            <Slider value={vol} onChange={(v) => setVolume(id, v)} />
+          </div>
+          <span
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: 9,
+              color: "var(--text-faint)",
+              width: 48,
+              textAlign: "right",
+              flex: "none",
+            }}
+          >
+            {volDb}
+          </span>
+        </div>
+      </div>
+      {autoOpen && <AutomationHeader track={track} />}
+    </>
+  );
+}

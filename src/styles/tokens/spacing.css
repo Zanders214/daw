@@ -1,0 +1,45 @@
+:root {
+  /* ============================================================
+     SPACING — 4px base. Panels pad at 24–26px; controls gap 7–14px.
+     ============================================================ */
+  --space-0: 0;
+  --space-1: 2px;   /* bar gaps, indicator nudges      */
+  --space-2: 6px;   /* preset chip gap                 */
+  --space-3: 7px;   /* control chip gap                */
+  --space-4: 9px;   /* button icon gap                 */
+  --space-5: 12px;  /* knob caption gap                */
+  --space-6: 14px;  /* control row gap                 */
+  --space-7: 16px;  /* chip-row to section             */
+  --space-8: 18px;  /* section divider padding         */
+  --space-9: 20px;  /* between sections                */
+  --space-10: 22px; /* hero to body                    */
+  --space-11: 24px; /* panel padding (compact)         */
+  --space-12: 26px; /* panel padding (default)         */
+  --space-14: 40px; /* doc masthead rhythm             */
+  --space-16: 48px; /* doc page padding                */
+
+  /* ============================================================
+     RADII — products round soft (12–16px panels, 8–12px controls);
+     SPEC CARDS round sharp (2px) — that contrast is intentional.
+     ============================================================ */
+  --radius-card:    2px;   /* documentation card corners */
+  --radius-control: 8px;   /* chips, small fills          */
+  --radius-button:  10px;  /* buttons, control wells      */
+  --radius-button-lg:12px; /* primary toggle buttons      */
+  --radius-window:  12px;  /* cassette / inset windows    */
+  --radius-panel:   16px;  /* the product panel itself    */
+  --radius-pill:    20px;  /* badges                      */
+  --radius-full:    9999px;/* knobs, dots, handles        */
+
+  /* ============================================================
+     CONTROL SIZING — fixed geometry of the kit's primitives.
+     ============================================================ */
+  --knob-hero:    172px; /* the big AMOUNT knob         */
+  --knob-md:      128px; /* compact panel knob          */
+  --dial-sm:      78px;  /* mic / arc dial              */
+  --slider-track: 4px;   /* line slider rail            */
+  --slider-handle:13px;  /* round slider handle         */
+  --meter-bar:    6px;   /* gradient progress meter     */
+  --button-h:     48px;  /* primary toggle height       */
+  --sweep-deg:    270deg;/* @kind other */
+}
