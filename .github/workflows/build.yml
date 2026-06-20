@@ -85,7 +85,9 @@ jobs:
           # JUCE's NEEDS_WEBVIEW2 needs the WebView2 SDK present; restore it via NuGet
           # and point JUCE at the package (the VS generator does not auto-restore it).
           nuget install Microsoft.Web.WebView2 -ExcludeVersion -OutputDirectory "${{ github.workspace }}\nuget"
-          cmake -B build "-DJUCE_WEBVIEW2_PACKAGE_LOCATION=${{ github.workspace }}\nuget\Microsoft.Web.WebView2" juce-host
+          # JUCE_WEBVIEW2_PACKAGE_LOCATION is the parent dir that CONTAINS the
+          # Microsoft.Web.WebView2 package folder (not the package folder itself).
+          cmake -B build "-DJUCE_WEBVIEW2_PACKAGE_LOCATION=${{ github.workspace }}\nuget" juce-host
           cmake --build build --config Release --parallel
 
       - name: List build artefacts
