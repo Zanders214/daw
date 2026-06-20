@@ -8,6 +8,8 @@ import type {
 } from "../types";
 import { TRACK_DEFS, GROUP_DEFS } from "../data/seed";
 import { DEFAULT_VOLUME, TOTAL_BEATS } from "../lib/constants";
+import { engine, engineActive } from "../lib/engine";
+import type { EngineState } from "../lib/engine";
 
 type Bools = Record<string, boolean>;
 type Nums = Record<string, number>;
@@ -122,6 +124,8 @@ export interface DawState {
 
   /** Advance one animation frame; returns the current integer beat. */
   tick: (dt: number) => number;
+  /** Apply engine-pushed state (playhead / meters / reel) when hosted. */
+  setEngineState: (p: EngineState) => void;
 }
 
 export const useDawStore = create<DawState>((set, get) => ({
@@ -171,42 +175,83 @@ export const useDawStore = create<DawState>((set, get) => ({
   master: 0.04,
   reel: 0,
 
-  togglePlay: () => set((s) => ({ playing: !s.playing })),
-  stop: () => set({ playing: false, playhead: 0 }),
-  rewind: () => set({ playhead: 0 }),
-  toggleRecord: () => set((s) => ({ recording: !s.recording })),
-  toggleLoop: () => set((s) => ({ loop: !s.loop })),
+  togglePlay: () => {
+    const playing = !get().playing;
+    if (engineActive()) engine.transport.setPlaying(playing);
+    set({ playing });
+  },
+  stop: () => {
+    if (engineActive()) engine.transport.stop();
+    set({ playing: false, playhead: 0 });
+  },
+  rewind: () => {
+    if (engineActive()) engine.transport.setPosition(0);
+    set({ playhead: 0 });
+  },
+  toggleRecord: () => {
+    const recording = !get().recording;
+    if (engineActive()) engine.transport.setRecording(recording);
+    set({ recording });
+  },
+  toggleLoop: () => {
+    const loop = !get().loop;
+    if (engineActive()) engine.transport.setLooping(loop);
+    set({ loop });
+  },
 
   selectTrack: (id) => set({ selTrack: id }),
   selectClip: (clipId, trackId) => set({ selClip: clipId, selTrack: trackId }),
-  toggleMute: (id) => set((s) => ({ mutes: { ...s.mutes, [id]: !s.mutes[id] } })),
-  toggleSolo: (id) => set((s) => ({ solos: { ...s.solos, [id]: !s.solos[id] } })),
-  toggleArm: (id) => set((s) => ({ arms: { ...s.arms, [id]: !s.arms[id] } })),
-  setVolume: (id, v) => set((s) => ({ volumes: { ...s.volumes, [id]: v } })),
+  toggleMute: (id) => {
+    const v = !get().mutes[id];
+    if (engineActive()) engine.mixer.setTrackMute(id, v);
+    set((s) => ({ mutes: { ...s.mutes, [id]: v } }));
+  },
+  toggleSolo: (id) => {
+    const v = !get().solos[id];
+    if (engineActive()) engine.mixer.setTrackSolo(id, v);
+    set((s) => ({ solos: { ...s.solos, [id]: v } }));
+  },
+  toggleArm: (id) => {
+    const v = !get().arms[id];
+    if (engineActive()) engine.mixer.setTrackArm(id, v);
+    set((s) => ({ arms: { ...s.arms, [id]: v } }));
+  },
+  setVolume: (id, v) => {
+    if (engineActive()) engine.mixer.setTrackVolume(id, v);
+    set((s) => ({ volumes: { ...s.volumes, [id]: v } }));
+  },
 
   toggleGroup: (gid) =>
     set((s) => ({ groupCollapsed: { ...s.groupCollapsed, [gid]: !s.groupCollapsed[gid] } })),
-  toggleGroupMute: (gid) =>
-    set((s) => {
-      const g = GROUP_DEFS.find((x) => x.id === gid);
-      if (!g) return {};
-      const all = g.tracks.every((id) => s.mutes[id]);
-      const m = { ...s.mutes };
-      g.tracks.forEach((id) => (m[id] = !all));
-      return { mutes: m };
-    }),
-  toggleGroupSolo: (gid) =>
-    set((s) => {
-      const g = GROUP_DEFS.find((x) => x.id === gid);
-      if (!g) return {};
-      const all = g.tracks.every((id) => s.solos[id]);
-      const so = { ...s.solos };
-      g.tracks.forEach((id) => (so[id] = !all));
-      return { solos: so };
-    }),
+  toggleGroupMute: (gid) => {
+    const g = GROUP_DEFS.find((x) => x.id === gid);
+    if (!g) return;
+    const all = g.tracks.every((id) => get().mutes[id]);
+    const m = { ...get().mutes };
+    g.tracks.forEach((id) => (m[id] = !all));
+    if (engineActive()) g.tracks.forEach((id) => engine.mixer.setTrackMute(id, !all));
+    set({ mutes: m });
+  },
+  toggleGroupSolo: (gid) => {
+    const g = GROUP_DEFS.find((x) => x.id === gid);
+    if (!g) return;
+    const all = g.tracks.every((id) => get().solos[id]);
+    const so = { ...get().solos };
+    g.tracks.forEach((id) => (so[id] = !all));
+    if (engineActive()) g.tracks.forEach((id) => engine.mixer.setTrackSolo(id, !all));
+    set({ solos: so });
+  },
 
-  toggleDevice: (k) => set((s) => ({ devices: { ...s.devices, [k]: !s.devices[k] } })),
-  setPreAmount: (v) => set({ preAmount: v }),
+  toggleDevice: (k) => {
+    const enabled = !get().devices[k];
+    // Store holds "enabled"; engine takes "bypassed" (the inverse).
+    if (engineActive()) engine.device.setBypass(k, !enabled);
+    set((s) => ({ devices: { ...s.devices, [k]: enabled } }));
+  },
+  setPreAmount: (v) => {
+    if (engineActive()) engine.device.setParam("pre", "amount", v);
+    set({ preAmount: v });
+  },
 
   onSearch: (q) => set({ query: q }),
   setTab: (t) => set({ tab: t }),
@@ -226,9 +271,18 @@ export const useDawStore = create<DawState>((set, get) => ({
   openSettings: () => set({ settingsOpen: true }),
   closeSettings: () => set({ settingsOpen: false }),
 
-  setSampleRate: (v) => set({ sampleRate: v }),
-  setBufferSize: (v) => set({ bufferSize: v }),
-  setOutputDevice: (v) => set({ outputDevice: v }),
+  setSampleRate: (v) => {
+    if (engineActive()) engine.audio.setSettings({ sampleRate: v });
+    set({ sampleRate: v });
+  },
+  setBufferSize: (v) => {
+    if (engineActive()) engine.audio.setSettings({ bufferSize: v });
+    set({ bufferSize: v });
+  },
+  setOutputDevice: (v) => {
+    if (engineActive()) engine.audio.setSettings({ outputDevice: v });
+    set({ outputDevice: v });
+  },
   setMidiInput: (v) => set({ midiInput: v }),
   toggleMidiThru: () => set((s) => ({ midiThru: !s.midiThru })),
   toggleMetronome: () => set((s) => ({ metronome: !s.metronome })),
@@ -266,4 +320,13 @@ export const useDawStore = create<DawState>((set, get) => ({
     set({ playhead: ph, reel, levels, master });
     return Math.floor(ph);
   },
+
+  setEngineState: (p) =>
+    set((s) => ({
+      playhead: p.playhead ?? s.playhead,
+      playing: p.playing ?? s.playing,
+      master: p.master ?? s.master,
+      reel: p.reel ?? s.reel,
+      levels: p.levels ?? s.levels,
+    })),
 }));
