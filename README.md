@@ -22,10 +22,13 @@ three themes (dark / light / midnight).
 | Fonts | **Self-hosted `.woff2`** (Space Grotesk + JetBrains Mono, latin subset) | Works fully offline; ~180 KB total. |
 | Audio (current) | **Web Audio API** | Metronome click, rAF playhead, and *simulated* metering — exactly as the prototype. |
 
-> **Status:** the UI and all interaction are complete. Audio is currently
-> *simulated* (meters, playhead, metronome) — there is no real audio I/O yet.
-> The EQ / TapeStop / PreDrop modules are the **reserved docking frames** where
-> the real Zanders VST3 plugin editor UIs will mount (see Roadmap).
+> **Status:** the UI and all interaction are complete. In a plain browser / the
+> Tauri shell, audio is *simulated* (meters, playhead, metronome). The real
+> **native VST3 host** — which loads and processes the Zanders plugins and shows
+> their native editors — lives in **[`juce-host/`](juce-host/README.md)** (a JUCE
+> C++ app that renders this same UI in a WebView and drives a real audio engine).
+> The same React build runs in both: `src/lib/engine.ts` detects the JUCE host
+> (`window.__JUCE__`) and switches from simulation to the real engine.
 
 ## Prerequisites
 
@@ -66,13 +69,16 @@ npm run typecheck  # tsc --noEmit
 src/                     React frontend
   store/useDawStore.ts   Zustand store: full app state + actions + per-frame tick
   data/seed.ts           Demo tracks / groups / browser catalog
+  lib/engine.ts          Engine client: JS<->C++ bridge (no-op in a plain browser)
   lib/                   audio (metronome), automation, notes, prng, color, constants
+  hooks/useEngineBridge  Subscribes to engine state events when hosted by JUCE
   design-system/         The 10 Neon Plugins primitives (Knob, Dial, Slider, Meter,
                          GlowButton, Badge, Chip, Panel, Wordmark, Keyboard)
   components/            DAW regions: TransportBar, Browser, Settings,
                          arrange/* (ruler, tracks, clips, automation, master),
                          devices/* (DeviceChain + reserved VST3 modules)
-src-tauri/               Rust backend (window + bundle config)
+juce-host/               Native JUCE C++ VST3 host (the audio engine) — see its README
+src-tauri/               Tauri shell (web-only/UI dev; superseded by juce-host for audio)
 public/fonts/            Self-hosted .woff2 files
 design/handoff/          The original design handoff, kept for reference
 app-icon.svg             Source icon (regenerate set with `npm run tauri icon app-icon.svg`)
@@ -86,9 +92,10 @@ app-icon.svg             Source icon (regenerate set with `npm run tauri icon ap
 
 ## Roadmap
 
-- **Native audio engine + VST3 hosting** — mount the real ZandersEQ / PreDrop /
-  TapeStop editor UIs into the reserved 340-px device frames. Likely a Rust
-  audio layer (`cpal` + `vst3-sys`) or a C++/JUCE engine driven from the Tauri
-  Rust backend over IPC.
+- **Native audio engine + VST3 hosting** — in progress in [`juce-host/`](juce-host/README.md):
+  a JUCE C++ host loads the real ZandersEQ / TapeStop / PreDrop `.vst3`s into a
+  master FX chain and opens their native editors. Phase 0/1 (master chain + a
+  file/input source) is in; Phase 2/3 add per-track audio, automation→params,
+  plugin scanning UI, and project save/load.
 - Drag-from-browser onto lanes; automation re-timing / add-delete points;
   project save / load and persistence.
