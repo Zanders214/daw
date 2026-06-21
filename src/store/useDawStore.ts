@@ -10,6 +10,8 @@ import { TRACK_DEFS, GROUP_DEFS } from "../data/seed";
 import { DEFAULT_VOLUME, TOTAL_BEATS } from "../lib/constants";
 import { engine, engineActive } from "../lib/engine";
 import type { EngineState, TrackInfos, DeviceInfo } from "../lib/engine";
+import { applySessionToEngine } from "../lib/engineSync";
+import type { PrefsData, SessionUi } from "../lib/session";
 
 type Bools = Record<string, boolean>;
 type Nums = Record<string, number>;
@@ -26,6 +28,10 @@ export interface DawState {
   // ---- selection ----
   selTrack: string; // track id or "master"
   selClip: string;
+
+  // ---- session ----
+  /** Name of the currently open named session, or null when untitled. */
+  currentSessionName: string | null;
 
   // ---- per-track state ----
   mutes: Bools;
@@ -57,6 +63,7 @@ export interface DawState {
 
   // ---- settings ----
   settingsOpen: boolean;
+  sessionsOpen: boolean;
   sampleRate: number;
   bufferSize: number;
   outputDevice: string;
@@ -104,6 +111,15 @@ export interface DawState {
   refreshDevices: () => void;
   setDeviceInfo: (info: DeviceInfo) => void;
 
+  // ---- session persistence ----
+  setCurrentSessionName: (name: string | null) => void;
+  /** Bulk-apply a loaded session's musical state to the store. */
+  hydrateSession: (ui: Partial<SessionUi>) => void;
+  /** Bulk-apply global preferences to the store. */
+  hydratePrefs: (p: Partial<PrefsData>) => void;
+  /** Reset the musical state to an empty, untitled session. */
+  newSession: () => void;
+
   toggleGroup: (gid: string) => void;
   toggleGroupMute: (gid: string) => void;
   toggleGroupSolo: (gid: string) => void;
@@ -127,6 +143,8 @@ export interface DawState {
   openMasterChain: () => void;
   openSettings: () => void;
   closeSettings: () => void;
+  openSessions: () => void;
+  closeSessions: () => void;
 
   setSampleRate: (v: number) => void;
   setBufferSize: (v: number) => void;
@@ -157,6 +175,8 @@ export const useDawStore = create<DawState>((set, get) => ({
   selTrack: "lead",
   selClip: "lead-drop",
 
+  currentSessionName: null,
+
   mutes: {},
   solos: {},
   arms: { kick: true },
@@ -181,6 +201,7 @@ export const useDawStore = create<DawState>((set, get) => ({
   vibrantClips: false,
 
   settingsOpen: false,
+  sessionsOpen: false,
   sampleRate: 48,
   bufferSize: 256,
   outputDevice: "Built-in Output",
@@ -276,6 +297,64 @@ export const useDawStore = create<DawState>((set, get) => ({
   },
   setEngineTracks: (t) => set({ trackFiles: t }),
 
+  setCurrentSessionName: (name) => set({ currentSessionName: name }),
+  hydrateSession: (ui) =>
+    set((s) => ({
+      bpm: ui.bpm ?? s.bpm,
+      loop: ui.loop ?? s.loop,
+      loopStart: ui.loopStart ?? s.loopStart,
+      loopEnd: ui.loopEnd ?? s.loopEnd,
+      volumes: ui.volumes ?? s.volumes,
+      mutes: ui.mutes ?? s.mutes,
+      solos: ui.solos ?? s.solos,
+      arms: ui.arms ?? s.arms,
+      masterVolume: ui.masterVolume ?? s.masterVolume,
+      trackFiles: ui.trackFiles ?? s.trackFiles,
+      devices: ui.devices ?? s.devices,
+      preAmount: ui.preAmount ?? s.preAmount,
+      autoLanes: ui.autoLanes ?? s.autoLanes,
+      autoParam: ui.autoParam ?? s.autoParam,
+      autoData: ui.autoData ?? s.autoData,
+      metronome: ui.metronome ?? s.metronome,
+      countIn: ui.countIn ?? s.countIn,
+    })),
+  hydratePrefs: (p) =>
+    set((s) => ({
+      theme: p.theme ?? s.theme,
+      tracksRight: p.tracksRight ?? s.tracksRight,
+      showGrid: p.showGrid ?? s.showGrid,
+      vibrantClips: p.vibrantClips ?? s.vibrantClips,
+      sampleRate: p.sampleRate ?? s.sampleRate,
+      bufferSize: p.bufferSize ?? s.bufferSize,
+      outputDevice: p.outputDevice ?? s.outputDevice,
+      midiInput: p.midiInput ?? s.midiInput,
+      midiThru: p.midiThru ?? s.midiThru,
+      autoSave: p.autoSave ?? s.autoSave,
+    })),
+  newSession: () => {
+    set({
+      bpm: 124,
+      loop: true,
+      loopStart: 0,
+      loopEnd: TOTAL_BEATS,
+      volumes: {},
+      mutes: {},
+      solos: {},
+      arms: {},
+      masterVolume: 1,
+      trackFiles: {},
+      devices: { eq: true, tape: false, pre: true },
+      preAmount: 0.62,
+      autoLanes: {},
+      autoParam: {},
+      autoData: {},
+      metronome: true,
+      countIn: 1,
+      currentSessionName: null,
+    });
+    applySessionToEngine(get());
+  },
+
   toggleGroup: (gid) =>
     set((s) => ({ groupCollapsed: { ...s.groupCollapsed, [gid]: !s.groupCollapsed[gid] } })),
   toggleGroupMute: (gid) => {
@@ -325,6 +404,8 @@ export const useDawStore = create<DawState>((set, get) => ({
   openMasterChain: () => set({ selTrack: "master", rackOpen: true }),
   openSettings: () => set({ settingsOpen: true }),
   closeSettings: () => set({ settingsOpen: false }),
+  openSessions: () => set({ sessionsOpen: true }),
+  closeSessions: () => set({ sessionsOpen: false }),
 
   setSampleRate: (v) => {
     // UI works in kHz; the engine wants Hz. Reflect the actually-applied value.

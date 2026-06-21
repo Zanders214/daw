@@ -95,6 +95,13 @@ void EngineController::loadSlotFromPath (int slot, const String& path)
                 audioEngine.installPlugin (slot, std::move (inst));
                 pluginHost.setSlotPath (slot, path);
                 pluginHost.saveConfig();
+
+                // Apply any session state that arrived before this slot was ready.
+                if (pendingPluginState[(size_t) slot].isNotEmpty())
+                {
+                    audioEngine.setPluginState (slot, pendingPluginState[(size_t) slot]);
+                    pendingPluginState[(size_t) slot] = {};
+                }
             }
             else
             {
@@ -145,6 +152,96 @@ void EngineController::pickTrackFile (const String& trackId)
         });
 }
 
+// ---- session persistence ----
+
+var EngineController::buildEnginePayload()
+{
+    auto* plugins = new DynamicObject();
+    for (int slot = 0; slot < PluginHost::numSlots; ++slot)
+        plugins->setProperty (PluginHost::slotKey (slot), audioEngine.getPluginState (slot));
+
+    auto* engineObj = new DynamicObject();
+    engineObj->setProperty ("plugins", var (plugins));
+    return var (engineObj);
+}
+
+var EngineController::buildSession (const String& name, const var& uiPayload)
+{
+    auto* obj = new DynamicObject();
+    obj->setProperty ("version", 1);
+    obj->setProperty ("name", name);
+    obj->setProperty ("savedAt", Time::getCurrentTime().toISO8601 (true));
+    obj->setProperty ("ui", uiPayload);
+    obj->setProperty ("engine", buildEnginePayload());
+    return var (obj);
+}
+
+void EngineController::applyEnginePayload (const var& enginePayload)
+{
+    auto* obj = enginePayload.getDynamicObject();
+    if (obj == nullptr)
+        return;
+
+    auto* plugins = obj->getProperty ("plugins").getDynamicObject();
+    if (plugins == nullptr)
+        return;
+
+    for (int slot = 0; slot < PluginHost::numSlots; ++slot)
+    {
+        const auto b64 = plugins->getProperty (PluginHost::slotKey (slot)).toString();
+        if (b64.isEmpty())
+            continue;
+
+        // Apply now if the instance exists; otherwise defer until it loads.
+        if (audioEngine.hasPlugin (slot))
+            audioEngine.setPluginState (slot, b64);
+        else
+            pendingPluginState[(size_t) slot] = b64;
+    }
+}
+
+void EngineController::sessionExport (const String& name, const var& uiPayload)
+{
+    auto session = buildSession (name.isNotEmpty() ? name : String ("Untitled"), uiPayload);
+    chooser = std::make_unique<FileChooser> ("Export session", File(), "*.zdaw");
+    chooser->launchAsync (FileBrowserComponent::saveMode | FileBrowserComponent::canSelectFiles
+                              | FileBrowserComponent::warnAboutOverwriting,
+        [session] (const FileChooser& fc)
+        {
+            auto result = fc.getResult();
+            if (result == File())
+                return;
+            if (result.getFileExtension().isEmpty())
+                result = result.withFileExtension ("zdaw");
+            result.replaceWithText (JSON::toString (session));
+        });
+}
+
+void EngineController::sessionImport()
+{
+    chooser = std::make_unique<FileChooser> ("Import session", File(), "*.zdaw;*.json");
+    chooser->launchAsync (FileBrowserComponent::openMode | FileBrowserComponent::canSelectFiles,
+        [this] (const FileChooser& fc)
+        {
+            const auto result = fc.getResult();
+            if (! result.existsAsFile())
+                return;
+
+            auto* obj = JSON::parse (result).getDynamicObject();
+            if (obj == nullptr)
+                return;
+
+            applyEnginePayload (obj->getProperty ("engine"));
+
+            // Hand the UI payload back to the web to hydrate the store. Send just
+            // { name, ui } so the (potentially large) plugin blobs aren't re-sent.
+            auto* payload = new DynamicObject();
+            payload->setProperty ("name", obj->getProperty ("name"));
+            payload->setProperty ("ui", obj->getProperty ("ui"));
+            emit ("engineSessionImported", var (payload));
+        });
+}
+
 var EngineController::handle (const String& name, const Array<var>& args)
 {
     const auto arg = [&args] (int i) -> var { return i < args.size() ? args[i] : var(); };
@@ -191,6 +288,33 @@ var EngineController::handle (const String& name, const Array<var>& args)
     // ---- legacy single source ----
     if (name == "sourcePickFile")   { pickSourceFile(); return {}; }
     if (name == "sourceSetInputMode"){ audioEngine.setInputMode (arg (0).toString()); return {}; }
+
+    // ---- session persistence ----
+    if (name == "sessionSave")
+    {
+        const auto sname = arg (0).toString();
+        const bool ok = sessionStore.writeSession (sname, buildSession (sname, arg (1)));
+        auto* r = new DynamicObject(); r->setProperty ("ok", ok); return var (r);
+    }
+    if (name == "sessionLoad")
+    {
+        auto* obj = sessionStore.readSession (arg (0).toString()).getDynamicObject();
+        if (obj == nullptr)
+            return {};                                  // not found
+        applyEnginePayload (obj->getProperty ("engine"));
+        return obj->getProperty ("ui");                 // hand UI state to the web
+    }
+    if (name == "sessionList")   { return sessionStore.listSessions(); }
+    if (name == "sessionDelete")
+    {
+        auto* r = new DynamicObject();
+        r->setProperty ("ok", sessionStore.deleteSession (arg (0).toString()));
+        return var (r);
+    }
+    if (name == "sessionExport") { sessionExport (arg (0).toString(), arg (1)); return {}; }
+    if (name == "sessionImport") { sessionImport(); return {}; }
+    if (name == "prefsSave")     { sessionStore.writePrefs (arg (0)); return {}; }
+    if (name == "prefsLoad")     { return sessionStore.readPrefs(); }
 
     return {};
 }

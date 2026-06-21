@@ -138,13 +138,31 @@ export const engine = {
     pickFile: () => call("sourcePickFile"),
     setInputMode: (mode: "file" | "input") => call("sourceSetInputMode", mode),
   },
+  session: {
+    // The web sends only the `ui` payload; C++ wraps it and captures plugin state.
+    save: (name: string, ui: unknown) => call("sessionSave", name, ui),
+    load: (name: string) => call("sessionLoad", name), // resolves to the ui object, or empty if absent
+    list: () => call("sessionList"),
+    remove: (name: string) => call("sessionDelete", name),
+    export: (name: string, ui: unknown) => call("sessionExport", name, ui),
+    import: () => call("sessionImport"), // result arrives via the engineSessionImported event
+    savePrefs: (prefs: unknown) => call("prefsSave", prefs),
+    loadPrefs: () => call("prefsLoad"),
+  },
 };
+
+/** Payload of the engineSessionImported event (native Import dialog result). */
+export interface ImportedSession {
+  name?: string;
+  ui: unknown;
+}
 
 export interface EngineHandlers {
   onState?: (s: EngineState) => void;
   onParams?: (p: { key: DeviceKey; params: EngineParam[] }) => void;
   onPlugins?: (p: PluginStatuses) => void;
   onTracks?: (t: TrackInfos) => void;
+  onSessionImported?: (p: ImportedSession) => void;
   onReady?: (info: unknown) => void;
 }
 
@@ -158,6 +176,7 @@ export function subscribeEngine(h: EngineHandlers): () => void {
   if (h.onParams) add("engineParams", (p) => h.onParams!(p as { key: DeviceKey; params: EngineParam[] }));
   if (h.onPlugins) add("enginePlugins", (p) => h.onPlugins!(p as PluginStatuses));
   if (h.onTracks) add("engineTracks", (p) => h.onTracks!(p as TrackInfos));
+  if (h.onSessionImported) add("engineSessionImported", (p) => h.onSessionImported!(p as ImportedSession));
   if (h.onReady) add("engineReady", (p) => h.onReady!(p));
   return () => {
     if (b.removeEventListener) tokens.forEach((t) => b.removeEventListener!(t));

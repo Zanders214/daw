@@ -148,6 +148,8 @@ export function TransportBar() {
     toggleLoop,
     toggleMetronome,
     openSettings,
+    openSessions,
+    currentSessionName,
     setBpm,
   } = useDawStore(
     useShallow((s) => ({
@@ -163,6 +165,8 @@ export function TransportBar() {
       toggleLoop: s.toggleLoop,
       toggleMetronome: s.toggleMetronome,
       openSettings: s.openSettings,
+      openSessions: s.openSessions,
+      currentSessionName: s.currentSessionName,
       setBpm: s.setBpm,
     })),
   );
@@ -266,6 +270,41 @@ export function TransportBar() {
         </div>
         <Wordmark product="Studio" color="var(--spectrum-cyan)" size={18} />
       </div>
+
+      <button
+        type="button"
+        onClick={openSessions}
+        title="Sessions — save / open / export"
+        style={{
+          height: 32,
+          maxWidth: 168,
+          padding: "0 12px",
+          borderRadius: 9,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          cursor: "pointer",
+          background: "var(--layer-2)",
+          border: "1px solid var(--layer-5)",
+          boxShadow: "var(--inset-top)",
+          fontFamily: "var(--font-display)",
+        }}
+      >
+        <span style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1 }}>♫</span>
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "0.06em",
+            color: currentSessionName ? "var(--text-1)" : "var(--text-3)",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {currentSessionName ?? "SESSIONS"}
+        </span>
+      </button>
 
       {divider}
 

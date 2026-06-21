@@ -9,6 +9,9 @@ dist-ssr/
 src-tauri/target/
 src-tauri/gen/
 
+# JUCE host (CMake) build output
+juce-host/build/
+
 # Logs
 *.log
 npm-debug.log*

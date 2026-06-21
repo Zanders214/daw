@@ -1,8 +1,10 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <array>
 #include "AudioEngine.h"
 #include "PluginHost.h"
+#include "SessionStore.h"
 
 /**
  * EngineController — orchestrates AudioEngine + PluginHost and bridges them to
@@ -34,12 +36,24 @@ private:
     void pickSourceFile();
     void pickTrackFile (const juce::String& trackId);
 
+    // Session persistence. The `ui` payload is owned by the web; this class adds
+    // the `engine` payload (full plugin state) and does the file I/O.
+    juce::var buildSession (const juce::String& name, const juce::var& uiPayload);
+    juce::var buildEnginePayload();                       // { plugins: { slot: base64 } }
+    void applyEnginePayload (const juce::var& enginePayload);
+    void sessionExport (const juce::String& name, const juce::var& uiPayload);
+    void sessionImport();
+
     AudioEngine audioEngine;
     PluginHost pluginHost;
+    SessionStore sessionStore;
     juce::WebBrowserComponent* web = nullptr;
 
     double reel = 0.0;
     juce::uint32 lastTimeMs = 0;
+
+    // Plugin state awaiting its slot to finish loading (startup restore ordering).
+    std::array<juce::String, PluginHost::numSlots> pendingPluginState;
 
     std::unique_ptr<juce::FileChooser> chooser;
 
