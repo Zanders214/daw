@@ -2,12 +2,18 @@ import { useShallow } from "zustand/react/shallow";
 import { useDawStore } from "../../store/useDawStore";
 import { TRACK_DEFS, GROUP_DEFS } from "../../data/seed";
 import type { DeviceKey } from "../../types";
+import type { NodeDevice } from "../../lib/engine";
 import { ZandersEQ } from "./ZandersEQ";
 import { ZandersTapeStop } from "./ZandersTapeStop";
 import { ZandersPreDrop } from "./ZandersPreDrop";
 import { AddDeviceSlot } from "./AddDeviceSlot";
 
 const PALETTE: DeviceKey[] = ["eq", "tape", "pre"];
+
+// Stable empty-rack reference. Returning a fresh `[]` from the useShallow
+// selector below makes every render look "changed", which loops forever
+// (Maximum update depth exceeded — React #185).
+const EMPTY_RACK: NodeDevice[] = [];
 const DEVICE_META: Record<DeviceKey, { label: string; color: string }> = {
   eq: { label: "ZANDERS EQ", color: "#34d8ff" },
   tape: { label: "TAPE STOP", color: "#ffc24b" },
@@ -96,7 +102,7 @@ function NodeDeviceCard({ nodeId, dev }: { nodeId: string; dev: { key: DeviceKey
 /** The insert rack for a non-master node (track / group / return). */
 function NodeRack({ nodeId }: { nodeId: string }) {
   const { devices, addNodeDevice } = useDawStore(
-    useShallow((s) => ({ devices: s.nodeRacks[nodeId] ?? [], addNodeDevice: s.addNodeDevice })),
+    useShallow((s) => ({ devices: s.nodeRacks[nodeId] ?? EMPTY_RACK, addNodeDevice: s.addNodeDevice })),
   );
   const present = new Set(devices.map((d) => d.key));
   const available = PALETTE.filter((k) => !present.has(k));

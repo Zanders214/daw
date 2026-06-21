@@ -5,6 +5,10 @@ import { getAutoPts, valAt, fmtAuto } from "../../lib/automation";
 import { DEFAULT_VOLUME } from "../../lib/constants";
 import type { AutomationParam, Track } from "../../types";
 
+// Stable fallback so the sends selector doesn't return a new array each render
+// (a fresh `[0, 0]` fails useShallow's shallow check and loops — React #185).
+const EMPTY_SENDS: number[] = [0, 0];
+
 const idleBtn: React.CSSProperties = {
   width: 34,
   height: 34,
@@ -110,7 +114,7 @@ function AutomationHeader({ track }: { track: Track }) {
 export const SEND_ROW_H = 52;
 function SendRow({ id }: { id: string }) {
   const { sends, setSend } = useDawStore(
-    useShallow((s) => ({ sends: s.sends[id] ?? [0, 0], setSend: s.setSend })),
+    useShallow((s) => ({ sends: s.sends[id] ?? EMPTY_SENDS, setSend: s.setSend })),
   );
   return (
     <div
