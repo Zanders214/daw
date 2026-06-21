@@ -201,7 +201,7 @@ void AudioEngine::recomputeAnySolo()
 {
     const ScopedLock sl (tracksLock);
     int count = 0;
-    for (auto* t : tracks)
+    for (const auto* t : tracks)
         if (t->solo.load())
             ++count;
     anySolo.store (count);
@@ -230,7 +230,7 @@ void AudioEngine::recomputeAnyGroupSolo()
 {
     const ScopedLock sl (tracksLock);
     int count = 0;
-    for (auto* g : groups)
+    for (const auto* g : groups)
         if (g->solo.load())
             ++count;
     anyGroupSolo.store (count);
@@ -252,7 +252,7 @@ var AudioEngine::buildGroupLevels()
     auto* obj = new DynamicObject();
     const ScopedTryLock stl (tracksLock);
     if (stl.isLocked())
-        for (auto* g : groups)
+        for (const auto* g : groups)
             obj->setProperty (Identifier (g->getId()), (double) g->level.load());
     return var (obj);
 }
@@ -511,7 +511,7 @@ bool AudioEngine::hasPlugin (int slot) const { return getInstance (slot) != null
 
 String AudioEngine::getPluginName (int slot) const
 {
-    auto* inst = getInstance (slot);
+    const auto* inst = getInstance (slot);
     return inst != nullptr ? inst->getName() : String();
 }
 
@@ -523,7 +523,7 @@ void AudioEngine::setBypassed (int slot, bool b)
 
 void AudioEngine::setParam (int slot, const String& paramId, float value01)
 {
-    auto* inst = getInstance (slot);
+    const auto* inst = getInstance (slot);
     if (inst == nullptr)
         return;
 
@@ -543,7 +543,7 @@ void AudioEngine::setParam (int slot, const String& paramId, float value01)
 var AudioEngine::listParams (int slot)
 {
     Array<var> out;
-    if (auto* inst = getInstance (slot))
+    if (const auto* inst = getInstance (slot))
     {
         const auto& params = inst->getParameters();
         for (int i = 0; i < params.size(); ++i)
