@@ -46,11 +46,13 @@ void TrackChannel::prepare (double sampleRate, int blockSize)
     preparedBlockSize  = blockSize;
     trackScratch.setSize (2, blockSize, false, false, true);
     transport.prepareToPlay (blockSize, sampleRate);
+    inserts.prepare (sampleRate, blockSize);
 }
 
 void TrackChannel::releaseResources()
 {
     transport.releaseResources();
+    inserts.release();
 }
 
 void TrackChannel::start()                            { transport.start(); }
@@ -78,6 +80,10 @@ void TrackChannel::renderInto (AudioBuffer<float>& bus,
         decayMeter();
         return;
     }
+
+    // Pre-fader insert FX.
+    rackMidi.clear();
+    inserts.process (trackScratch, rackMidi);
 
     trackScratch.applyGain (gain.load());
 

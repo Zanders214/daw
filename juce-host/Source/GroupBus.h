@@ -1,6 +1,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "DeviceRack.h"
 
 /**
  * GroupBus — a sub-mix node (DRUMS / BASS / SYNTHS / VOX&FX). Member tracks
@@ -16,7 +17,11 @@ public:
 
     const juce::String& getId() const noexcept { return id; }
 
-    void prepare (int blockSize) { buffer.setSize (2, blockSize, false, false, true); }
+    void prepare (double sampleRate, int blockSize)
+    {
+        buffer.setSize (2, blockSize, false, false, true);
+        inserts.prepare (sampleRate, blockSize);
+    }
 
     /** Resize + clear at the top of each callback (mirrors the master scratch). */
     void clearBuffer (int numSamples)
@@ -27,9 +32,13 @@ public:
 
     juce::AudioBuffer<float>& getBuffer() noexcept { return buffer; }
 
-    /** Apply the group's gain + pan, update its meter, and add into the master bus. */
+    /** Run group inserts, then apply the group's gain + pan, meter, and add into
+        the master bus. */
     void sumInto (juce::AudioBuffer<float>& master, int numSamples)
     {
+        rackMidi.clear();
+        inserts.process (buffer, rackMidi);
+
         buffer.applyGain (gain.load());
 
         const float p = pan.load();
@@ -57,9 +66,13 @@ public:
     std::atomic<bool>  solo  { false };
     std::atomic<float> level { 0.0f };
 
+    /** Insert FX chain for this group bus (pre gain/pan). */
+    DeviceRack inserts;
+
 private:
     juce::String id;
     juce::AudioBuffer<float> buffer;
+    juce::MidiBuffer rackMidi;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GroupBus)
 };

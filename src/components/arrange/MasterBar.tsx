@@ -82,24 +82,51 @@ function MasterPan() {
   );
 }
 
-/** Aux return gains + meters (subscribes to returnGains/returnLevels). */
+/** Aux return gains + meters + chain access (subscribes to returnGains/returnLevels). */
 function ReturnsStrip() {
-  const { returnGains, returnLevels, setReturnGain } = useDawStore(
-    useShallow((s) => ({ returnGains: s.returnGains, returnLevels: s.returnLevels, setReturnGain: s.setReturnGain })),
+  const { returnGains, returnLevels, setReturnGain, openReturnChain, selNode } = useDawStore(
+    useShallow((s) => ({
+      returnGains: s.returnGains,
+      returnLevels: s.returnLevels,
+      setReturnGain: s.setReturnGain,
+      openReturnChain: s.openReturnChain,
+      selNode: s.selTrack,
+    })),
   );
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 12, flex: "none" }}>
-      {["A", "B"].map((lbl, i) => (
-        <div key={lbl} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, width: 46 }}>
-          <span style={{ fontSize: 9, letterSpacing: "0.1em", color: "var(--text-label)" }}>RET {lbl}</span>
-          <div onDoubleClick={() => setReturnGain(i, 1)} title={`Return ${lbl} level`}>
-            <Dial value={Math.min(1, returnGains[i] ?? 1)} onChange={(v) => setReturnGain(i, v)} label={null} size={26} color="var(--spectrum-violet)" />
+      {["A", "B"].map((lbl, i) => {
+        const sel = selNode === `return-${i}`;
+        return (
+          <div key={lbl} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, width: 46 }}>
+            <button
+              type="button"
+              onClick={() => openReturnChain(i)}
+              title={`Open return ${lbl} chain`}
+              style={{
+                fontSize: 9,
+                letterSpacing: "0.1em",
+                fontFamily: "var(--font-display)",
+                fontWeight: 700,
+                cursor: "pointer",
+                padding: "2px 6px",
+                borderRadius: 5,
+                background: sel ? "var(--accent-soft)" : "transparent",
+                color: sel ? "var(--accent)" : "var(--text-label)",
+                border: "1px solid " + (sel ? "var(--accent-line)" : "transparent"),
+              }}
+            >
+              RET {lbl}
+            </button>
+            <div onDoubleClick={() => setReturnGain(i, 1)} title={`Return ${lbl} level`}>
+              <Dial value={Math.min(1, returnGains[i] ?? 1)} onChange={(v) => setReturnGain(i, v)} label={null} size={26} color="var(--spectrum-violet)" />
+            </div>
+            <div style={{ width: 30 }}>
+              <Meter value={returnLevels[i] ?? 0} height={4} />
+            </div>
           </div>
-          <div style={{ width: 30 }}>
-            <Meter value={returnLevels[i] ?? 0} height={4} />
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

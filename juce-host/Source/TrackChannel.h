@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include <atomic>
+#include "DeviceRack.h"
 
 class GroupBus;
 
@@ -67,6 +68,9 @@ public:
     /** Post-fader aux send amounts (0..1), one per send bus. */
     std::array<std::atomic<float>, 2> sends { { {0.0f}, {0.0f} } };
 
+    /** Pre-fader insert FX chain for this track. */
+    DeviceRack inserts;
+
 private:
     juce::String id;
     juce::String filePath;
@@ -75,6 +79,7 @@ private:
     std::unique_ptr<juce::AudioFormatReaderSource> readerSource;
     juce::AudioTransportSource transport;
     juce::AudioBuffer<float> trackScratch;
+    juce::MidiBuffer rackMidi;            // empty MIDI for the insert chain
     double preparedSampleRate { 0.0 };
     int    preparedBlockSize  { 0 };
 

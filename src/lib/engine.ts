@@ -95,6 +95,15 @@ export interface PluginStatus {
 }
 export type PluginStatuses = Partial<Record<DeviceKey, PluginStatus>>;
 
+/** One device in a node's insert rack. */
+export interface NodeDevice {
+  key: DeviceKey;
+  name?: string;
+  bypassed?: boolean;
+}
+/** { nodeId: [devices...] } for every node with a non-empty insert rack. */
+export type NodeRacks = Record<string, NodeDevice[]>;
+
 // ---- JS -> C++ commands (names match native functions registered in WebUI.cpp) ----
 export const engine = {
   transport: {
@@ -126,6 +135,14 @@ export const engine = {
   },
   returns: {
     setGain: (idx: number, v: number) => call("returnSetGain", idx, v),
+  },
+  node: {
+    // Per-node insert FX (nodeId = track id | group id | "return-N"; key = eq/tape/pre).
+    add: (nodeId: string, key: DeviceKey) => call("nodeDeviceAdd", nodeId, key),
+    remove: (nodeId: string, key: DeviceKey) => call("nodeDeviceRemove", nodeId, key),
+    setBypass: (nodeId: string, key: DeviceKey, b: boolean) => call("nodeDeviceSetBypass", nodeId, key, b),
+    openEditor: (nodeId: string, key: DeviceKey) => call("nodeDeviceOpenEditor", nodeId, key),
+    closeEditor: (nodeId: string, key: DeviceKey) => call("nodeDeviceCloseEditor", nodeId, key),
   },
   track: {
     assignFile: (id: string, path: string) => call("trackAssignFile", id, path),
@@ -177,6 +194,7 @@ export interface EngineHandlers {
   onParams?: (p: { key: DeviceKey; params: EngineParam[] }) => void;
   onPlugins?: (p: PluginStatuses) => void;
   onTracks?: (t: TrackInfos) => void;
+  onNodeRacks?: (r: NodeRacks) => void;
   onSessionImported?: (p: ImportedSession) => void;
   onReady?: (info: unknown) => void;
 }
@@ -191,6 +209,7 @@ export function subscribeEngine(h: EngineHandlers): () => void {
   if (h.onParams) add("engineParams", (p) => h.onParams!(p as { key: DeviceKey; params: EngineParam[] }));
   if (h.onPlugins) add("enginePlugins", (p) => h.onPlugins!(p as PluginStatuses));
   if (h.onTracks) add("engineTracks", (p) => h.onTracks!(p as TrackInfos));
+  if (h.onNodeRacks) add("engineNodeRacks", (p) => h.onNodeRacks!(p as NodeRacks));
   if (h.onSessionImported) add("engineSessionImported", (p) => h.onSessionImported!(p as ImportedSession));
   if (h.onReady) add("engineReady", (p) => h.onReady!(p));
   return () => {

@@ -9,7 +9,7 @@ import type {
 import { TRACK_DEFS } from "../data/seed";
 import { DEFAULT_VOLUME, TOTAL_BEATS } from "../lib/constants";
 import { engine, engineActive } from "../lib/engine";
-import type { EngineState, TrackInfos, DeviceInfo } from "../lib/engine";
+import type { EngineState, TrackInfos, DeviceInfo, NodeRacks } from "../lib/engine";
 import { applySessionToEngine } from "../lib/engineSync";
 import type { PrefsData, SessionUi } from "../lib/session";
 
@@ -99,6 +99,7 @@ export interface DawState {
   levels: Nums; // per-track meter levels 0..1
   groupLevels: Nums; // per-group meter levels 0..1
   returnLevels: number[]; // per-return meter levels 0..1
+  nodeRacks: NodeRacks; // per-node insert FX contents (engine-driven)
   master: number; // master meter level 0..1
   reel: number; // tape-reel rotation in degrees
 
@@ -163,6 +164,15 @@ export interface DawState {
 
   openTrackChain: (id: string) => void;
   openMasterChain: () => void;
+  openGroupChain: (gid: string) => void;
+  openReturnChain: (idx: number) => void;
+
+  // ---- per-node insert FX ----
+  setNodeRacks: (r: NodeRacks) => void;
+  addNodeDevice: (nodeId: string, key: DeviceKey) => void;
+  removeNodeDevice: (nodeId: string, key: DeviceKey) => void;
+  setNodeDeviceBypass: (nodeId: string, key: DeviceKey, b: boolean) => void;
+  openNodeEditor: (nodeId: string, key: DeviceKey) => void;
   openSettings: () => void;
   closeSettings: () => void;
   openSessions: () => void;
@@ -253,6 +263,7 @@ export const useDawStore = create<DawState>((set, get) => ({
   levels: {},
   groupLevels: {},
   returnLevels: [0, 0],
+  nodeRacks: {},
   master: 0.04,
   reel: 0,
 
@@ -476,6 +487,22 @@ export const useDawStore = create<DawState>((set, get) => ({
 
   openTrackChain: (id) => set({ selTrack: id, rackOpen: true }),
   openMasterChain: () => set({ selTrack: "master", rackOpen: true }),
+  openGroupChain: (gid) => set({ selTrack: gid, rackOpen: true }),
+  openReturnChain: (idx) => set({ selTrack: `return-${idx}`, rackOpen: true }),
+
+  setNodeRacks: (r) => set({ nodeRacks: r }),
+  addNodeDevice: (nodeId, key) => {
+    if (engineActive()) engine.node.add(nodeId, key);
+  },
+  removeNodeDevice: (nodeId, key) => {
+    if (engineActive()) engine.node.remove(nodeId, key);
+  },
+  setNodeDeviceBypass: (nodeId, key, b) => {
+    if (engineActive()) engine.node.setBypass(nodeId, key, b);
+  },
+  openNodeEditor: (nodeId, key) => {
+    if (engineActive()) engine.node.openEditor(nodeId, key);
+  },
   openSettings: () => set({ settingsOpen: true }),
   closeSettings: () => set({ settingsOpen: false }),
   openSessions: () => set({ sessionsOpen: true }),

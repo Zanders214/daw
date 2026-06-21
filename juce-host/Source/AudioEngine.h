@@ -3,6 +3,7 @@
 #include <JuceHeader.h>
 #include "TrackChannel.h"
 #include "GroupBus.h"
+#include "DeviceRack.h"
 #include <array>
 #include <atomic>
 
@@ -84,6 +85,15 @@ public:
     /** Return meter levels [a, b] for the state event. */
     juce::var buildReturnLevels();
 
+    // Per-node insert FX racks (track / group / "return-N"). The instances live
+    // in each node; these resolve a node id to its rack.
+    DeviceRack* rackForNode (const juce::String& nodeId);          // null if absent
+    DeviceRack* ensureNodeRack (const juce::String& nodeId);       // create track/group if needed
+    /** { nodeId: [ {key,name,bypassed}, ... ] } for loaded node-rack slots. */
+    juce::var buildNodeRacks();
+    /** { nodeId: { key: base64, ... } } full state, for session save. */
+    juce::var buildNodeRackStates();
+
     void setMasterVolume (float v) { masterVolume.store (juce::jlimit (0.0f, 2.0f, v)); }
     float getMasterVolume() const { return masterVolume.load(); }
     void setMasterPan (float v) { masterPan.store (juce::jlimit (0.0f, 1.0f, v)); }
@@ -162,6 +172,7 @@ private:
     std::atomic<int> anySolo { 0 };          // cached count of soloed tracks
     std::atomic<int> anyGroupSolo { 0 };     // cached count of soloed groups
     std::array<juce::AudioBuffer<float>, numSends> sendBuses;
+    std::array<DeviceRack, numSends> returnRacks;
     std::array<std::atomic<float>, numSends> returnGain  { { {1.0f}, {1.0f} } };
     std::array<std::atomic<float>, numSends> returnLevel { { {0.0f}, {0.0f} } };
     std::atomic<float> masterVolume { 1.0f };

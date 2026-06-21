@@ -1,23 +1,8 @@
 #include "AudioEngine.h"
+#include "PluginEditorWindow.h"
+#include "PluginHost.h"
 
 using namespace juce;
-
-namespace
-{
-    /** A window that hosts a plugin's editor and notifies on close. */
-    class PluginEditorWindow : public DocumentWindow
-    {
-    public:
-        PluginEditorWindow (const String& name)
-            : DocumentWindow (name, Colours::black, DocumentWindow::allButtons)
-        {
-            setUsingNativeTitleBar (true);
-        }
-
-        std::function<void()> onCloseCallback;
-        void closeButtonPressed() override { if (onCloseCallback) onCloseCallback(); }
-    };
-}
 
 AudioEngine::AudioEngine()
 {
@@ -235,7 +220,7 @@ GroupBus& AudioEngine::ensureGroup (const String& id)
     auto* g = groups.add (new GroupBus (id));
     groupById.set (id, g);
     if (currentSampleRate > 0.0)
-        g->prepare (currentBlockSize);
+        g->prepare (currentSampleRate, currentBlockSize);
     return *g;
 }
 
@@ -288,6 +273,77 @@ var AudioEngine::buildReturnLevels()
     for (int i = 0; i < numSends; ++i)
         out.add ((double) returnLevel[(size_t) i].load());
     return out;
+}
+
+DeviceRack* AudioEngine::rackForNode (const String& nodeId)
+{
+    if (nodeId.startsWith ("return-"))
+    {
+        const int i = nodeId.fromFirstOccurrenceOf ("return-", false, false).getIntValue();
+        return isPositiveAndBelow (i, numSends) ? &returnRacks[(size_t) i] : nullptr;
+    }
+    const ScopedLock sl (tracksLock);
+    if (auto* g = groupById[nodeId]) return &g->inserts;
+    if (auto* t = trackById[nodeId]) return &t->inserts;
+    return nullptr;
+}
+
+DeviceRack* AudioEngine::ensureNodeRack (const String& nodeId)
+{
+    if (nodeId.startsWith ("return-"))
+        return rackForNode (nodeId);
+    // Group ids are "g-..." in the UI seed; everything else is a track id.
+    if (nodeId.startsWith ("g-"))
+        return &ensureGroup (nodeId).inserts;
+    return &ensureTrack (nodeId).inserts;
+}
+
+var AudioEngine::buildNodeRacks()
+{
+    auto* obj = new DynamicObject();
+    const ScopedLock sl (tracksLock);
+
+    auto addRack = [obj] (const String& nodeId, DeviceRack& r)
+    {
+        Array<var> slots;
+        for (int s = 0; s < DeviceRack::numSlots; ++s)
+            if (r.has (s))
+            {
+                auto* o = new DynamicObject();
+                o->setProperty ("key", PluginHost::slotKey (s));
+                o->setProperty ("name", r.get (s)->getName());
+                o->setProperty ("bypassed", r.isBypassed (s));
+                slots.add (var (o));
+            }
+        if (! slots.isEmpty())
+            obj->setProperty (Identifier (nodeId), var (slots));
+    };
+
+    for (auto* t : tracks) addRack (t->getId(), t->inserts);
+    for (auto* g : groups) addRack (g->getId(), g->inserts);
+    for (int i = 0; i < numSends; ++i) addRack ("return-" + String (i), returnRacks[(size_t) i]);
+    return var (obj);
+}
+
+var AudioEngine::buildNodeRackStates()
+{
+    auto* obj = new DynamicObject();
+    const ScopedLock sl (tracksLock);
+
+    auto addRack = [obj] (const String& nodeId, DeviceRack& r)
+    {
+        auto* no = new DynamicObject();
+        bool any = false;
+        for (int s = 0; s < DeviceRack::numSlots; ++s)
+            if (r.has (s)) { no->setProperty (PluginHost::slotKey (s), r.getState (s)); any = true; }
+        if (any)
+            obj->setProperty (Identifier (nodeId), var (no));
+    };
+
+    for (auto* t : tracks) addRack (t->getId(), t->inserts);
+    for (auto* g : groups) addRack (g->getId(), g->inserts);
+    for (int i = 0; i < numSends; ++i) addRack ("return-" + String (i), returnRacks[(size_t) i]);
+    return var (obj);
 }
 
 bool AudioEngine::assignTrackFile (const String& id, const File& file)
@@ -519,11 +575,13 @@ void AudioEngine::audioDeviceAboutToStart (AudioIODevice* device)
         for (auto* t : tracks)
             t->prepare (currentSampleRate, currentBlockSize);
         for (auto* g : groups)
-            g->prepare (currentBlockSize);
+            g->prepare (currentSampleRate, currentBlockSize);
     }
 
     for (auto& sb : sendBuses)
         sb.setSize (2, currentBlockSize, false, false, true);
+    for (auto& r : returnRacks)
+        r.prepare (currentSampleRate, currentBlockSize);
 }
 
 void AudioEngine::audioDeviceStopped()
@@ -539,7 +597,11 @@ void AudioEngine::audioDeviceStopped()
         const ScopedLock sl (tracksLock);
         for (auto* t : tracks)
             t->releaseResources();
+        for (auto* g : groups)
+            g->inserts.release();
     }
+    for (auto& r : returnRacks)
+        r.release();
 }
 
 void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputChannelData,
@@ -601,10 +663,13 @@ void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputCha
             for (auto* g : groups)
                 g->sumInto (scratch, numSamples);
 
-            // Returns: apply each return's gain, meter, and sum into the master.
+            // Returns: run the return's insert FX, apply its gain, meter, and sum
+            // into the master.
             for (int i = 0; i < numSends; ++i)
             {
                 auto& rb = sendBuses[(size_t) i];
+                midi.clear();
+                returnRacks[(size_t) i].process (rb, midi);
                 rb.applyGain (returnGain[(size_t) i].load());
 
                 float rpeak = 0.0f;

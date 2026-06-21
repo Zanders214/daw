@@ -31,6 +31,10 @@ private:
     void emit (const juce::Identifier& id, const juce::var& payload);
     void emitPluginStatuses();
     void emitTrackInfo();
+    void emitNodeRacks();
+    /** Instantiate a palette plugin (key) into a node's insert rack (async). */
+    void nodeDeviceAdd (const juce::String& nodeId, const juce::String& key,
+                        const juce::String& stateB64 = {});
     void loadSlotFromPath (int slot, const juce::String& path);
     void pickPluginFile (int slot);
     void pickSourceFile();

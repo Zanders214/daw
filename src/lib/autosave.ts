@@ -17,10 +17,13 @@ export function startAutosave(): () => void {
   let sessionTimer: ReturnType<typeof setTimeout> | undefined;
   let prefsTimer: ReturnType<typeof setTimeout> | undefined;
 
-  const snapSession = (s: DawState) => JSON.stringify(serializeSession(s));
   const snapPrefs = (s: DawState) => JSON.stringify(serializePrefs(s));
+  // Change-detection also watches node-rack contents (engine-owned, persisted by
+  // the host) so adding/bypassing a node device triggers a save even when no UI
+  // field changed; the saved `ui` payload is still just serializeSession.
+  const detect = (s: DawState) => JSON.stringify(serializeSession(s)) + "|" + JSON.stringify(s.nodeRacks);
 
-  let lastSession = snapSession(useDawStore.getState());
+  let lastSession = detect(useDawStore.getState());
   let lastPrefs = snapPrefs(useDawStore.getState());
 
   const unsub = useDawStore.subscribe((s) => {
@@ -34,15 +37,16 @@ export function startAutosave(): () => void {
 
     // Musical autosave is gated by the toggle.
     if (!s.autoSave) return;
-    const sess = snapSession(s);
-    if (sess !== lastSession) {
-      lastSession = sess;
+    const det = detect(s);
+    if (det !== lastSession) {
+      lastSession = det;
       clearTimeout(sessionTimer);
       sessionTimer = setTimeout(() => {
+        const st = useDawStore.getState();
         sessionBackend.save(AUTOSAVE_NAME, {
           version: SESSION_VERSION,
-          name: useDawStore.getState().currentSessionName ?? "Autosave",
-          ui: JSON.parse(sess),
+          name: st.currentSessionName ?? "Autosave",
+          ui: serializeSession(st),
         });
       }, DEBOUNCE_MS);
     }

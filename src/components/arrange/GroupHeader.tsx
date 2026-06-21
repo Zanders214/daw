@@ -24,12 +24,13 @@ const idleBtnSm: React.CSSProperties = {
 };
 
 export function GroupHeader({ g }: { g: Group }) {
-  const { collapsed, muted, soloed, vol, pan, level, toggleGroup, toggleGroupMute, toggleGroupSolo, setGroupVolume, setGroupPan } =
+  const { collapsed, muted, soloed, selected, vol, pan, level, toggleGroup, toggleGroupMute, toggleGroupSolo, setGroupVolume, setGroupPan, openGroupChain } =
     useDawStore(
       useShallow((s) => ({
         collapsed: !!s.groupCollapsed[g.id],
         muted: !!s.groupMutes[g.id],
         soloed: !!s.groupSolos[g.id],
+        selected: s.selTrack === g.id,
         vol: s.groupVolumes[g.id] ?? 1,
         pan: s.groupPans[g.id] ?? 0.5,
         level: s.groupLevels[g.id] ?? 0,
@@ -38,6 +39,7 @@ export function GroupHeader({ g }: { g: Group }) {
         toggleGroupSolo: s.toggleGroupSolo,
         setGroupVolume: s.setGroupVolume,
         setGroupPan: s.setGroupPan,
+        openGroupChain: s.openGroupChain,
       })),
     );
 
@@ -47,6 +49,8 @@ export function GroupHeader({ g }: { g: Group }) {
 
   return (
     <div
+      onClick={() => openGroupChain(g.id)}
+      title="Open group chain"
       style={{
         height: GROUP_ROW_H,
         display: "flex",
@@ -55,16 +59,17 @@ export function GroupHeader({ g }: { g: Group }) {
         gap: 5,
         padding: "0 12px",
         borderBottom: "1px solid var(--layer-2)",
-        background: hexA(g.color, 0.1),
-        borderLeft: `2px solid ${g.color}`,
+        background: selected ? hexA(g.color, 0.2) : hexA(g.color, 0.1),
+        borderLeft: `${selected ? 3 : 2}px solid ${g.color}`,
         boxSizing: "border-box",
+        cursor: "pointer",
       }}
     >
       {/* row 1: name + mute/solo */}
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <button
           type="button"
-          onClick={() => toggleGroup(g.id)}
+          onClick={(e) => { e.stopPropagation(); toggleGroup(g.id); }}
           title={collapsed ? "Expand group" : "Collapse group"}
           style={{
             width: 18,
@@ -121,7 +126,7 @@ export function GroupHeader({ g }: { g: Group }) {
       </div>
 
       {/* row 2: group fader + pan */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span style={{ fontSize: 8, color: "var(--text-label)", letterSpacing: "0.1em", flex: "none", width: 22 }}>BUS</span>
         <div style={{ flex: 1 }}>
           <Slider value={vol} onChange={(v) => setGroupVolume(g.id, v)} gradient={`linear-gradient(90deg, ${hexA(g.color, 0.5)}, ${g.color})`} />

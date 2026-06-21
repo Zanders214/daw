@@ -81,6 +81,46 @@ void EngineController::emitTrackInfo()
     emit ("engineTracks", audioEngine.buildTrackInfo());
 }
 
+void EngineController::emitNodeRacks()
+{
+    emit ("engineNodeRacks", audioEngine.buildNodeRacks());
+}
+
+void EngineController::nodeDeviceAdd (const String& nodeId, const String& key, const String& stateB64)
+{
+    const int slot = PluginHost::slotIndex (key);
+    if (slot < 0)
+        return;
+
+    const auto path = pluginHost.getSlotPath (slot);
+    if (path.isEmpty() || ! File (path).exists())
+        return;
+
+    PluginDescription desc;
+    if (! pluginHost.describeFile (File (path), desc))
+        return;
+
+    pluginHost.createAsync (
+        desc, audioEngine.getSampleRate(), audioEngine.getBlockSize(),
+        [this, nodeId, key, slot, stateB64] (std::unique_ptr<AudioPluginInstance> inst, const String& error)
+        {
+            if (inst != nullptr)
+            {
+                if (auto* rack = audioEngine.ensureNodeRack (nodeId))
+                {
+                    rack->install (slot, std::move (inst));
+                    if (stateB64.isNotEmpty())
+                        rack->setState (slot, stateB64);
+                }
+            }
+            else
+            {
+                Logger::writeToLog ("Node plugin load failed (" + nodeId + "/" + key + "): " + error);
+            }
+            emitNodeRacks();
+        });
+}
+
 void EngineController::loadSlotFromPath (int slot, const String& path)
 {
     File file (path);
@@ -164,6 +204,7 @@ var EngineController::buildEnginePayload()
 
     auto* engineObj = new DynamicObject();
     engineObj->setProperty ("plugins", var (plugins));
+    engineObj->setProperty ("nodes", audioEngine.buildNodeRackStates());
     return var (engineObj);
 }
 
@@ -200,6 +241,14 @@ void EngineController::applyEnginePayload (const var& enginePayload)
         else
             pendingPluginState[(size_t) slot] = b64;
     }
+
+    // Per-node insert racks: instantiate each saved device into its node (async)
+    // and restore its state on completion.
+    if (auto* nodes = obj->getProperty ("nodes").getDynamicObject())
+        for (const auto& np : nodes->getProperties())
+            if (auto* slots = np.value.getDynamicObject())
+                for (const auto& sp : slots->getProperties())
+                    nodeDeviceAdd (np.name.toString(), sp.name.toString(), sp.value.toString());
 }
 
 void EngineController::sessionExport (const String& name, const var& uiPayload)
@@ -278,6 +327,13 @@ var EngineController::handle (const String& name, const Array<var>& args)
     // ---- aux sends / returns ----
     if (name == "mixerSetTrackSend") { audioEngine.setTrackSend (arg (0).toString(), (int) arg (1), (float) (double) arg (2)); return {}; }
     if (name == "returnSetGain")     { audioEngine.setReturnGain ((int) arg (0), (float) (double) arg (1)); return {}; }
+
+    // ---- per-node insert FX ----
+    if (name == "nodeDeviceAdd")    { nodeDeviceAdd (arg (0).toString(), arg (1).toString()); return {}; }
+    if (name == "nodeDeviceRemove") { if (auto* r = audioEngine.rackForNode (arg (0).toString())) r->remove (PluginHost::slotIndex (arg (1).toString())); emitNodeRacks(); return {}; }
+    if (name == "nodeDeviceSetBypass") { if (auto* r = audioEngine.rackForNode (arg (0).toString())) r->setBypass (PluginHost::slotIndex (arg (1).toString()), (bool) arg (2)); emitNodeRacks(); return {}; }
+    if (name == "nodeDeviceOpenEditor")  { if (auto* r = audioEngine.rackForNode (arg (0).toString())) r->openEditor (PluginHost::slotIndex (arg (1).toString())); return {}; }
+    if (name == "nodeDeviceCloseEditor") { if (auto* r = audioEngine.rackForNode (arg (0).toString())) r->closeEditor (PluginHost::slotIndex (arg (1).toString())); return {}; }
 
     // ---- per-track audio source ----
     if (name == "trackAssignFile") { audioEngine.assignTrackFile (arg (0).toString(), File (arg (1).toString())); emitTrackInfo(); return {}; }
