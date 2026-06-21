@@ -55,6 +55,14 @@ export function Browser() {
     return (
       <div
         onClick={toggleBrowser}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            toggleBrowser();
+          }
+        }}
         title="Show browser"
         style={{
           width: 36,

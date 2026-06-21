@@ -18,7 +18,7 @@ function ReelSpin() {
   );
 }
 
-function Reel({ core }: { core: string }) {
+function Reel({ core }: Readonly<{ core: string }>) {
   return (
     <div style={{ position: "relative", width: 64, height: 64 }}>
       <div

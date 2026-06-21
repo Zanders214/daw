@@ -34,7 +34,7 @@ export function DeviceModule({
   tagColor,
   wellStyle,
   children,
-}: DeviceModuleProps) {
+}: Readonly<DeviceModuleProps>) {
   const on = useDawStore((s) => s.devices[device]);
   const toggleDevice = useDawStore((s) => s.toggleDevice);
 
@@ -78,8 +78,16 @@ export function DeviceModule({
       </div>
 
       <div
+        role="button"
+        tabIndex={0}
         onDoubleClick={() => {
           if (engineActive()) engine.device.openEditor(device);
+        }}
+        onKeyDown={(e) => {
+          if ((e.key === "Enter" || e.key === " ") && engineActive()) {
+            e.preventDefault();
+            engine.device.openEditor(device);
+          }
         }}
         title={engineActive() ? "Double-click to open the plugin editor" : undefined}
         style={{

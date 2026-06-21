@@ -534,7 +534,11 @@ export const useDawStore = create<DawState>((set, get) => ({
 
   setTheme: (t) => set({ theme: t }),
   cycleTheme: () =>
-    set((s) => ({ theme: s.theme === "dark" ? "light" : s.theme === "light" ? "midnight" : "dark" })),
+    set((s) => {
+      const order = ["dark", "light", "midnight"] as const;
+      const next = order[(order.indexOf(s.theme) + 1) % order.length];
+      return { theme: next };
+    }),
   setTracksRight: (v) => set({ tracksRight: v }),
   toggleTracksSide: () => set((s) => ({ tracksRight: !s.tracksRight })),
   toggleGrid: () => set((s) => ({ showGrid: !s.showGrid })),
