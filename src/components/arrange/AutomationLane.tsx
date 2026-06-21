@@ -1,24 +1,113 @@
 import { useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useDawStore } from "../../store/useDawStore";
-import { getAutoPts } from "../../lib/automation";
+import { getAutoPts, valAt, fmtAuto } from "../../lib/automation";
 import { hexA } from "../../lib/color";
 import { TOTAL_BEATS } from "../../lib/constants";
-import type { AutoPoint, Track } from "../../types";
+import type { AutoPoint, AutomationParam } from "../../types";
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
 /** Minimum time gap kept between adjacent breakpoints so they never cross. */
 const EPS = 0.01;
 
-export function AutomationLane({ track }: { track: Track }) {
-  const id = track.id;
+/** Automatable params per node type (chip token → label). */
+export const TRACK_AUTO_PARAMS: [AutomationParam, string][] = [
+  ["vol", "VOL"],
+  ["pan", "PAN"],
+  ["sendA", "SEND A"],
+  ["sendB", "SEND B"],
+];
+export const GROUP_AUTO_PARAMS: [AutomationParam, string][] = [
+  ["vol", "VOL"],
+  ["pan", "PAN"],
+];
+
+function chipStyle(active: boolean): React.CSSProperties {
+  return {
+    padding: "3px 8px",
+    borderRadius: 6,
+    fontSize: 9,
+    fontWeight: 700,
+    letterSpacing: "0.06em",
+    cursor: "pointer",
+    fontFamily: "var(--font-display)",
+    ...(active
+      ? { background: "var(--accent-soft)", color: "var(--accent)", border: "1px solid var(--accent-line)" }
+      : { background: "var(--layer-1)", color: "var(--text-3)", border: "1px solid var(--layer-3)" }),
+  };
+}
+
+/** Live automation value at the playhead (subscribes to playhead + envelope). */
+function AutoValueReadout({ nodeId, color }: { nodeId: string; color: string }) {
+  const { ph, param, pts } = useDawStore(
+    useShallow((s) => {
+      const p = s.autoParam[nodeId] || "vol";
+      return { ph: s.playhead, param: p, pts: getAutoPts(s.autoData, nodeId, p) };
+    }),
+  );
+  return (
+    <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color }}>{fmtAuto(param, valAt(pts, ph))}</span>
+  );
+}
+
+/** Header row (param picker + live readout) for a node's automation lane. */
+export function AutomationChips({
+  nodeId,
+  color,
+  params,
+}: {
+  nodeId: string;
+  color: string;
+  params: [AutomationParam, string][];
+}) {
+  const { param, setAutoParam } = useDawStore(
+    useShallow((s) => ({ param: s.autoParam[nodeId] || "vol", setAutoParam: s.setAutoParam })),
+  );
+  return (
+    <div
+      style={{
+        height: 64,
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        padding: "0 16px",
+        borderBottom: "1px solid var(--layer-2)",
+        background: "var(--app-trackhead)",
+      }}
+    >
+      <span style={{ fontSize: 9, letterSpacing: "0.12em", color: "var(--text-label)" }}>AUTO</span>
+      <div style={{ display: "flex", gap: 4 }}>
+        {params.map(([v, l]) => (
+          <button
+            key={v}
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setAutoParam(nodeId, v);
+            }}
+            style={chipStyle(param === v)}
+          >
+            {l}
+          </button>
+        ))}
+      </div>
+      <span style={{ flex: 1 }} />
+      <AutoValueReadout nodeId={nodeId} color={color} />
+    </div>
+  );
+}
+
+/** Editable breakpoint envelope for one node + param: click empty lane to add a
+ *  point, drag a handle on both axes (time clamped between neighbors), alt- or
+ *  right-click a handle to delete. */
+export function AutomationLane({ nodeId, color }: { nodeId: string; color: string }) {
   const laneRef = useRef<HTMLDivElement>(null);
   const { param, pts, addAutoPoint, moveAutoPoint, deleteAutoPoint } = useDawStore(
     useShallow((s) => {
-      const p = s.autoParam[id] || "vol";
+      const p = s.autoParam[nodeId] || "vol";
       return {
         param: p,
-        pts: getAutoPts(s.autoData, id, p),
+        pts: getAutoPts(s.autoData, nodeId, p),
         addAutoPoint: s.addAutoPoint,
         moveAutoPoint: s.moveAutoPoint,
         deleteAutoPoint: s.deleteAutoPoint,
@@ -42,7 +131,7 @@ export function AutomationLane({ track }: { track: Track }) {
     const lane = laneRef.current;
     if (!lane) return;
     const rect = lane.getBoundingClientRect();
-    addAutoPoint(id, param, toCoords(e.clientX, e.clientY, rect));
+    addAutoPoint(nodeId, param, toCoords(e.clientX, e.clientY, rect));
   };
 
   /** Drag a handle on both axes (time clamped between its neighbors). */
@@ -51,7 +140,7 @@ export function AutomationLane({ track }: { track: Track }) {
     e.stopPropagation();
     if (e.button !== 0) return;
     if (e.altKey) {
-      deleteAutoPoint(id, param, idx);
+      deleteAutoPoint(nodeId, param, idx);
       return;
     }
     const lane = laneRef.current;
@@ -61,7 +150,7 @@ export function AutomationLane({ track }: { track: Track }) {
     const hi = idx < pts.length - 1 ? pts[idx + 1].t - EPS : TOTAL_BEATS;
     const move = (ev: PointerEvent) => {
       const c = toCoords(ev.clientX, ev.clientY, rect);
-      moveAutoPoint(id, param, idx, { t: Math.max(lo, Math.min(hi, c.t)), v: c.v });
+      moveAutoPoint(nodeId, param, idx, { t: Math.max(lo, Math.min(hi, c.t)), v: c.v });
     };
     const up = () => {
       window.removeEventListener("pointermove", move);
@@ -80,7 +169,7 @@ export function AutomationLane({ track }: { track: Track }) {
         position: "relative",
         height: 64,
         borderBottom: "1px solid var(--layer-2)",
-        background: hexA(track.color, 0.04),
+        background: hexA(color, 0.04),
         cursor: "crosshair",
       }}
     >
@@ -89,13 +178,7 @@ export function AutomationLane({ track }: { track: Track }) {
         preserveAspectRatio="none"
         style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}
       >
-        <polyline
-          points={poly}
-          fill="none"
-          stroke={track.color}
-          strokeWidth="1.5"
-          vectorEffect="non-scaling-stroke"
-        />
+        <polyline points={poly} fill="none" stroke={color} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
       </svg>
       {pts.map((p, idx) => (
         <div
@@ -104,7 +187,7 @@ export function AutomationLane({ track }: { track: Track }) {
           onContextMenu={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            deleteAutoPoint(id, param, idx);
+            deleteAutoPoint(nodeId, param, idx);
           }}
           style={{
             position: "absolute",
@@ -115,8 +198,8 @@ export function AutomationLane({ track }: { track: Track }) {
             marginLeft: -6,
             marginTop: -6,
             borderRadius: "50%",
-            background: track.color,
-            boxShadow: `0 0 7px ${track.color}`,
+            background: color,
+            boxShadow: `0 0 7px ${color}`,
             cursor: "move",
             zIndex: 3,
             touchAction: "none",

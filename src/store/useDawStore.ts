@@ -42,14 +42,25 @@ function nodeAutoParams(autoData: Record<string, AutoPoint[]>, nodeId: string): 
     .filter((k) => k.startsWith(prefix))
     .map((k) => k.slice(prefix.length));
 }
-/** Re-assert a track's manual mix values so manual control resumes after its
+/** Re-assert a node's manual mix values so manual control resumes after its
  *  automation lane is disabled (the engine atomics had been driven by the curve). */
-function reassertTrackManual(s: DawState, id: string) {
-  engine.mixer.setTrackVolume(id, s.volumes[id] ?? DEFAULT_VOLUME);
-  engine.mixer.setTrackPan(id, s.pans[id] ?? 0.5);
-  const snd = s.sends[id] ?? [];
-  engine.mixer.setTrackSend(id, 0, snd[0] ?? 0);
-  engine.mixer.setTrackSend(id, 1, snd[1] ?? 0);
+function reassertNodeManual(s: DawState, nodeId: string) {
+  if (nodeId.startsWith("g-")) {
+    engine.group.setGain(nodeId, s.groupVolumes[nodeId] ?? 1);
+    engine.group.setPan(nodeId, s.groupPans[nodeId] ?? 0.5);
+  } else if (nodeId.startsWith("return-")) {
+    const i = Number(nodeId.slice("return-".length));
+    engine.returns.setGain(i, s.returnGains[i] ?? 1);
+  } else if (nodeId === "master") {
+    engine.mixer.setMasterVolume(s.masterVolume);
+    engine.mixer.setMasterPan(s.masterPan);
+  } else {
+    engine.mixer.setTrackVolume(nodeId, s.volumes[nodeId] ?? DEFAULT_VOLUME);
+    engine.mixer.setTrackPan(nodeId, s.pans[nodeId] ?? 0.5);
+    const snd = s.sends[nodeId] ?? [];
+    engine.mixer.setTrackSend(nodeId, 0, snd[0] ?? 0);
+    engine.mixer.setTrackSend(nodeId, 1, snd[1] ?? 0);
+  }
 }
 
 export interface DawState {
@@ -604,7 +615,7 @@ export const useDawStore = create<DawState>((set, get) => ({
         params.forEach((p) => engine.automation.set(id, p, s.autoData[id + ":" + p]));
       } else {
         params.forEach((p) => engine.automation.clear(id, p));
-        reassertTrackManual(s, id);
+        reassertNodeManual(s, id);
       }
     }
     set({ autoLanes: { ...s.autoLanes, [id]: on } });

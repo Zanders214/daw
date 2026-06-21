@@ -1,9 +1,9 @@
 import { useShallow } from "zustand/react/shallow";
 import { useDawStore } from "../../store/useDawStore";
 import { Meter, Slider, Dial } from "../../design-system";
-import { getAutoPts, valAt, fmtAuto } from "../../lib/automation";
+import { AutomationChips, TRACK_AUTO_PARAMS } from "./AutomationLane";
 import { DEFAULT_VOLUME } from "../../lib/constants";
-import type { AutomationParam, Track } from "../../types";
+import type { Track } from "../../types";
 
 const idleBtn: React.CSSProperties = {
   width: 34,
@@ -22,87 +22,12 @@ const idleBtn: React.CSSProperties = {
   boxShadow: "var(--inset-top)",
 };
 
-const PARAMS: [AutomationParam, string][] = [
-  ["vol", "VOL"],
-  ["pan", "PAN"],
-  ["sendA", "SEND A"],
-  ["sendB", "SEND B"],
-];
-
-function chipStyle(active: boolean): React.CSSProperties {
-  return {
-    padding: "3px 8px",
-    borderRadius: 6,
-    fontSize: 9,
-    fontWeight: 700,
-    letterSpacing: "0.06em",
-    cursor: "pointer",
-    fontFamily: "var(--font-display)",
-    ...(active
-      ? { background: "var(--accent-soft)", color: "var(--accent)", border: "1px solid var(--accent-line)" }
-      : { background: "var(--layer-1)", color: "var(--text-3)", border: "1px solid var(--layer-3)" }),
-  };
-}
-
 /** Live per-track level meter (subscribes to its own level only). */
 function TrackMeter({ id }: { id: string }) {
   const level = useDawStore((s) => s.levels[id] ?? 0);
   return (
     <div style={{ flex: 1 }}>
       <Meter value={level} height={5} />
-    </div>
-  );
-}
-
-/** Live automation value at the playhead (subscribes to playhead + envelope). */
-function AutoValueReadout({ track }: { track: Track }) {
-  const { ph, param, pts } = useDawStore(
-    useShallow((s) => {
-      const p = s.autoParam[track.id] || "vol";
-      return { ph: s.playhead, param: p, pts: getAutoPts(s.autoData, track.id, p) };
-    }),
-  );
-  return (
-    <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: track.color }}>
-      {fmtAuto(param, valAt(pts, ph))}
-    </span>
-  );
-}
-
-function AutomationHeader({ track }: { track: Track }) {
-  const { param, setAutoParam } = useDawStore(
-    useShallow((s) => ({ param: s.autoParam[track.id] || "vol", setAutoParam: s.setAutoParam })),
-  );
-  return (
-    <div
-      style={{
-        height: 64,
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-        padding: "0 16px",
-        borderBottom: "1px solid var(--layer-2)",
-        background: "var(--app-trackhead)",
-      }}
-    >
-      <span style={{ fontSize: 9, letterSpacing: "0.12em", color: "var(--text-label)" }}>AUTO</span>
-      <div style={{ display: "flex", gap: 4 }}>
-        {PARAMS.map(([v, l]) => (
-          <button
-            key={v}
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setAutoParam(track.id, v);
-            }}
-            style={chipStyle(param === v)}
-          >
-            {l}
-          </button>
-        ))}
-      </div>
-      <span style={{ flex: 1 }} />
-      <AutoValueReadout track={track} />
     </div>
   );
 }
@@ -353,7 +278,7 @@ export function TrackHeader({ track }: { track: Track }) {
           </span>
         </div>
       </div>
-      {autoOpen && <AutomationHeader track={track} />}
+      {autoOpen && <AutomationChips nodeId={id} color={track.color} params={TRACK_AUTO_PARAMS} />}
       {sendsOpen && <SendRow id={id} />}
     </>
   );

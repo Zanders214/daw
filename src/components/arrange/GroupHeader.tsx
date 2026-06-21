@@ -2,6 +2,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useDawStore } from "../../store/useDawStore";
 import { hexA } from "../../lib/color";
 import { Meter, Slider, Dial } from "../../design-system";
+import { AutomationChips, AutomationLane, GROUP_AUTO_PARAMS } from "./AutomationLane";
 import type { Group } from "../../types";
 
 const GROUP_ROW_H = 56;
@@ -24,19 +25,21 @@ const idleBtnSm: React.CSSProperties = {
 };
 
 export function GroupHeader({ g }: { g: Group }) {
-  const { collapsed, muted, soloed, selected, vol, pan, level, toggleGroup, toggleGroupMute, toggleGroupSolo, setGroupVolume, setGroupPan, openGroupChain } =
+  const { collapsed, muted, soloed, selected, autoOpen, vol, pan, level, toggleGroup, toggleGroupMute, toggleGroupSolo, toggleAuto, setGroupVolume, setGroupPan, openGroupChain } =
     useDawStore(
       useShallow((s) => ({
         collapsed: !!s.groupCollapsed[g.id],
         muted: !!s.groupMutes[g.id],
         soloed: !!s.groupSolos[g.id],
         selected: s.selTrack === g.id,
+        autoOpen: !!s.autoLanes[g.id],
         vol: s.groupVolumes[g.id] ?? 1,
         pan: s.groupPans[g.id] ?? 0.5,
         level: s.groupLevels[g.id] ?? 0,
         toggleGroup: s.toggleGroup,
         toggleGroupMute: s.toggleGroupMute,
         toggleGroupSolo: s.toggleGroupSolo,
+        toggleAuto: s.toggleAuto,
         setGroupVolume: s.setGroupVolume,
         setGroupPan: s.setGroupPan,
         openGroupChain: s.openGroupChain,
@@ -48,6 +51,7 @@ export function GroupHeader({ g }: { g: Group }) {
     Math.abs(pan - 0.5) < 0.005 ? "C" : pan < 0.5 ? `L${Math.round((0.5 - pan) * 200)}` : `R${Math.round((pan - 0.5) * 200)}`;
 
   return (
+    <>
     <div
       onClick={() => openGroupChain(g.id)}
       title="Open group chain"
@@ -123,6 +127,14 @@ export function GroupHeader({ g }: { g: Group }) {
         >
           S
         </button>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); toggleAuto(g.id); }}
+          title="Automation lane"
+          style={{ ...idleBtnSm, ...(autoOpen ? { background: "var(--accent-soft)", color: "var(--accent)", borderColor: "var(--accent-line)" } : null) }}
+        >
+          A
+        </button>
       </div>
 
       {/* row 2: group fader + pan */}
@@ -141,18 +153,25 @@ export function GroupHeader({ g }: { g: Group }) {
         </div>
       </div>
     </div>
+    {autoOpen && <AutomationChips nodeId={g.id} color={g.color} params={GROUP_AUTO_PARAMS} />}
+    </>
   );
 }
 
-/** The tinted bar a group renders as in the lanes column (height matches the header). */
+/** The tinted bar a group renders as in the lanes column (height matches the
+ *  header); shows the group's automation envelope below it when the lane is open. */
 export function GroupLane({ g }: { g: Group }) {
+  const autoOpen = useDawStore((s) => !!s.autoLanes[g.id]);
   return (
-    <div
-      style={{
-        height: GROUP_ROW_H,
-        borderBottom: "1px solid var(--layer-2)",
-        background: hexA(g.color, 0.05),
-      }}
-    />
+    <>
+      <div
+        style={{
+          height: GROUP_ROW_H,
+          borderBottom: "1px solid var(--layer-2)",
+          background: hexA(g.color, 0.05),
+        }}
+      />
+      {autoOpen && <AutomationLane nodeId={g.id} color={g.color} />}
+    </>
   );
 }
