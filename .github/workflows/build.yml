@@ -158,10 +158,68 @@ jobs:
           echo "--- build/ZandersDAW_artefacts ---"
           find build -path '*ZandersDAW_artefacts*' -maxdepth 6 -print 2>/dev/null | head -50 || true
 
-      - name: Upload app
+      # Ad-hoc code-sign the macOS bundle so Gatekeeper stops reporting it as
+      # "damaged" on download, then zip it with ditto (which preserves the .app
+      # bundle structure + the signature). Not notarised: the first launch still
+      # needs a right-click -> Open, or `xattr -cr`.
+      - name: Sign & package app (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          APP="build/ZandersDAW_artefacts/Release/Zanders DAW.app"
+          codesign --force --deep --sign - "$APP"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          ditto -c -k --keepParent "$APP" "Zanders-DAW-macOS.zip"
+
+      - name: Package app (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cd "build/ZandersDAW_artefacts/Release"
+          zip -j "$GITHUB_WORKSPACE/Zanders-DAW-Linux.zip" "Zanders DAW"
+
+      - name: Package app (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path "build/ZandersDAW_artefacts/Release/*" -DestinationPath "Zanders-DAW-Windows.zip" -Force
+
+      - name: Upload package
         uses: actions/upload-artifact@v4
         with:
-          name: ZandersDAW-${{ matrix.name }}
-          path: build/ZandersDAW_artefacts/**/Zanders DAW*
-          if-no-files-found: warn
+          name: pkg-${{ matrix.name }}
+          path: Zanders-DAW-*.zip
+          if-no-files-found: error
           retention-days: 7
+
+  # Publish every dev / claude-* build as a single rolling "latest" GitHub
+  # Release, so the apps download in one click -- no GitHub login, no digging
+  # through CI artifacts. (Versioned releases can be added later via git tags.)
+  release:
+    needs: host
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/heads/claude/')))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          path: pkgs
+          pattern: pkg-*
+          merge-multiple: true
+
+      - name: List packages
+        run: ls -lR pkgs
+
+      - name: Publish rolling "latest" release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          short="$(echo "$GITHUB_SHA" | cut -c1-7)"
+          {
+            echo "Automated build of ${GITHUB_REF_NAME} (${short}) -- $(date -u +'%Y-%m-%d %H:%M UTC')."
+            echo
+            echo 'macOS: ad-hoc signed but not notarised by Apple. On first launch, right-click the app and choose "Open" (or run: xattr -cr "Zanders DAW.app").'
+          } > notes.md
+          # Roll the tag + release onto this commit with fresh assets.
+          gh release delete latest --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes || true
+          gh release create latest --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Latest build" --notes-file notes.md pkgs/*.zip
