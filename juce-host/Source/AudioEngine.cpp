@@ -31,6 +31,7 @@ AudioEngine::~AudioEngine()
 
 void AudioEngine::initialise()
 {
+    readThread.startThread();
     deviceManager.initialiseWithDefaultDevices (2, 2);
     deviceManager.addAudioCallback (this);
 }
@@ -41,10 +42,26 @@ void AudioEngine::shutdown()
     for (int i = 0; i < numSlots; ++i)
         closeEditor (i);
 
-    const ScopedLock sl (chainLock);
-    for (auto& p : chain)
-        if (p != nullptr)
-            p->releaseResources();
+    {
+        const ScopedLock sl (chainLock);
+        for (auto& p : chain)
+            if (p != nullptr)
+                p->releaseResources();
+    }
+
+    {
+        const ScopedLock sl (tracksLock);
+        for (auto* t : tracks)
+        {
+            t->stop();
+            t->clearFile();
+            t->releaseResources();
+        }
+        tracks.clear();
+        trackById.clear();
+    }
+    readThread.stopThread (2000);
+
     transportSource.setSource (nullptr);
     readerSource.reset();
 }
@@ -90,6 +107,81 @@ bool AudioEngine::loadAudioFile (const File& file)
 void AudioEngine::setInputMode (const String& mode)
 {
     inputMode = mode;
+}
+
+// ---- loop region ----
+void AudioEngine::setLoopRegion (double startBeats, double endBeats)
+{
+    loopStartBeats.store (jlimit (0.0, totalBeats, startBeats));
+    loopEndBeats.store   (jlimit (0.0, totalBeats, endBeats));
+}
+
+// ---- mixer (multitrack) ----
+TrackChannel& AudioEngine::ensureTrack (const String& id)
+{
+    const ScopedLock sl (tracksLock);
+    if (auto* existing = trackById[id])
+        return *existing;
+
+    auto* ch = tracks.add (new TrackChannel (id));
+    trackById.set (id, ch);
+    if (currentSampleRate > 0.0)
+        ch->prepare (currentSampleRate, currentBlockSize);
+    return *ch;
+}
+
+void AudioEngine::recomputeAnySolo()
+{
+    const ScopedLock sl (tracksLock);
+    int count = 0;
+    for (auto* t : tracks)
+        if (t->solo.load())
+            ++count;
+    anySolo.store (count);
+}
+
+void AudioEngine::setTrackGain (const String& id, float gainLinear) { ensureTrack (id).gain.store (jlimit (0.0f, 4.0f, gainLinear)); }
+void AudioEngine::setTrackMute (const String& id, bool muted)       { ensureTrack (id).mute.store (muted); }
+void AudioEngine::setTrackSolo (const String& id, bool soloed)      { ensureTrack (id).solo.store (soloed); recomputeAnySolo(); }
+void AudioEngine::setTrackArm  (const String& id, bool armed)       { ensureTrack (id).arm.store (armed); }
+
+bool AudioEngine::assignTrackFile (const String& id, const File& file)
+{
+    auto& ch = ensureTrack (id);
+    const ScopedLock sl (tracksLock); // serialize the source swap against the audio thread
+    return ch.loadFile (audioFormatManager, readThread, file);
+}
+
+void AudioEngine::clearTrackFile (const String& id)
+{
+    const ScopedLock sl (tracksLock);
+    if (auto* t = trackById[id])
+        t->clearFile();
+}
+
+var AudioEngine::buildTrackLevels()
+{
+    auto* obj = new DynamicObject();
+    const ScopedTryLock stl (tracksLock);
+    if (stl.isLocked())
+        for (auto* t : tracks)
+            obj->setProperty (Identifier (t->getId()), (double) t->level.load());
+    return var (obj);
+}
+
+var AudioEngine::buildTrackInfo()
+{
+    auto* obj = new DynamicObject();
+    const ScopedLock sl (tracksLock);
+    for (auto* t : tracks)
+    {
+        auto* s = new DynamicObject();
+        s->setProperty ("loaded", t->hasFile());
+        s->setProperty ("name", t->getFileName());
+        s->setProperty ("path", t->getFilePath());
+        obj->setProperty (Identifier (t->getId()), var (s));
+    }
+    return var (obj);
 }
 
 // ---- plugin chain ----
@@ -238,18 +330,32 @@ void AudioEngine::audioDeviceAboutToStart (AudioIODevice* device)
 
     transportSource.prepareToPlay (currentBlockSize, currentSampleRate);
 
-    const ScopedLock sl (chainLock);
-    for (int i = 0; i < numSlots; ++i)
-        prepareSlot (i);
+    {
+        const ScopedLock sl (chainLock);
+        for (int i = 0; i < numSlots; ++i)
+            prepareSlot (i);
+    }
+    {
+        const ScopedLock sl (tracksLock);
+        for (auto* t : tracks)
+            t->prepare (currentSampleRate, currentBlockSize);
+    }
 }
 
 void AudioEngine::audioDeviceStopped()
 {
     transportSource.releaseResources();
-    const ScopedLock sl (chainLock);
-    for (auto& p : chain)
-        if (p != nullptr)
-            p->releaseResources();
+    {
+        const ScopedLock sl (chainLock);
+        for (auto& p : chain)
+            if (p != nullptr)
+                p->releaseResources();
+    }
+    {
+        const ScopedLock sl (tracksLock);
+        for (auto* t : tracks)
+            t->releaseResources();
+    }
 }
 
 void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputChannelData,
