@@ -25,7 +25,8 @@ const idleBtn: React.CSSProperties = {
 const PARAMS: [AutomationParam, string][] = [
   ["vol", "VOL"],
   ["pan", "PAN"],
-  ["filt", "FILT"],
+  ["sendA", "SEND A"],
+  ["sendB", "SEND B"],
 ];
 
 function chipStyle(active: boolean): React.CSSProperties {

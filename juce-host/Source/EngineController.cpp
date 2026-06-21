@@ -211,7 +211,7 @@ var EngineController::buildEnginePayload()
 var EngineController::buildSession (const String& name, const var& uiPayload)
 {
     auto* obj = new DynamicObject();
-    obj->setProperty ("version", 1);
+    obj->setProperty ("version", 2); // keep in lockstep with SESSION_VERSION (session.ts)
     obj->setProperty ("name", name);
     obj->setProperty ("savedAt", Time::getCurrentTime().toISO8601 (true));
     obj->setProperty ("ui", uiPayload);

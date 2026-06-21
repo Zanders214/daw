@@ -8,6 +8,7 @@ import type {
 } from "../types";
 import { TRACK_DEFS } from "../data/seed";
 import { DEFAULT_VOLUME, TOTAL_BEATS } from "../lib/constants";
+import { getAutoPts } from "../lib/automation";
 import { engine, engineActive } from "../lib/engine";
 import type { EngineState, TrackInfos, DeviceInfo, NodeRacks } from "../lib/engine";
 import { applySessionToEngine } from "../lib/engineSync";
@@ -189,7 +190,15 @@ export interface DawState {
 
   toggleAuto: (id: string) => void;
   setAutoParam: (id: string, param: AutomationParam) => void;
-  setAutoPoint: (key: string, points: AutoPoint[]) => void;
+  /** Insert a breakpoint into a node's envelope (materializes the default curve
+   *  on first edit), keeping points sorted by time. */
+  addAutoPoint: (nodeId: string, param: AutomationParam, pt: AutoPoint) => void;
+  /** Replace one breakpoint in place (caller clamps time within neighbors). */
+  moveAutoPoint: (nodeId: string, param: AutomationParam, idx: number, pt: AutoPoint) => void;
+  /** Remove one breakpoint (kept to a minimum of one point). */
+  deleteAutoPoint: (nodeId: string, param: AutomationParam, idx: number) => void;
+  /** Replace a node's whole envelope. */
+  setAutoPoints: (nodeId: string, param: AutomationParam, points: AutoPoint[]) => void;
 
   /** Advance one animation frame; returns the current integer beat. */
   tick: (dt: number) => number;
@@ -553,7 +562,29 @@ export const useDawStore = create<DawState>((set, get) => ({
 
   toggleAuto: (id) => set((s) => ({ autoLanes: { ...s.autoLanes, [id]: !s.autoLanes[id] } })),
   setAutoParam: (id, param) => set((s) => ({ autoParam: { ...s.autoParam, [id]: param } })),
-  setAutoPoint: (key, points) => set((s) => ({ autoData: { ...s.autoData, [key]: points } })),
+
+  addAutoPoint: (nodeId, param, pt) =>
+    set((s) => {
+      const cur = getAutoPts(s.autoData, nodeId, param);
+      const next = [...cur, pt].sort((a, b) => a.t - b.t);
+      return { autoData: { ...s.autoData, [nodeId + ":" + param]: next } };
+    }),
+  moveAutoPoint: (nodeId, param, idx, pt) =>
+    set((s) => {
+      const cur = getAutoPts(s.autoData, nodeId, param);
+      if (idx < 0 || idx >= cur.length) return {};
+      const next = cur.map((p, i) => (i === idx ? pt : p));
+      return { autoData: { ...s.autoData, [nodeId + ":" + param]: next } };
+    }),
+  deleteAutoPoint: (nodeId, param, idx) =>
+    set((s) => {
+      const cur = getAutoPts(s.autoData, nodeId, param);
+      if (cur.length <= 1 || idx < 0 || idx >= cur.length) return {};
+      const next = cur.filter((_, i) => i !== idx);
+      return { autoData: { ...s.autoData, [nodeId + ":" + param]: next } };
+    }),
+  setAutoPoints: (nodeId, param, points) =>
+    set((s) => ({ autoData: { ...s.autoData, [nodeId + ":" + param]: points } })),
 
   tick: (dt) => {
     const s = get();
