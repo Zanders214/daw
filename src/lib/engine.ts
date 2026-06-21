@@ -3,7 +3,8 @@
  *
  * When the app runs inside the JUCE host, `window.__JUCE__` is injected by
  * `WebBrowserComponent` with native integration enabled. We talk to the C++
- * engine through it: `getNativeFunction(name)(...)` for JS→C++ commands and
+ * engine through it: `emitEvent("__juce__invoke", …)` for JS→C++ commands
+ * (each resolved by a matching `__juce__complete` event) and
  * `addEventListener(id, cb)` for C++→JS state events.
  *
  * When the app runs in a plain browser (or Tauri), `window.__JUCE__` is absent
@@ -19,7 +20,7 @@
 import type { DeviceKey } from "../types";
 
 interface JuceBackend {
-  getNativeFunction: (name: string) => (...args: unknown[]) => Promise<unknown>;
+  // JUCE 8's `window.__JUCE__.backend` exposes exactly these primitives.
   emitEvent: (id: string, payload: unknown) => void;
   addEventListener: (id: string, cb: (payload: unknown) => void) => unknown;
   removeEventListener?: (token: unknown) => void;
@@ -40,17 +41,37 @@ export function engineActive(): boolean {
   return !!backend();
 }
 
-const fnCache = new Map<string, (...a: unknown[]) => Promise<unknown>>();
+// JS -> C++ calls use JUCE's built-in invoke protocol: emit `__juce__invoke`
+// with a unique resultId, then resolve when the matching `__juce__complete`
+// event returns. (`getNativeFunction` is NOT a method on `backend` — it's a
+// top-level export of JUCE's frontend module. Calling it as `backend.
+// getNativeFunction(...)` threw and unmounted the whole UI, i.e. the black
+// screen seen right after the page first painted.)
+let nextResultId = 1;
+const pending = new Map<number, (result: unknown) => void>();
+let completeWired = false;
+
+function ensureCompleteListener(b: JuceBackend): void {
+  if (completeWired) return;
+  completeWired = true;
+  b.addEventListener("__juce__complete", (payload) => {
+    const { promiseId, result } = (payload ?? {}) as { promiseId: number; result: unknown };
+    const resolve = pending.get(promiseId);
+    if (resolve) {
+      pending.delete(promiseId);
+      resolve(result);
+    }
+  });
+}
 
 function call(name: string, ...args: unknown[]): Promise<unknown> {
   const b = backend();
   if (!b) return Promise.resolve(undefined);
-  let f = fnCache.get(name);
-  if (!f) {
-    f = b.getNativeFunction(name);
-    fnCache.set(name, f);
-  }
-  return f(...args);
+  ensureCompleteListener(b);
+  const resultId = nextResultId++;
+  const result = new Promise<unknown>((resolve) => pending.set(resultId, resolve));
+  b.emitEvent("__juce__invoke", { name, params: args, resultId });
+  return result;
 }
 
 // ---- C++ -> JS state shapes ----
