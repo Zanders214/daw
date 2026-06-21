@@ -57,4 +57,18 @@ export function applySessionToEngine(s: DawState): void {
     engine.device.setBypass(k, !s.devices[k]),
   );
   engine.device.setParam("pre", "amount", s.preAmount);
+
+  // Automation: drop any stale envelopes, then push every enabled lane's edited
+  // envelope. Done after the manual pushes above so automated params correctly
+  // override their manual value on the next audio block (read mode). Keys are
+  // `nodeId:paramId`; node ids never contain ":", so split on the first colon
+  // (paramId may itself contain colons, e.g. device params `dev:0:3`).
+  engine.automation.clearAll();
+  for (const key of Object.keys(s.autoData)) {
+    const colon = key.indexOf(":");
+    if (colon < 0) continue;
+    const nodeId = key.slice(0, colon);
+    if (!s.autoLanes[nodeId]) continue;
+    engine.automation.set(nodeId, key.slice(colon + 1), s.autoData[key]);
+  }
 }

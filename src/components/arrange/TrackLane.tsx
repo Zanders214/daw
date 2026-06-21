@@ -135,7 +135,7 @@ export function TrackLane({ track }: { track: Track }) {
         );
       })}
       </div>
-      {autoOpen && <AutomationLane track={track} />}
+      {autoOpen && <AutomationLane nodeId={track.id} color={track.color} />}
       {sendsOpen && <div style={{ height: SEND_ROW_H, borderBottom: "1px solid var(--layer-2)" }} />}
     </>
   );

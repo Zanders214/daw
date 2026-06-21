@@ -24,7 +24,9 @@ import type {
 } from "../types";
 import type { TrackInfos } from "./engine";
 
-export const SESSION_VERSION = 1;
+// v2: automation envelopes drive engine params (Phase 5). v1 sessions load
+// unchanged — the automation fields already existed and unknown params are inert.
+export const SESSION_VERSION = 2;
 
 export interface SessionUi {
   bpm: number;

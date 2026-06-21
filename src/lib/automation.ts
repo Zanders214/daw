@@ -4,8 +4,8 @@ import { TOTAL_BEATS } from "./constants";
 
 /**
  * Generate a deterministic 5-point default automation envelope for a given
- * track + parameter. Pan hovers around center; volume rides high; other
- * params (e.g. filter) sweep a mid range.
+ * node + parameter. Pans hover around center; gains ride high; sends sit low;
+ * everything else (device params, legacy filter) sweeps a mid range.
  */
 export function defaultAuto(id: string, param: AutomationParam): AutoPoint[] {
   const rng = seed(id + param);
@@ -14,8 +14,9 @@ export function defaultAuto(id: string, param: AutomationParam): AutoPoint[] {
   for (let i = 0; i < n; i++) {
     const t = (i / (n - 1)) * TOTAL_BEATS;
     let v: number;
-    if (param === "pan") v = 0.5 + (rng() - 0.5) * 0.5;
-    else if (param === "vol") v = 0.55 + rng() * 0.4;
+    if (param === "pan" || param === "mpan") v = 0.5 + (rng() - 0.5) * 0.5;
+    else if (param === "vol" || param === "mvol" || param === "rgain") v = 0.55 + rng() * 0.4;
+    else if (param === "sendA" || param === "sendB") v = rng() * 0.35;
     else v = 0.25 + rng() * 0.6;
     pts.push({ t, v });
   }
@@ -63,7 +64,7 @@ export function valAt(pts: AutoPoint[], ph: number): number {
 
 /** Format an automation value for the live readout. */
 export function fmtAuto(param: AutomationParam, v: number): string {
-  if (param === "pan") {
+  if (param === "pan" || param === "mpan") {
     if (v < 0.48) return "L" + Math.round((0.5 - v) * 200);
     if (v > 0.52) return "R" + Math.round((v - 0.5) * 200);
     return "C";

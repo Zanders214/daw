@@ -275,6 +275,77 @@ var AudioEngine::buildReturnLevels()
     return out;
 }
 
+void AudioEngine::setAutomation (const String& nodeId, const String& paramId,
+                                 std::vector<AutomationStore::Point> points)
+{
+    automation.set (nodeId + "|" + paramId, std::move (points), resolveAutoTarget (nodeId, paramId));
+}
+
+void AudioEngine::clearAutomation (const String& nodeId, const String& paramId)
+{
+    automation.clear (nodeId + "|" + paramId);
+}
+
+void AudioEngine::clearAllAutomation() { automation.clearAll(); }
+
+AutomationStore::Target AudioEngine::resolveAutoTarget (const String& nodeId, const String& paramId)
+{
+    AutomationStore::Target t;
+    const auto f32 = [&t] (std::atomic<float>* p, float lo, float hi) -> AutomationStore::Target
+    {
+        t.kind = AutomationStore::Kind::f32;
+        t.f32 = p;
+        t.lo = lo;
+        t.hi = hi;
+        return t;
+    };
+
+    // Device (plugin) param: "dev:<slot>:<index>" on any node with a rack
+    // (track / group / return). The rack pointer is stable; the instance is
+    // looked up under its lock at apply time, so a removed device just no-ops.
+    if (paramId.startsWith ("dev:"))
+    {
+        auto toks = StringArray::fromTokens (paramId, ":", "");
+        if (toks.size() == 3)
+            if (auto* rack = rackForNode (nodeId))
+            {
+                t.kind = AutomationStore::Kind::param;
+                t.rack = rack;
+                t.slot = toks[1].getIntValue();
+                t.paramIndex = toks[2].getIntValue();
+            }
+        return t;
+    }
+
+    if (nodeId == "master")
+    {
+        if (paramId == "mvol") return f32 (&masterVolume, 0.0f, 2.0f);
+        if (paramId == "mpan") return f32 (&masterPan,    0.0f, 1.0f);
+        return t;
+    }
+    if (nodeId.startsWith ("return-"))
+    {
+        const int i = nodeId.fromFirstOccurrenceOf ("return-", false, false).getIntValue();
+        if (paramId == "rgain" && isPositiveAndBelow (i, numSends))
+            return f32 (&returnGain[(size_t) i], 0.0f, 4.0f);
+        return t;
+    }
+    if (nodeId.startsWith ("g-"))
+    {
+        auto& g = ensureGroup (nodeId);
+        if (paramId == "vol") return f32 (&g.gain, 0.0f, 4.0f);
+        if (paramId == "pan") return f32 (&g.pan,  0.0f, 1.0f);
+        return t;
+    }
+
+    auto& tr = ensureTrack (nodeId);
+    if (paramId == "vol")   return f32 (&tr.gain,     0.0f, 4.0f);
+    if (paramId == "pan")   return f32 (&tr.pan,      0.0f, 1.0f);
+    if (paramId == "sendA") return f32 (&tr.sends[0], 0.0f, 1.0f);
+    if (paramId == "sendB") return f32 (&tr.sends[1], 0.0f, 1.0f);
+    return t; // unknown / device param (stage 4) → inert
+}
+
 DeviceRack* AudioEngine::rackForNode (const String& nodeId)
 {
     if (nodeId.startsWith ("return-"))
@@ -634,6 +705,13 @@ void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputCha
         sendBuses[(size_t) i].setSize (2, numSamples, false, false, true);
         sendBuses[(size_t) i].clear();
     }
+
+    // 1b) Parameter automation: evaluate every enabled envelope at the current
+    //     (block-start) playhead and write it to the same atomics the manual
+    //     setters use, so this block's gains/pans/sends ride the curve. The
+    //     playhead is advanced at the end of the callback, so reading it here is
+    //     the block-start position. Lock-free on contention (manual vals persist).
+    automation.apply (playheadBeats.load());
 
     // 2) Sum the multitrack mixer. Each track renders into its group's buffer (or
     //    straight to the master scratch when ungrouped) and taps the send buses;

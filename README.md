@@ -97,5 +97,8 @@ app-icon.svg             Source icon (regenerate set with `npm run tauri icon ap
   master FX chain and opens their native editors. Phase 0/1 (master chain + a
   file/input source) is in; Phase 2/3 add per-track audio, automation→params,
   plugin scanning UI, and project save/load.
-- Drag-from-browser onto lanes; automation re-timing / add-delete points;
-  project save / load and persistence.
+- Parameter automation is implemented: editable breakpoint envelopes (add /
+  delete / drag both axes) on tracks and group buses drive the engine block-
+  accurately — track vol/pan/sends, group vol/pan, and hosted device params.
+- Drag-from-browser onto lanes; master/return bus automation lanes; an
+  arbitrary third-party VST3 browser.

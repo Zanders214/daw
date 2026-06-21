@@ -4,8 +4,10 @@
 #include "TrackChannel.h"
 #include "GroupBus.h"
 #include "DeviceRack.h"
+#include "AutomationStore.h"
 #include <array>
 #include <atomic>
+#include <vector>
 
 /**
  * AudioEngine — the real-time core. Owns the audio device, a Phase-1 audio
@@ -99,6 +101,16 @@ public:
     void setMasterPan (float v) { masterPan.store (juce::jlimit (0.0f, 1.0f, v)); }
     float getMasterPan() const { return masterPan.load(); }
 
+    // Parameter automation. The web pushes a breakpoint envelope per (nodeId,
+    // paramId); the engine resolves the write target once here (message thread)
+    // and the audio callback evaluates + applies every block. paramId tokens:
+    // vol / pan / sendA / sendB (track), vol / pan (group), rgain (return),
+    // mvol / mpan (master). Unknown tokens are stored but inert.
+    void setAutomation (const juce::String& nodeId, const juce::String& paramId,
+                        std::vector<AutomationStore::Point> points);
+    void clearAutomation (const juce::String& nodeId, const juce::String& paramId);
+    void clearAllAutomation();
+
     /** Per-track meter levels { id: 0..1 } for the state event. */
     juce::var buildTrackLevels();
     /** Per-track source info { id: { loaded, name, path } } for the tracks event. */
@@ -140,6 +152,8 @@ private:
     void recomputeAnySolo();
     void recomputeAnyGroupSolo();
     double beatsToSeconds (double beats) const;
+    /** Resolve a (nodeId, paramId) to the atomic it writes (message thread). */
+    AutomationStore::Target resolveAutoTarget (const juce::String& nodeId, const juce::String& paramId);
 
     static constexpr int numSlots = 3;
     static constexpr double totalBeats = 128.0;
@@ -177,6 +191,7 @@ private:
     std::array<std::atomic<float>, numSends> returnLevel { { {0.0f}, {0.0f} } };
     std::atomic<float> masterVolume { 1.0f };
     std::atomic<float> masterPan { 0.5f };
+    AutomationStore automation;
 
     // Transport state
     std::atomic<bool> playing { false };

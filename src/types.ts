@@ -34,7 +34,22 @@ export type ThemeName = "dark" | "light" | "midnight";
 
 export type BrowserTab = "all" | "inst" | "fx" | "audio" | "midi" | "preset";
 
-export type AutomationParam = "vol" | "pan" | "filt";
+/**
+ * An automation target parameter on a mix node. Mixer params are fixed tokens;
+ * device (plugin) params use `dev:<slot>:<index>`. Legacy `"filt"` is accepted
+ * for back-compat with v1 sessions but is inert (it renders, but never reaches
+ * the audio engine). The `string & {}` arm keeps literal autocompletion while
+ * allowing dynamic device-param tokens.
+ */
+export type AutomationParam =
+  | "vol"
+  | "pan"
+  | "sendA"
+  | "sendB"
+  | "mvol"
+  | "mpan"
+  | "rgain"
+  | (string & {});
 
 /** A single automation breakpoint: time (in beats) → value (0..1). */
 export interface AutoPoint {

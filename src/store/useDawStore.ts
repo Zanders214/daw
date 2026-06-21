@@ -8,6 +8,7 @@ import type {
 } from "../types";
 import { TRACK_DEFS } from "../data/seed";
 import { DEFAULT_VOLUME, TOTAL_BEATS } from "../lib/constants";
+import { getAutoPts } from "../lib/automation";
 import { engine, engineActive } from "../lib/engine";
 import type { EngineState, TrackInfos, DeviceInfo, NodeRacks } from "../lib/engine";
 import { applySessionToEngine } from "../lib/engineSync";
@@ -15,6 +16,52 @@ import type { PrefsData, SessionUi } from "../lib/session";
 
 type Bools = Record<string, boolean>;
 type Nums = Record<string, number>;
+
+// ---- automation engine push (debounced) ----
+const autoPushTimers = new Map<string, ReturnType<typeof setTimeout>>();
+/** Debounced push of one envelope to the engine, only while its lane is enabled.
+ *  Re-checks the enabled flag when the timer fires so a disable in the meantime
+ *  (which clears the engine envelope) is not undone by a stale push. */
+function pushAutoIfEnabled(s: DawState, nodeId: string, param: AutomationParam, points: AutoPoint[]) {
+  if (!engineActive() || !s.autoLanes[nodeId]) return;
+  const key = nodeId + ":" + param;
+  const prev = autoPushTimers.get(key);
+  if (prev) clearTimeout(prev);
+  autoPushTimers.set(
+    key,
+    setTimeout(() => {
+      autoPushTimers.delete(key);
+      if (useDawStore.getState().autoLanes[nodeId]) engine.automation.set(nodeId, param, points);
+    }, 90),
+  );
+}
+/** Param ids that have an edited envelope for a node (keys are `nodeId:param`). */
+function nodeAutoParams(autoData: Record<string, AutoPoint[]>, nodeId: string): string[] {
+  const prefix = nodeId + ":";
+  return Object.keys(autoData)
+    .filter((k) => k.startsWith(prefix))
+    .map((k) => k.slice(prefix.length));
+}
+/** Re-assert a node's manual mix values so manual control resumes after its
+ *  automation lane is disabled (the engine atomics had been driven by the curve). */
+function reassertNodeManual(s: DawState, nodeId: string) {
+  if (nodeId.startsWith("g-")) {
+    engine.group.setGain(nodeId, s.groupVolumes[nodeId] ?? 1);
+    engine.group.setPan(nodeId, s.groupPans[nodeId] ?? 0.5);
+  } else if (nodeId.startsWith("return-")) {
+    const i = Number(nodeId.slice("return-".length));
+    engine.returns.setGain(i, s.returnGains[i] ?? 1);
+  } else if (nodeId === "master") {
+    engine.mixer.setMasterVolume(s.masterVolume);
+    engine.mixer.setMasterPan(s.masterPan);
+  } else {
+    engine.mixer.setTrackVolume(nodeId, s.volumes[nodeId] ?? DEFAULT_VOLUME);
+    engine.mixer.setTrackPan(nodeId, s.pans[nodeId] ?? 0.5);
+    const snd = s.sends[nodeId] ?? [];
+    engine.mixer.setTrackSend(nodeId, 0, snd[0] ?? 0);
+    engine.mixer.setTrackSend(nodeId, 1, snd[1] ?? 0);
+  }
+}
 
 export interface DawState {
   // ---- transport ----
@@ -189,7 +236,15 @@ export interface DawState {
 
   toggleAuto: (id: string) => void;
   setAutoParam: (id: string, param: AutomationParam) => void;
-  setAutoPoint: (key: string, points: AutoPoint[]) => void;
+  /** Insert a breakpoint into a node's envelope (materializes the default curve
+   *  on first edit), keeping points sorted by time. */
+  addAutoPoint: (nodeId: string, param: AutomationParam, pt: AutoPoint) => void;
+  /** Replace one breakpoint in place (caller clamps time within neighbors). */
+  moveAutoPoint: (nodeId: string, param: AutomationParam, idx: number, pt: AutoPoint) => void;
+  /** Remove one breakpoint (kept to a minimum of one point). */
+  deleteAutoPoint: (nodeId: string, param: AutomationParam, idx: number) => void;
+  /** Replace a node's whole envelope. */
+  setAutoPoints: (nodeId: string, param: AutomationParam, points: AutoPoint[]) => void;
 
   /** Advance one animation frame; returns the current integer beat. */
   tick: (dt: number) => number;
@@ -551,9 +606,50 @@ export const useDawStore = create<DawState>((set, get) => ({
   setCountIn: (v) => set({ countIn: v }),
   toggleAutoSave: () => set((s) => ({ autoSave: !s.autoSave })),
 
-  toggleAuto: (id) => set((s) => ({ autoLanes: { ...s.autoLanes, [id]: !s.autoLanes[id] } })),
+  toggleAuto: (id) => {
+    const s = get();
+    const on = !s.autoLanes[id];
+    if (engineActive()) {
+      const params = nodeAutoParams(s.autoData, id);
+      if (on) {
+        params.forEach((p) => engine.automation.set(id, p, s.autoData[id + ":" + p]));
+      } else {
+        params.forEach((p) => engine.automation.clear(id, p));
+        reassertNodeManual(s, id);
+      }
+    }
+    set({ autoLanes: { ...s.autoLanes, [id]: on } });
+  },
   setAutoParam: (id, param) => set((s) => ({ autoParam: { ...s.autoParam, [id]: param } })),
-  setAutoPoint: (key, points) => set((s) => ({ autoData: { ...s.autoData, [key]: points } })),
+
+  addAutoPoint: (nodeId, param, pt) => {
+    const s = get();
+    const cur = getAutoPts(s.autoData, nodeId, param);
+    const next = [...cur, pt].sort((a, b) => a.t - b.t);
+    set({ autoData: { ...s.autoData, [nodeId + ":" + param]: next } });
+    pushAutoIfEnabled(s, nodeId, param, next);
+  },
+  moveAutoPoint: (nodeId, param, idx, pt) => {
+    const s = get();
+    const cur = getAutoPts(s.autoData, nodeId, param);
+    if (idx < 0 || idx >= cur.length) return;
+    const next = cur.map((p, i) => (i === idx ? pt : p));
+    set({ autoData: { ...s.autoData, [nodeId + ":" + param]: next } });
+    pushAutoIfEnabled(s, nodeId, param, next);
+  },
+  deleteAutoPoint: (nodeId, param, idx) => {
+    const s = get();
+    const cur = getAutoPts(s.autoData, nodeId, param);
+    if (cur.length <= 1 || idx < 0 || idx >= cur.length) return;
+    const next = cur.filter((_, i) => i !== idx);
+    set({ autoData: { ...s.autoData, [nodeId + ":" + param]: next } });
+    pushAutoIfEnabled(s, nodeId, param, next);
+  },
+  setAutoPoints: (nodeId, param, points) => {
+    const s = get();
+    set({ autoData: { ...s.autoData, [nodeId + ":" + param]: points } });
+    pushAutoIfEnabled(s, nodeId, param, points);
+  },
 
   tick: (dt) => {
     const s = get();
