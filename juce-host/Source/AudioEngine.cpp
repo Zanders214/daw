@@ -270,6 +270,26 @@ var AudioEngine::buildGroupLevels()
     return var (obj);
 }
 
+void AudioEngine::setTrackSend (const String& trackId, int sendIdx, float amount)
+{
+    if (isPositiveAndBelow (sendIdx, numSends))
+        ensureTrack (trackId).sends[(size_t) sendIdx].store (jlimit (0.0f, 1.0f, amount));
+}
+
+void AudioEngine::setReturnGain (int sendIdx, float gainLinear)
+{
+    if (isPositiveAndBelow (sendIdx, numSends))
+        returnGain[(size_t) sendIdx].store (jlimit (0.0f, 4.0f, gainLinear));
+}
+
+var AudioEngine::buildReturnLevels()
+{
+    Array<var> out;
+    for (int i = 0; i < numSends; ++i)
+        out.add ((double) returnLevel[(size_t) i].load());
+    return out;
+}
+
 bool AudioEngine::assignTrackFile (const String& id, const File& file)
 {
     auto& ch = ensureTrack (id);
@@ -501,6 +521,9 @@ void AudioEngine::audioDeviceAboutToStart (AudioIODevice* device)
         for (auto* g : groups)
             g->prepare (currentBlockSize);
     }
+
+    for (auto& sb : sendBuses)
+        sb.setSize (2, currentBlockSize, false, false, true);
 }
 
 void AudioEngine::audioDeviceStopped()
@@ -542,10 +565,19 @@ void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputCha
                 scratch.copyFrom (ch, 0, inputChannelData[ch], numSamples);
     }
 
+    // Aux send buses accumulate post-fader taps; cleared every block so a missed
+    // try-lock yields silence (not stale audio) at the returns.
+    for (int i = 0; i < numSends; ++i)
+    {
+        sendBuses[(size_t) i].setSize (2, numSamples, false, false, true);
+        sendBuses[(size_t) i].clear();
+    }
+
     // 2) Sum the multitrack mixer. Each track renders into its group's buffer (or
-    //    straight to the master scratch when ungrouped); each group then applies
-    //    its own gain/pan, meters, and sums into the master. Try-lock so loads
-    //    never block audio. Muted / soloed-out tracks still advance to stay in sync.
+    //    straight to the master scratch when ungrouped) and taps the send buses;
+    //    each group then applies its own gain/pan, meters, and sums into the
+    //    master; finally the returns sum back in. Try-lock so loads never block
+    //    audio. Muted / soloed-out tracks still advance to stay in sync.
     {
         const ScopedTryLock stl (tracksLock);
         if (stl.isLocked())
@@ -563,11 +595,26 @@ void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputCha
                 const bool groupOK = (g == nullptr) ? (! groupSoloing)
                                                     : (! g->mute.load() && (! groupSoloing || g->solo.load()));
                 AudioBuffer<float>& dest = (g != nullptr) ? g->getBuffer() : scratch;
-                t->renderInto (dest, numSamples, trackOK && groupOK);
+                t->renderInto (dest, sendBuses.data(), numSends, numSamples, trackOK && groupOK);
             }
 
             for (auto* g : groups)
                 g->sumInto (scratch, numSamples);
+
+            // Returns: apply each return's gain, meter, and sum into the master.
+            for (int i = 0; i < numSends; ++i)
+            {
+                auto& rb = sendBuses[(size_t) i];
+                rb.applyGain (returnGain[(size_t) i].load());
+
+                float rpeak = 0.0f;
+                for (int ch = 0; ch < rb.getNumChannels(); ++ch)
+                    rpeak = jmax (rpeak, rb.getMagnitude (ch, 0, numSamples));
+                returnLevel[(size_t) i].store (jmax (rpeak, returnLevel[(size_t) i].load() * 0.88f));
+
+                for (int ch = 0; ch < scratch.getNumChannels(); ++ch)
+                    scratch.addFrom (ch, 0, rb, jmin (ch, rb.getNumChannels() - 1), 0, numSamples);
+            }
         }
     }
 

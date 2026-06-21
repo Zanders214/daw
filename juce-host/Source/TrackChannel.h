@@ -47,7 +47,9 @@ public:
         and ADD into `bus` and meter it (otherwise the meter decays). The pull
         happens regardless of audibility so a muted/soloed-out track stays in
         sync with the transport. */
-    void renderInto (juce::AudioBuffer<float>& bus, int numSamples, bool audible);
+    void renderInto (juce::AudioBuffer<float>& bus,
+                     juce::AudioBuffer<float>* sendBuses, int numSendBuses,
+                     int numSamples, bool audible);
     /** Decay the meter when the track is silent (muted / soloed-out / no file). */
     void decayMeter() noexcept { level.store (level.load() * 0.88f); }
 
@@ -61,6 +63,9 @@ public:
 
     /** Sub-mix routing: which group bus this track sums into (null = master). */
     std::atomic<GroupBus*> group { nullptr };
+
+    /** Post-fader aux send amounts (0..1), one per send bus. */
+    std::array<std::atomic<float>, 2> sends { { {0.0f}, {0.0f} } };
 
 private:
     juce::String id;

@@ -42,6 +42,8 @@ export interface SessionUi {
   groupPans: Record<string, number>;
   groupMutes: Record<string, boolean>;
   groupSolos: Record<string, boolean>;
+  sends: Record<string, number[]>;
+  returnGains: number[];
   trackFiles: TrackInfos;
   devices: Record<DeviceKey, boolean>;
   preAmount: number;
@@ -91,6 +93,8 @@ export function serializeSession(s: DawState): SessionUi {
     groupPans: s.groupPans,
     groupMutes: s.groupMutes,
     groupSolos: s.groupSolos,
+    sends: s.sends,
+    returnGains: s.returnGains,
     trackFiles: s.trackFiles,
     devices: s.devices,
     preAmount: s.preAmount,

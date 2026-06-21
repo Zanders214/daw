@@ -76,6 +76,14 @@ public:
     /** Per-group meter levels { id: 0..1 } for the state event. */
     juce::var buildGroupLevels();
 
+    // Aux sends / returns (fixed count). Tracks tap post-fader into a send bus;
+    // each return applies a gain and sums back into the master.
+    static constexpr int numSends = 2;
+    void setTrackSend (const juce::String& trackId, int sendIdx, float amount);
+    void setReturnGain (int sendIdx, float gainLinear);
+    /** Return meter levels [a, b] for the state event. */
+    juce::var buildReturnLevels();
+
     void setMasterVolume (float v) { masterVolume.store (juce::jlimit (0.0f, 2.0f, v)); }
     float getMasterVolume() const { return masterVolume.load(); }
     void setMasterPan (float v) { masterPan.store (juce::jlimit (0.0f, 1.0f, v)); }
@@ -153,6 +161,9 @@ private:
     juce::HashMap<juce::String, GroupBus*> groupById;
     std::atomic<int> anySolo { 0 };          // cached count of soloed tracks
     std::atomic<int> anyGroupSolo { 0 };     // cached count of soloed groups
+    std::array<juce::AudioBuffer<float>, numSends> sendBuses;
+    std::array<std::atomic<float>, numSends> returnGain  { { {1.0f}, {1.0f} } };
+    std::array<std::atomic<float>, numSends> returnLevel { { {0.0f}, {0.0f} } };
     std::atomic<float> masterVolume { 1.0f };
     std::atomic<float> masterPan { 0.5f };
 

@@ -35,7 +35,13 @@ export function applySessionToEngine(s: DawState): void {
     const tf = s.trackFiles[t.id];
     if (tf?.loaded && tf.path) engine.track.assignFile(t.id, tf.path);
     else engine.track.clearFile(t.id);
+
+    const snd = s.sends[t.id] ?? [];
+    engine.mixer.setTrackSend(t.id, 0, snd[0] ?? 0);
+    engine.mixer.setTrackSend(t.id, 1, snd[1] ?? 0);
   });
+
+  (s.returnGains ?? [1, 1]).forEach((g, i) => engine.returns.setGain(i, g ?? 1));
 
   // Group sub-mix buses: assign each track to its group (static, from GROUP_DEFS)
   // and re-assert each group's gain/pan/mute/solo.

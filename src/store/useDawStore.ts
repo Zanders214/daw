@@ -84,6 +84,11 @@ export interface DawState {
   groupMutes: Bools;
   groupSolos: Bools;
 
+  // ---- aux sends / returns ----
+  sends: Record<string, number[]>; // track id -> [sendA, sendB]
+  returnGains: number[]; // [retA, retB]
+  sendsOpen: Bools; // per-track sends-row expand
+
   // ---- groups & automation ----
   groupCollapsed: Bools;
   autoLanes: Bools;
@@ -93,6 +98,7 @@ export interface DawState {
   // ---- transient (driven by the rAF loop) ----
   levels: Nums; // per-track meter levels 0..1
   groupLevels: Nums; // per-group meter levels 0..1
+  returnLevels: number[]; // per-return meter levels 0..1
   master: number; // master meter level 0..1
   reel: number; // tape-reel rotation in degrees
 
@@ -136,6 +142,9 @@ export interface DawState {
   toggleGroupSolo: (gid: string) => void;
   setGroupVolume: (gid: string, v: number) => void;
   setGroupPan: (gid: string, v: number) => void;
+  setSend: (id: string, idx: number, v: number) => void;
+  setReturnGain: (idx: number, v: number) => void;
+  toggleSendsRow: (id: string) => void;
 
   toggleDevice: (k: DeviceKey) => void;
   setPreAmount: (v: number) => void;
@@ -233,6 +242,9 @@ export const useDawStore = create<DawState>((set, get) => ({
   groupPans: {},
   groupMutes: {},
   groupSolos: {},
+  sends: {},
+  returnGains: [1, 1],
+  sendsOpen: {},
   groupCollapsed: {},
   autoLanes: {},
   autoParam: {},
@@ -240,6 +252,7 @@ export const useDawStore = create<DawState>((set, get) => ({
 
   levels: {},
   groupLevels: {},
+  returnLevels: [0, 0],
   master: 0.04,
   reel: 0,
 
@@ -343,6 +356,8 @@ export const useDawStore = create<DawState>((set, get) => ({
       groupPans: ui.groupPans ?? s.groupPans,
       groupMutes: ui.groupMutes ?? s.groupMutes,
       groupSolos: ui.groupSolos ?? s.groupSolos,
+      sends: ui.sends ?? s.sends,
+      returnGains: ui.returnGains ?? s.returnGains,
       trackFiles: ui.trackFiles ?? s.trackFiles,
       devices: ui.devices ?? s.devices,
       preAmount: ui.preAmount ?? s.preAmount,
@@ -382,6 +397,8 @@ export const useDawStore = create<DawState>((set, get) => ({
       groupPans: {},
       groupMutes: {},
       groupSolos: {},
+      sends: {},
+      returnGains: [1, 1],
       trackFiles: {},
       devices: { eq: true, tape: false, pre: true },
       preAmount: 0.62,
@@ -415,6 +432,23 @@ export const useDawStore = create<DawState>((set, get) => ({
     if (engineActive()) engine.group.setPan(gid, v);
     set((s) => ({ groupPans: { ...s.groupPans, [gid]: v } }));
   },
+  setSend: (id, idx, v) => {
+    if (engineActive()) engine.mixer.setTrackSend(id, idx, v);
+    set((s) => {
+      const cur = s.sends[id] ? [...s.sends[id]] : [0, 0];
+      cur[idx] = v;
+      return { sends: { ...s.sends, [id]: cur } };
+    });
+  },
+  setReturnGain: (idx, v) => {
+    if (engineActive()) engine.returns.setGain(idx, v);
+    set((s) => {
+      const cur = [...s.returnGains];
+      cur[idx] = v;
+      return { returnGains: cur };
+    });
+  },
+  toggleSendsRow: (id) => set((s) => ({ sendsOpen: { ...s.sendsOpen, [id]: !s.sendsOpen[id] } })),
 
   toggleDevice: (k) => {
     const enabled = !get().devices[k];
@@ -530,6 +564,7 @@ export const useDawStore = create<DawState>((set, get) => ({
       reel: p.reel ?? s.reel,
       levels: p.levels ?? s.levels,
       groupLevels: p.groupLevels ?? s.groupLevels,
+      returnLevels: p.returnLevels ?? s.returnLevels,
       bpm: p.tempo ?? s.bpm,
       loopStart: p.loopStart ?? s.loopStart,
       loopEnd: p.loopEnd ?? s.loopEnd,

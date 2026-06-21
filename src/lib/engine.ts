@@ -61,6 +61,7 @@ export interface EngineState {
   reel?: number;
   levels?: Record<string, number>;
   groupLevels?: Record<string, number>;
+  returnLevels?: number[];
   loopStart?: number;
   loopEnd?: number;
   tempo?: number;
@@ -113,6 +114,7 @@ export const engine = {
     setTrackSolo: (id: string, v: boolean) => call("mixerSetTrackSolo", id, v),
     setTrackArm: (id: string, v: boolean) => call("mixerSetTrackArm", id, v),
     setTrackGroup: (id: string, groupId: string) => call("mixerSetTrackGroup", id, groupId),
+    setTrackSend: (id: string, idx: number, v: number) => call("mixerSetTrackSend", id, idx, v),
     setMasterVolume: (v: number) => call("mixerSetMasterVolume", v),
     setMasterPan: (v: number) => call("mixerSetMasterPan", v),
   },
@@ -121,6 +123,9 @@ export const engine = {
     setPan: (id: string, v: number) => call("groupSetPan", id, v),
     setMute: (id: string, v: boolean) => call("groupSetMute", id, v),
     setSolo: (id: string, v: boolean) => call("groupSetSolo", id, v),
+  },
+  returns: {
+    setGain: (idx: number, v: number) => call("returnSetGain", idx, v),
   },
   track: {
     assignFile: (id: string, path: string) => call("trackAssignFile", id, path),

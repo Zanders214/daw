@@ -20,6 +20,7 @@ namespace
             "mixerSetTrackVolume", "mixerSetTrackPan", "mixerSetTrackMute", "mixerSetTrackSolo", "mixerSetTrackArm",
             "mixerSetTrackGroup", "mixerSetMasterVolume", "mixerSetMasterPan",
             "groupSetGain", "groupSetPan", "groupSetMute", "groupSetSolo",
+            "mixerSetTrackSend", "returnSetGain",
             "trackAssignFile", "trackPickFile", "trackClearFile",
             "deviceSetBypass", "deviceSetParam", "deviceOpenEditor", "deviceCloseEditor", "deviceListParams",
             "pluginsScan", "pluginsAssign", "pluginsPickFile",

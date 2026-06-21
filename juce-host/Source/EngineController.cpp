@@ -48,6 +48,7 @@ var EngineController::buildState()
     obj->setProperty ("reel", reel);
     obj->setProperty ("levels", audioEngine.buildTrackLevels());
     obj->setProperty ("groupLevels", audioEngine.buildGroupLevels());
+    obj->setProperty ("returnLevels", audioEngine.buildReturnLevels());
     obj->setProperty ("loopStart", audioEngine.getLoopStart());
     obj->setProperty ("loopEnd", audioEngine.getLoopEnd());
     obj->setProperty ("tempo", audioEngine.getTempo());
@@ -273,6 +274,10 @@ var EngineController::handle (const String& name, const Array<var>& args)
     if (name == "groupSetPan")  { audioEngine.setGroupPan  (arg (0).toString(), (float) (double) arg (1)); return {}; }
     if (name == "groupSetMute") { audioEngine.setGroupMute (arg (0).toString(), (bool) arg (1)); return {}; }
     if (name == "groupSetSolo") { audioEngine.setGroupSolo (arg (0).toString(), (bool) arg (1)); return {}; }
+
+    // ---- aux sends / returns ----
+    if (name == "mixerSetTrackSend") { audioEngine.setTrackSend (arg (0).toString(), (int) arg (1), (float) (double) arg (2)); return {}; }
+    if (name == "returnSetGain")     { audioEngine.setReturnGain ((int) arg (0), (float) (double) arg (1)); return {}; }
 
     // ---- per-track audio source ----
     if (name == "trackAssignFile") { audioEngine.assignTrackFile (arg (0).toString(), File (arg (1).toString())); emitTrackInfo(); return {}; }

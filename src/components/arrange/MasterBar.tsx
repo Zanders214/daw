@@ -82,6 +82,28 @@ function MasterPan() {
   );
 }
 
+/** Aux return gains + meters (subscribes to returnGains/returnLevels). */
+function ReturnsStrip() {
+  const { returnGains, returnLevels, setReturnGain } = useDawStore(
+    useShallow((s) => ({ returnGains: s.returnGains, returnLevels: s.returnLevels, setReturnGain: s.setReturnGain })),
+  );
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, flex: "none" }}>
+      {["A", "B"].map((lbl, i) => (
+        <div key={lbl} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, width: 46 }}>
+          <span style={{ fontSize: 9, letterSpacing: "0.1em", color: "var(--text-label)" }}>RET {lbl}</span>
+          <div onDoubleClick={() => setReturnGain(i, 1)} title={`Return ${lbl} level`}>
+            <Dial value={Math.min(1, returnGains[i] ?? 1)} onChange={(v) => setReturnGain(i, v)} label={null} size={26} color="var(--spectrum-violet)" />
+          </div>
+          <div style={{ width: 30 }}>
+            <Meter value={returnLevels[i] ?? 0} height={4} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function MasterBar({ tracksRight }: { tracksRight: boolean }) {
   const { selMaster, openMasterChain } = useDawStore(
     useShallow((s) => ({ selMaster: s.selTrack === "master", openMasterChain: s.openMasterChain })),
@@ -162,6 +184,7 @@ export function MasterBar({ tracksRight }: { tracksRight: boolean }) {
         <MasterOutMeter />
         <MasterFader />
         <MasterPan />
+        <ReturnsStrip />
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={dot("#34d8ff")} />
           <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-2)", fontFamily: "var(--font-mono)" }}>EQ</span>

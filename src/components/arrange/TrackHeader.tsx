@@ -106,6 +106,37 @@ function AutomationHeader({ track }: { track: Track }) {
   );
 }
 
+/** Expandable per-track aux-send row (height kept in sync with the lane spacer). */
+export const SEND_ROW_H = 52;
+function SendRow({ id }: { id: string }) {
+  const { sends, setSend } = useDawStore(
+    useShallow((s) => ({ sends: s.sends[id] ?? [0, 0], setSend: s.setSend })),
+  );
+  return (
+    <div
+      style={{
+        height: SEND_ROW_H,
+        display: "flex",
+        alignItems: "center",
+        gap: 18,
+        padding: "0 16px",
+        borderBottom: "1px solid var(--layer-2)",
+        background: "var(--app-trackhead)",
+      }}
+    >
+      <span style={{ fontSize: 9, letterSpacing: "0.12em", color: "var(--text-label)" }}>SENDS</span>
+      {["A", "B"].map((lbl, i) => (
+        <div key={lbl} onClick={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          <div onDoubleClick={() => setSend(id, i, 0)} title={`Send ${lbl} (double-click to zero)`}>
+            <Dial value={sends[i] ?? 0} onChange={(v) => setSend(id, i, v)} label={null} size={26} color="var(--spectrum-violet)" />
+          </div>
+          <span style={{ fontSize: 9, color: "var(--text-3)", fontFamily: "var(--font-mono)" }}>{lbl}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function TrackHeader({ track }: { track: Track }) {
   const id = track.id;
   const {
@@ -116,6 +147,7 @@ export function TrackHeader({ track }: { track: Track }) {
     vol,
     pan,
     autoOpen,
+    sendsOpen,
     fileLoaded,
     fileName,
     selectTrack,
@@ -124,6 +156,7 @@ export function TrackHeader({ track }: { track: Track }) {
     toggleSolo,
     toggleArm,
     toggleAuto,
+    toggleSendsRow,
     setVolume,
     setPan,
     pickTrackFile,
@@ -137,6 +170,7 @@ export function TrackHeader({ track }: { track: Track }) {
       vol: s.volumes[id] ?? DEFAULT_VOLUME,
       pan: s.pans[id] ?? 0.5,
       autoOpen: !!s.autoLanes[id],
+      sendsOpen: !!s.sendsOpen[id],
       fileLoaded: !!s.trackFiles[id]?.loaded,
       fileName: s.trackFiles[id]?.name,
       selectTrack: s.selectTrack,
@@ -145,6 +179,7 @@ export function TrackHeader({ track }: { track: Track }) {
       toggleSolo: s.toggleSolo,
       toggleArm: s.toggleArm,
       toggleAuto: s.toggleAuto,
+      toggleSendsRow: s.toggleSendsRow,
       setVolume: s.setVolume,
       setPan: s.setPan,
       pickTrackFile: s.pickTrackFile,
@@ -210,6 +245,29 @@ export function TrackHeader({ track }: { track: Track }) {
             {track.name}
           </span>
           <span style={{ fontSize: 9, fontFamily: "var(--font-mono)", color: "var(--text-faint)" }}>{track.io}</span>
+          <button
+            type="button"
+            title="Aux sends"
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleSendsRow(id);
+            }}
+            style={{
+              width: 22,
+              height: 22,
+              borderRadius: 6,
+              fontSize: 11,
+              lineHeight: 1,
+              cursor: "pointer",
+              flex: "none",
+              fontFamily: "var(--font-display)",
+              ...(sendsOpen
+                ? { background: "var(--accent-soft)", color: "var(--accent)", border: "1px solid var(--accent-line)" }
+                : { background: "var(--layer-2)", color: "var(--text-3)", border: "1px solid var(--layer-5)" }),
+            }}
+          >
+            ⇄
+          </button>
           <button
             type="button"
             title={fileLoaded ? `Audio: ${fileName ?? ""} — click to replace` : "Load an audio file"}
@@ -295,6 +353,7 @@ export function TrackHeader({ track }: { track: Track }) {
         </div>
       </div>
       {autoOpen && <AutomationHeader track={track} />}
+      {sendsOpen && <SendRow id={id} />}
     </>
   );
 }
