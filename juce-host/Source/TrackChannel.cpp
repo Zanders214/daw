@@ -57,7 +57,7 @@ void TrackChannel::start()                            { transport.start(); }
 void TrackChannel::stop()                             { transport.stop(); }
 void TrackChannel::setPositionSeconds (double seconds){ transport.setPosition (seconds); }
 
-void TrackChannel::renderInto (AudioBuffer<float>& bus, int numSamples)
+void TrackChannel::renderInto (AudioBuffer<float>& bus, int numSamples, bool audible)
 {
     if (! fileLoaded.load())
     {
@@ -69,7 +69,13 @@ void TrackChannel::renderInto (AudioBuffer<float>& bus, int numSamples)
     trackScratch.clear();
 
     AudioSourceChannelInfo info (&trackScratch, 0, numSamples);
-    transport.getNextAudioBlock (info); // silent when stopped or past the file end
+    transport.getNextAudioBlock (info); // advances the source; silent when stopped / past end
+
+    if (! audible)
+    {
+        decayMeter();
+        return;
+    }
 
     trackScratch.applyGain (gain.load());
 

@@ -94,6 +94,7 @@ private:
     juce::AudioPluginInstance* getInstance (int slot) const;
     TrackChannel& ensureTrack (const juce::String& id);
     void recomputeAnySolo();
+    double beatsToSeconds (double beats) const;
 
     static constexpr int numSlots = 3;
     static constexpr double totalBeats = 128.0;

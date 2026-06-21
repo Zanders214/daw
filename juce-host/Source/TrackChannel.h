@@ -41,8 +41,11 @@ public:
     void setPositionSeconds (double seconds);
 
     // ---- audio thread ----
-    /** Pull this track's block, apply gain, and ADD into `bus`. Updates the meter. */
-    void renderInto (juce::AudioBuffer<float>& bus, int numSamples);
+    /** Advance this track's source by `numSamples`; when `audible`, apply gain
+        and ADD into `bus` and meter it (otherwise the meter decays). The pull
+        happens regardless of audibility so a muted/soloed-out track stays in
+        sync with the transport. */
+    void renderInto (juce::AudioBuffer<float>& bus, int numSamples, bool audible);
     /** Decay the meter when the track is silent (muted / soloed-out / no file). */
     void decayMeter() noexcept { level.store (level.load() * 0.88f); }
 
