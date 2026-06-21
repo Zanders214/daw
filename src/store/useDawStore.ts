@@ -9,7 +9,7 @@ import type {
 import { TRACK_DEFS, GROUP_DEFS } from "../data/seed";
 import { DEFAULT_VOLUME, TOTAL_BEATS } from "../lib/constants";
 import { engine, engineActive } from "../lib/engine";
-import type { EngineState } from "../lib/engine";
+import type { EngineState, TrackInfos, DeviceInfo } from "../lib/engine";
 
 type Bools = Record<string, boolean>;
 type Nums = Record<string, number>;
@@ -32,6 +32,12 @@ export interface DawState {
   solos: Bools;
   arms: Bools;
   volumes: Nums;
+  trackFiles: TrackInfos;
+
+  // ---- mixer / loop ----
+  masterVolume: number;
+  loopStart: number;
+  loopEnd: number;
 
   // ---- device rack ----
   devices: Record<DeviceKey, boolean>;
@@ -54,6 +60,9 @@ export interface DawState {
   sampleRate: number;
   bufferSize: number;
   outputDevice: string;
+  availableOutputs: string[];
+  availableSampleRates: number[];
+  availableBufferSizes: number[];
   midiInput: string;
   midiThru: boolean;
   metronome: boolean;
@@ -84,6 +93,16 @@ export interface DawState {
   toggleSolo: (id: string) => void;
   toggleArm: (id: string) => void;
   setVolume: (id: string, v: number) => void;
+  setBpm: (v: number) => void;
+  setMasterVolume: (v: number) => void;
+  setLoopStart: (v: number) => void;
+  setLoopEnd: (v: number) => void;
+  pickTrackFile: (id: string) => void;
+  assignTrackFile: (id: string, path: string) => void;
+  clearTrackFile: (id: string) => void;
+  setEngineTracks: (t: TrackInfos) => void;
+  refreshDevices: () => void;
+  setDeviceInfo: (info: DeviceInfo) => void;
 
   toggleGroup: (gid: string) => void;
   toggleGroupMute: (gid: string) => void;
@@ -142,6 +161,11 @@ export const useDawStore = create<DawState>((set, get) => ({
   solos: {},
   arms: { kick: true },
   volumes: {},
+  trackFiles: {},
+
+  masterVolume: 1,
+  loopStart: 0,
+  loopEnd: TOTAL_BEATS,
 
   devices: { eq: true, tape: false, pre: true },
   preAmount: 0.62,
@@ -160,6 +184,9 @@ export const useDawStore = create<DawState>((set, get) => ({
   sampleRate: 48,
   bufferSize: 256,
   outputDevice: "Built-in Output",
+  availableOutputs: [],
+  availableSampleRates: [],
+  availableBufferSizes: [],
   midiInput: "All MIDI Inputs",
   midiThru: true,
   metronome: true,
@@ -198,6 +225,19 @@ export const useDawStore = create<DawState>((set, get) => ({
     if (engineActive()) engine.transport.setLooping(loop);
     set({ loop });
   },
+  setBpm: (v) => {
+    const bpm = Math.max(20, Math.round(v));
+    if (engineActive()) engine.transport.setTempo(bpm);
+    set({ bpm });
+  },
+  setLoopStart: (v) => {
+    if (engineActive()) engine.transport.setLoopStart(v);
+    set({ loopStart: v });
+  },
+  setLoopEnd: (v) => {
+    if (engineActive()) engine.transport.setLoopEnd(v);
+    set({ loopEnd: v });
+  },
 
   selectTrack: (id) => set({ selTrack: id }),
   selectClip: (clipId, trackId) => set({ selClip: clipId, selTrack: trackId }),
@@ -220,6 +260,21 @@ export const useDawStore = create<DawState>((set, get) => ({
     if (engineActive()) engine.mixer.setTrackVolume(id, v);
     set((s) => ({ volumes: { ...s.volumes, [id]: v } }));
   },
+  setMasterVolume: (v) => {
+    if (engineActive()) engine.mixer.setMasterVolume(v);
+    set({ masterVolume: v });
+  },
+  pickTrackFile: (id) => {
+    if (engineActive()) engine.track.pickFile(id);
+  },
+  assignTrackFile: (id, path) => {
+    if (engineActive()) engine.track.assignFile(id, path);
+  },
+  clearTrackFile: (id) => {
+    if (engineActive()) engine.track.clearFile(id);
+    set((s) => ({ trackFiles: { ...s.trackFiles, [id]: { loaded: false } } }));
+  },
+  setEngineTracks: (t) => set({ trackFiles: t }),
 
   toggleGroup: (gid) =>
     set((s) => ({ groupCollapsed: { ...s.groupCollapsed, [gid]: !s.groupCollapsed[gid] } })),
@@ -272,17 +327,42 @@ export const useDawStore = create<DawState>((set, get) => ({
   closeSettings: () => set({ settingsOpen: false }),
 
   setSampleRate: (v) => {
-    if (engineActive()) engine.audio.setSettings({ sampleRate: v });
+    // UI works in kHz; the engine wants Hz. Reflect the actually-applied value.
+    if (engineActive())
+      engine.audio.setSettings({ sampleRate: Math.round(v * 1000) }).then((info) => {
+        if (info) get().setDeviceInfo(info);
+      });
     set({ sampleRate: v });
   },
   setBufferSize: (v) => {
-    if (engineActive()) engine.audio.setSettings({ bufferSize: v });
+    if (engineActive())
+      engine.audio.setSettings({ bufferSize: v }).then((info) => {
+        if (info) get().setDeviceInfo(info);
+      });
     set({ bufferSize: v });
   },
   setOutputDevice: (v) => {
-    if (engineActive()) engine.audio.setSettings({ outputDevice: v });
+    if (engineActive())
+      engine.audio.setSettings({ outputDevice: v }).then((info) => {
+        if (info) get().setDeviceInfo(info);
+      });
     set({ outputDevice: v });
   },
+  refreshDevices: () => {
+    if (!engineActive()) return;
+    engine.audio.getDevices().then((info) => {
+      if (info) get().setDeviceInfo(info);
+    });
+  },
+  setDeviceInfo: (info) =>
+    set((s) => ({
+      outputDevice: info.outputDevice ?? s.outputDevice,
+      sampleRate: typeof info.sampleRate === "number" ? info.sampleRate / 1000 : s.sampleRate,
+      bufferSize: info.bufferSize ?? s.bufferSize,
+      availableOutputs: info.outputs ?? s.availableOutputs,
+      availableSampleRates: (info.sampleRates ?? []).map((hz) => hz / 1000),
+      availableBufferSizes: info.bufferSizes ?? s.availableBufferSizes,
+    })),
   setMidiInput: (v) => set({ midiInput: v }),
   toggleMidiThru: () => set((s) => ({ midiThru: !s.midiThru })),
   toggleMetronome: () => set((s) => ({ metronome: !s.metronome })),
@@ -328,5 +408,9 @@ export const useDawStore = create<DawState>((set, get) => ({
       master: p.master ?? s.master,
       reel: p.reel ?? s.reel,
       levels: p.levels ?? s.levels,
+      bpm: p.tempo ?? s.bpm,
+      loopStart: p.loopStart ?? s.loopStart,
+      loopEnd: p.loopEnd ?? s.loopEnd,
+      masterVolume: p.masterVolume ?? s.masterVolume,
     })),
 }));

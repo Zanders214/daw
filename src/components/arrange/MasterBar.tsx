@@ -1,6 +1,6 @@
 import { useShallow } from "zustand/react/shallow";
 import { useDawStore } from "../../store/useDawStore";
-import { Meter } from "../../design-system";
+import { Meter, Slider } from "../../design-system";
 
 const HEADER_W = 258;
 
@@ -29,6 +29,31 @@ function MasterOutMeter() {
         <span style={{ fontFamily: "var(--font-mono)", color: "var(--text-2)" }}>{masterDb}</span>
       </div>
       <Meter value={master} height={9} />
+    </div>
+  );
+}
+
+/** Master volume fader + dB readout (subscribes to masterVolume). */
+function MasterFader() {
+  const { masterVolume, setMasterVolume } = useDawStore(
+    useShallow((s) => ({ masterVolume: s.masterVolume, setMasterVolume: s.setMasterVolume })),
+  );
+  const db = masterVolume <= 0.001 ? "-∞" : (20 * Math.log10(masterVolume)).toFixed(1) + " dB";
+  return (
+    <div style={{ width: 170, flex: "none", display: "flex", flexDirection: "column", gap: 7 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          fontSize: 9,
+          letterSpacing: "0.14em",
+          color: "var(--text-label)",
+        }}
+      >
+        <span>VOLUME</span>
+        <span style={{ fontFamily: "var(--font-mono)", color: "var(--text-2)" }}>{db}</span>
+      </div>
+      <Slider value={masterVolume} onChange={setMasterVolume} gradient="var(--accent-grad)" />
     </div>
   );
 }
@@ -111,6 +136,7 @@ export function MasterBar({ tracksRight }: { tracksRight: boolean }) {
 
       <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 18, padding: "0 20px", minWidth: 0 }}>
         <MasterOutMeter />
+        <MasterFader />
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={dot("#34d8ff")} />
           <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-2)", fontFamily: "var(--font-mono)" }}>EQ</span>

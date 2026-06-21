@@ -71,6 +71,15 @@ export interface TrackInfo {
   path?: string;
 }
 export type TrackInfos = Record<string, TrackInfo>;
+export interface DeviceInfo {
+  outputDevice?: string;
+  inputDevice?: string;
+  sampleRate?: number; // Hz
+  bufferSize?: number;
+  sampleRates?: number[]; // Hz
+  bufferSizes?: number[];
+  outputs?: string[];
+}
 export interface EngineParam {
   id: string;
   name: string;
@@ -121,8 +130,9 @@ export const engine = {
     pickFile: (key: DeviceKey) => call("pluginsPickFile", key),
   },
   audio: {
-    getDevices: () => call("audioGetDevices"),
-    setSettings: (opts: Record<string, unknown>) => call("audioSetSettings", opts),
+    getDevices: () => call("audioGetDevices") as Promise<DeviceInfo | undefined>,
+    setSettings: (opts: Record<string, unknown>) =>
+      call("audioSetSettings", opts) as Promise<DeviceInfo | undefined>,
   },
   source: {
     pickFile: () => call("sourcePickFile"),
