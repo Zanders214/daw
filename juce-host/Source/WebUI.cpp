@@ -85,7 +85,15 @@ std::unique_ptr<WebBrowserComponent> createWebView (EngineController& controller
                        .withKeepPageLoadedWhenBrowserIsHidden();
 
 #if ZD_HAS_WEB
-    options = options.withResourceProvider (provideResource);
+    // Serve the bundled UI, and declare the origin the page is served from.
+    // Without this second argument JUCE omits the Access-Control-Allow-Origin
+    // response header, and WebKit then blocks Vite's
+    // `<script type="module" crossorigin>` bundle — ES module scripts are always
+    // fetched in CORS mode, so the document loads but its script never executes,
+    // leaving the window stuck on the page background (a black screen).
+    options = options.withResourceProvider (
+        provideResource,
+        URL (WebBrowserComponent::getResourceProviderRoot()).getOrigin());
 #endif
 
     for (const auto& name : commandNames())
