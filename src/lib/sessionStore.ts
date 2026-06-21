@@ -87,13 +87,19 @@ const SKEY = (name: string) => `zdaw:session:${name}`;
 const PKEY = "zdaw:prefs";
 const SPREFIX = "zdaw:session:";
 
+/** Strip disallowed characters and cap length before persisting a user-supplied
+ *  session name to browser storage (avoids storing tainted input verbatim). */
+const sanitizeName = (s: string): string =>
+  s.replace(/[^\p{L}\p{N}\p{M} ._()\-]/gu, "").slice(0, 200);
+
 const browserBackend: SessionBackend = {
   canUseFiles: false,
   async save(name, data) {
     try {
+      const safe = sanitizeName(name);
       localStorage.setItem(
-        SKEY(name),
-        JSON.stringify({ ...data, name, savedAt: new Date().toISOString() }),
+        SKEY(safe),
+        JSON.stringify({ ...data, name: safe, savedAt: new Date().toISOString() }),
       );
       return true;
     } catch {
@@ -113,7 +119,7 @@ const browserBackend: SessionBackend = {
     const out: SessionListItem[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (!key || !key.startsWith(SPREFIX)) continue;
+      if (!key?.startsWith(SPREFIX)) continue;
       const name = key.slice(SPREFIX.length);
       if (name.startsWith("_")) continue; // reserved (e.g. __autosave__)
       let savedAt: string | undefined;

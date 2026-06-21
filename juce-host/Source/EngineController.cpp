@@ -2,7 +2,7 @@
 
 using namespace juce;
 
-EngineController::EngineController() {}
+EngineController::EngineController() = default;
 EngineController::~EngineController() { stopTimer(); }
 
 void EngineController::start()
@@ -221,11 +221,11 @@ var EngineController::buildSession (const String& name, const var& uiPayload)
 
 void EngineController::applyEnginePayload (const var& enginePayload)
 {
-    auto* obj = enginePayload.getDynamicObject();
+    const auto* obj = enginePayload.getDynamicObject();
     if (obj == nullptr)
         return;
 
-    auto* plugins = obj->getProperty ("plugins").getDynamicObject();
+    const auto* plugins = obj->getProperty ("plugins").getDynamicObject();
     if (plugins == nullptr)
         return;
 
@@ -278,7 +278,7 @@ void EngineController::sessionImport()
             if (! result.existsAsFile())
                 return;
 
-            auto* obj = JSON::parse (result).getDynamicObject();
+            const auto* obj = JSON::parse (result).getDynamicObject();
             if (obj == nullptr)
                 return;
 
@@ -295,7 +295,7 @@ void EngineController::sessionImport()
 
 var EngineController::handle (const String& name, const Array<var>& args)
 {
-    const auto arg = [&args] (int i) -> var { return i < args.size() ? args[i] : var(); };
+    const auto arg = [&args] (int i) { return i < args.size() ? args[i] : var(); };
     const auto slotOf = [&arg] { return PluginHost::slotIndex (arg (0).toString()); };
 
     // ---- transport ----
@@ -347,10 +347,10 @@ var EngineController::handle (const String& name, const Array<var>& args)
 
     // ---- per-node insert FX ----
     if (name == "nodeDeviceAdd")    { nodeDeviceAdd (arg (0).toString(), arg (1).toString()); return {}; }
-    if (name == "nodeDeviceRemove") { if (auto* r = audioEngine.rackForNode (arg (0).toString())) r->remove (PluginHost::slotIndex (arg (1).toString())); emitNodeRacks(); return {}; }
-    if (name == "nodeDeviceSetBypass") { if (auto* r = audioEngine.rackForNode (arg (0).toString())) r->setBypass (PluginHost::slotIndex (arg (1).toString()), (bool) arg (2)); emitNodeRacks(); return {}; }
-    if (name == "nodeDeviceOpenEditor")  { if (auto* r = audioEngine.rackForNode (arg (0).toString())) r->openEditor (PluginHost::slotIndex (arg (1).toString())); return {}; }
-    if (name == "nodeDeviceCloseEditor") { if (auto* r = audioEngine.rackForNode (arg (0).toString())) r->closeEditor (PluginHost::slotIndex (arg (1).toString())); return {}; }
+    if (name == "nodeDeviceRemove") { if (auto* r = audioEngine.rackForNode (arg (0).toString())) { r->remove (PluginHost::slotIndex (arg (1).toString())); } emitNodeRacks(); return {}; }
+    if (name == "nodeDeviceSetBypass") { if (auto* r = audioEngine.rackForNode (arg (0).toString())) { r->setBypass (PluginHost::slotIndex (arg (1).toString()), (bool) arg (2)); } emitNodeRacks(); return {}; }
+    if (name == "nodeDeviceOpenEditor")  { if (auto* r = audioEngine.rackForNode (arg (0).toString())) { r->openEditor (PluginHost::slotIndex (arg (1).toString())); } return {}; }
+    if (name == "nodeDeviceCloseEditor") { if (auto* r = audioEngine.rackForNode (arg (0).toString())) { r->closeEditor (PluginHost::slotIndex (arg (1).toString())); } return {}; }
     if (name == "nodeDeviceListParams")
     {
         // { id: "dev:<slot>:<i>", name } for each param of a node's rack slot,

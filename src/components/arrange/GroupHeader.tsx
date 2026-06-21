@@ -24,7 +24,7 @@ const idleBtnSm: React.CSSProperties = {
   flex: "none",
 };
 
-export function GroupHeader({ g }: { g: Group }) {
+export function GroupHeader({ g }: Readonly<{ g: Group }>) {
   const { collapsed, muted, soloed, selected, autoOpen, vol, pan, level, toggleGroup, toggleGroupMute, toggleGroupSolo, toggleAuto, setGroupVolume, setGroupPan, openGroupChain } =
     useDawStore(
       useShallow((s) => ({
@@ -47,13 +47,22 @@ export function GroupHeader({ g }: { g: Group }) {
     );
 
   const db = vol <= 0.001 ? "-∞" : (20 * Math.log10(vol)).toFixed(1);
-  const panLabel =
-    Math.abs(pan - 0.5) < 0.005 ? "C" : pan < 0.5 ? `L${Math.round((0.5 - pan) * 200)}` : `R${Math.round((pan - 0.5) * 200)}`;
+  const panMag =
+    pan < 0.5 ? `L${Math.round((0.5 - pan) * 200)}` : `R${Math.round((pan - 0.5) * 200)}`;
+  const panLabel = Math.abs(pan - 0.5) < 0.005 ? "C" : panMag;
 
   return (
     <>
     <div
       onClick={() => openGroupChain(g.id)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          openGroupChain(g.id);
+        }
+      }}
       title="Open group chain"
       style={{
         height: GROUP_ROW_H,
@@ -138,14 +147,22 @@ export function GroupHeader({ g }: { g: Group }) {
       </div>
 
       {/* row 2: group fader + pan */}
-      <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div role="group" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span style={{ fontSize: 8, color: "var(--text-label)", letterSpacing: "0.1em", flex: "none", width: 22 }}>BUS</span>
         <div style={{ flex: 1 }}>
           <Slider value={vol} onChange={(v) => setGroupVolume(g.id, v)} gradient={`linear-gradient(90deg, ${hexA(g.color, 0.5)}, ${g.color})`} />
         </div>
         <span style={{ fontFamily: "var(--font-mono)", fontSize: 8, color: "var(--text-faint)", width: 30, textAlign: "right", flex: "none" }}>{db}</span>
         <div
+          role="button"
+          tabIndex={0}
           onDoubleClick={() => setGroupPan(g.id, 0.5)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setGroupPan(g.id, 0.5);
+            }
+          }}
           title={`Group pan: ${panLabel} (double-click to center)`}
           style={{ flex: "none" }}
         >
@@ -160,7 +177,7 @@ export function GroupHeader({ g }: { g: Group }) {
 
 /** The tinted bar a group renders as in the lanes column (height matches the
  *  header); shows the group's automation envelope below it when the lane is open. */
-export function GroupLane({ g }: { g: Group }) {
+export function GroupLane({ g }: Readonly<{ g: Group }>) {
   const autoOpen = useDawStore((s) => !!s.autoLanes[g.id]);
   return (
     <>

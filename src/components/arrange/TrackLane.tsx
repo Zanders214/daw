@@ -8,7 +8,7 @@ import { AutomationLane } from "./AutomationLane";
 import { SEND_ROW_H } from "./TrackHeader";
 import type { Track } from "../../types";
 
-export function TrackLane({ track }: { track: Track }) {
+export function TrackLane({ track }: Readonly<{ track: Track }>) {
   const id = track.id;
   const { selected, showGrid, vibrant, dimmed, selClip, autoOpen, sendsOpen, selectClip } = useDawStore(
     useShallow((s) => {
@@ -59,6 +59,14 @@ export function TrackLane({ track }: { track: Track }) {
           <div
             key={c.id}
             onClick={() => selectClip(c.id, id)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                selectClip(c.id, id);
+              }
+            }}
             style={{
               position: "absolute",
               left: (c.bar / TOTAL_BARS) * 100 + "%",
@@ -99,9 +107,9 @@ export function TrackLane({ track }: { track: Track }) {
             </div>
             {isMidi ? (
               <div style={{ position: "absolute", left: 6, right: 4, top: 17, bottom: 5 }}>
-                {notes.map((n, i) => (
+                {notes.map((n) => (
                   <div
-                    key={i}
+                    key={`${n.row}-${n.x}-${n.w}`}
                     style={{
                       position: "absolute",
                       left: n.x * 100 + "%",

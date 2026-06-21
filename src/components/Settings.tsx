@@ -26,11 +26,11 @@ function Segmented<T extends string | number>({
   options,
   value,
   onPick,
-}: {
+}: Readonly<{
   options: [T, string][];
   value: T;
   onPick: (v: T) => void;
-}) {
+}>) {
   return (
     <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
       {options.map(([v, label]) => (
@@ -42,10 +42,19 @@ function Segmented<T extends string | number>({
   );
 }
 
-function Switch({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+function Switch({ on, onToggle }: Readonly<{ on: boolean; onToggle: () => void }>) {
   return (
     <div
+      role="switch"
+      aria-checked={on}
+      tabIndex={0}
       onClick={onToggle}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onToggle();
+        }
+      }}
       style={{
         width: 44,
         height: 24,
@@ -76,7 +85,7 @@ function Switch({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   );
 }
 
-function Row({ label, desc, last, children }: { label: string; desc: string; last?: boolean; children: ReactNode }) {
+function Row({ label, desc, last, children }: Readonly<{ label: string; desc: string; last?: boolean; children: ReactNode }>) {
   return (
     <div
       style={{
@@ -174,6 +183,14 @@ export function Settings() {
   return (
     <div
       onClick={s.closeSettings}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " " || e.key === "Escape") {
+          e.preventDefault();
+          s.closeSettings();
+        }
+      }}
       style={{
         position: "absolute",
         inset: 0,
@@ -187,7 +204,9 @@ export function Settings() {
       }}
     >
       <div
+        role="group"
         onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
         style={{
           width: 760,
           maxHeight: "86%",

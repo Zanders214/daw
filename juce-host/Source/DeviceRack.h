@@ -25,14 +25,14 @@ public:
         sampleRate = sr;
         blockSize = bs;
         const juce::ScopedLock sl (lock);
-        for (auto& p : chain)
+        for (const auto& p : chain)
             prepareInstance (p.get());
     }
 
-    void release()
+    void release() const
     {
         const juce::ScopedLock sl (lock);
-        for (auto& p : chain)
+        for (const auto& p : chain)
             if (p != nullptr)
                 p->releaseResources();
     }
@@ -95,7 +95,7 @@ public:
         return mb.toBase64Encoding();
     }
 
-    void setState (int slot, const juce::String& b64)
+    void setState (int slot, const juce::String& b64) const
     {
         auto* inst = get (slot);
         if (inst == nullptr || b64.isEmpty())
@@ -130,7 +130,7 @@ public:
         const juce::ScopedTryLock stl (lock);
         if (! stl.isLocked())
             return;
-        if (auto* inst = chain[(size_t) slot].get())
+        if (const auto* inst = chain[(size_t) slot].get())
         {
             const auto& params = inst->getParameters();
             if (juce::isPositiveAndBelow (paramIndex, params.size()))
@@ -139,7 +139,7 @@ public:
     }
 
 private:
-    void prepareInstance (juce::AudioPluginInstance* inst)
+    void prepareInstance (juce::AudioPluginInstance* inst) const
     {
         if (inst == nullptr || sampleRate <= 0.0)
             return;

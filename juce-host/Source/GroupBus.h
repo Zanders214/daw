@@ -41,8 +41,7 @@ public:
 
         buffer.applyGain (gain.load());
 
-        const float p = pan.load();
-        if (buffer.getNumChannels() >= 2 && ! juce::approximatelyEqual (p, 0.5f))
+        if (const float p = pan.load(); buffer.getNumChannels() >= 2 && ! juce::approximatelyEqual (p, 0.5f))
         {
             buffer.applyGain (0, 0, numSamples, p <= 0.5f ? 1.0f : (1.0f - p) * 2.0f);
             buffer.applyGain (1, 0, numSamples, p >= 0.5f ? 1.0f : p * 2.0f);

@@ -28,7 +28,7 @@ export function Dial({
   sensitivity = 200,
   style,
   ...rest
-}: DialProps) {
+}: Readonly<DialProps>) {
   const startRef = useRef<{ y: number; v: number } | null>(null);
   const R = 28;
   const ARC = 2 * Math.PI * R * 0.75; // 270deg
@@ -44,11 +44,11 @@ export function Dial({
         clamp(startRef.current!.v + (startRef.current!.y - ev.clientY) * (1 / sensitivity) * 40),
       );
     const up = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
+      globalThis.removeEventListener("pointermove", move);
+      globalThis.removeEventListener("pointerup", up);
     };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
+    globalThis.addEventListener("pointermove", move);
+    globalThis.addEventListener("pointerup", up);
   };
 
   return (

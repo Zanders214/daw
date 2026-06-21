@@ -21,7 +21,7 @@ export function Chip({
   glow = 1,
   style,
   ...rest
-}: ChipProps) {
+}: Readonly<ChipProps>) {
   return (
     <div
       style={{

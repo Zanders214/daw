@@ -32,7 +32,7 @@ function nodeDef(selNode: string): { name: string; color: string } {
 }
 
 /** One device card in a non-master node's insert rack. */
-function NodeDeviceCard({ nodeId, dev }: { nodeId: string; dev: { key: DeviceKey; name?: string; bypassed?: boolean } }) {
+function NodeDeviceCard({ nodeId, dev }: Readonly<{ nodeId: string; dev: { key: DeviceKey; name?: string; bypassed?: boolean } }>) {
   const { setNodeDeviceBypass, openNodeEditor, removeNodeDevice } = useDawStore(
     useShallow((s) => ({
       setNodeDeviceBypass: s.setNodeDeviceBypass,
@@ -100,7 +100,7 @@ function NodeDeviceCard({ nodeId, dev }: { nodeId: string; dev: { key: DeviceKey
 }
 
 /** The insert rack for a non-master node (track / group / return). */
-function NodeRack({ nodeId }: { nodeId: string }) {
+function NodeRack({ nodeId }: Readonly<{ nodeId: string }>) {
   const { devices, addNodeDevice } = useDawStore(
     useShallow((s) => ({ devices: s.nodeRacks[nodeId] ?? EMPTY_RACK, addNodeDevice: s.addNodeDevice })),
   );
@@ -166,6 +166,8 @@ export function DeviceChain() {
 
   const isMaster = selNode === "master";
   const def = nodeDef(selNode);
+  const plural = deviceCount === 1 ? "" : "s";
+  const deviceLabel = isMaster ? "master mastering chain" : `${deviceCount} device${plural}`;
 
   return (
     <div
@@ -211,7 +213,7 @@ export function DeviceChain() {
         </span>
         <div style={{ flex: 1 }} />
         <span style={{ fontSize: 9, color: "var(--text-faint)", fontFamily: "var(--font-mono)" }}>
-          {isMaster ? "master mastering chain" : `${deviceCount} device${deviceCount === 1 ? "" : "s"}`}
+          {deviceLabel}
         </span>
         <button
           type="button"

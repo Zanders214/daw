@@ -9,14 +9,14 @@ function ensureAudio(): AudioContext | null {
   if (ac === undefined) {
     try {
       const Ctor =
-        window.AudioContext ||
-        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        globalThis.AudioContext ||
+        (globalThis as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       ac = new Ctor();
     } catch {
       ac = null;
     }
   }
-  if (ac && ac.state === "suspended") void ac.resume();
+  if (ac?.state === "suspended") void ac.resume();
   return ac;
 }
 

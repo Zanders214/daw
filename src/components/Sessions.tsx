@@ -4,6 +4,12 @@ import { useDawStore } from "../store/useDawStore";
 import { applySession, buildSession } from "../lib/session";
 import { sessionBackend, type SessionListItem } from "../lib/sessionStore";
 
+const BTN_VARIANTS: Record<"primary" | "neutral" | "ghost", React.CSSProperties> = {
+  primary: { background: "var(--accent-soft)", color: "var(--accent)", border: "1px solid var(--accent-line)", boxShadow: "0 0 12px var(--accent-glow)" },
+  ghost: { background: "transparent", color: "var(--text-3)", border: "1px solid var(--layer-3)" },
+  neutral: { background: "var(--layer-2)", color: "var(--text-2)", border: "1px solid var(--layer-5)", boxShadow: "var(--inset-top)" },
+};
+
 const btn = (kind: "primary" | "neutral" | "ghost" = "neutral"): React.CSSProperties => ({
   height: 34,
   padding: "0 14px",
@@ -17,11 +23,7 @@ const btn = (kind: "primary" | "neutral" | "ghost" = "neutral"): React.CSSProper
   alignItems: "center",
   justifyContent: "center",
   gap: 6,
-  ...(kind === "primary"
-    ? { background: "var(--accent-soft)", color: "var(--accent)", border: "1px solid var(--accent-line)", boxShadow: "0 0 12px var(--accent-glow)" }
-    : kind === "ghost"
-      ? { background: "transparent", color: "var(--text-3)", border: "1px solid var(--layer-3)" }
-      : { background: "var(--layer-2)", color: "var(--text-2)", border: "1px solid var(--layer-5)", boxShadow: "var(--inset-top)" }),
+  ...BTN_VARIANTS[kind],
 });
 
 const inputStyle: React.CSSProperties = {
@@ -123,6 +125,14 @@ export function Sessions() {
   return (
     <div
       onClick={close}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " " || e.key === "Escape") {
+          e.preventDefault();
+          close();
+        }
+      }}
       style={{
         position: "absolute",
         inset: 0,
@@ -136,7 +146,9 @@ export function Sessions() {
       }}
     >
       <div
+        role="group"
         onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
         style={{
           width: 640,
           maxHeight: "86%",

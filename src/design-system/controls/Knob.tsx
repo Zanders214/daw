@@ -29,7 +29,7 @@ export function Knob({
   sensitivity = 220,
   style,
   ...rest
-}: KnobProps) {
+}: Readonly<KnobProps>) {
   const startRef = useRef<{ y: number; v: number } | null>(null);
   const clamp = (x: number) => Math.min(1, Math.max(0, x));
 
@@ -40,11 +40,11 @@ export function Knob({
     const move = (ev: PointerEvent) =>
       onChange(clamp(startRef.current!.v + (startRef.current!.y - ev.clientY) / sensitivity));
     const up = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
+      globalThis.removeEventListener("pointermove", move);
+      globalThis.removeEventListener("pointerup", up);
     };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
+    globalThis.addEventListener("pointermove", move);
+    globalThis.addEventListener("pointerup", up);
   };
 
   const ringDeg = (value * 270).toFixed(1) + "deg";
@@ -59,7 +59,7 @@ export function Knob({
     borderRadius: "50%",
     WebkitMaskImage: mask,
     maskImage: mask,
-    transform: scale !== 1 ? `scale(${scale})` : undefined,
+    transform: scale === 1 ? undefined : `scale(${scale})`,
   };
 
   return (

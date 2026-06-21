@@ -139,7 +139,9 @@ var AudioEngine::getDevicesInfo()
     obj->setProperty ("sampleRate", setup.sampleRate);
     obj->setProperty ("bufferSize", setup.bufferSize);
 
-    Array<var> rates, sizes, outputs;
+    Array<var> rates;
+    Array<var> sizes;
+    Array<var> outputs;
     if (auto* dev = deviceManager.getCurrentAudioDevice())
     {
         for (auto r : dev->getAvailableSampleRates()) rates.add (r);
@@ -199,7 +201,7 @@ void AudioEngine::recomputeAnySolo()
 {
     const ScopedLock sl (tracksLock);
     int count = 0;
-    for (auto* t : tracks)
+    for (const auto* t : tracks)
         if (t->solo.load())
             ++count;
     anySolo.store (count);
@@ -228,7 +230,7 @@ void AudioEngine::recomputeAnyGroupSolo()
 {
     const ScopedLock sl (tracksLock);
     int count = 0;
-    for (auto* g : groups)
+    for (const auto* g : groups)
         if (g->solo.load())
             ++count;
     anyGroupSolo.store (count);
@@ -250,7 +252,7 @@ var AudioEngine::buildGroupLevels()
     auto* obj = new DynamicObject();
     const ScopedTryLock stl (tracksLock);
     if (stl.isLocked())
-        for (auto* g : groups)
+        for (const auto* g : groups)
             obj->setProperty (Identifier (g->getId()), (double) g->level.load());
     return var (obj);
 }
@@ -291,7 +293,7 @@ void AudioEngine::clearAllAutomation() { automation.clearAll(); }
 AutomationStore::Target AudioEngine::resolveAutoTarget (const String& nodeId, const String& paramId)
 {
     AutomationStore::Target t;
-    const auto f32 = [&t] (std::atomic<float>* p, float lo, float hi) -> AutomationStore::Target
+    const auto f32 = [&t] (std::atomic<float>* p, float lo, float hi)
     {
         t.kind = AutomationStore::Kind::f32;
         t.f32 = p;
@@ -404,11 +406,12 @@ var AudioEngine::buildNodeRackStates()
     auto addRack = [obj] (const String& nodeId, DeviceRack& r)
     {
         auto* no = new DynamicObject();
+        const var noVar (no); // establish ownership immediately so `no` can't leak when unused
         bool any = false;
         for (int s = 0; s < DeviceRack::numSlots; ++s)
             if (r.has (s)) { no->setProperty (PluginHost::slotKey (s), r.getState (s)); any = true; }
         if (any)
-            obj->setProperty (Identifier (nodeId), var (no));
+            obj->setProperty (Identifier (nodeId), noVar);
     };
 
     for (auto* t : tracks) addRack (t->getId(), t->inserts);
@@ -508,7 +511,7 @@ bool AudioEngine::hasPlugin (int slot) const { return getInstance (slot) != null
 
 String AudioEngine::getPluginName (int slot) const
 {
-    auto* inst = getInstance (slot);
+    const auto* inst = getInstance (slot);
     return inst != nullptr ? inst->getName() : String();
 }
 
@@ -520,7 +523,7 @@ void AudioEngine::setBypassed (int slot, bool b)
 
 void AudioEngine::setParam (int slot, const String& paramId, float value01)
 {
-    auto* inst = getInstance (slot);
+    const auto* inst = getInstance (slot);
     if (inst == nullptr)
         return;
 
@@ -540,7 +543,7 @@ void AudioEngine::setParam (int slot, const String& paramId, float value01)
 var AudioEngine::listParams (int slot)
 {
     Array<var> out;
-    if (auto* inst = getInstance (slot))
+    if (const auto* inst = getInstance (slot))
     {
         const auto& params = inst->getParameters();
         for (int i = 0; i < params.size(); ++i)
@@ -576,7 +579,7 @@ bool AudioEngine::setPluginState (int slot, const String& base64)
         return false;
 
     juce::MemoryBlock mb;
-    if (! mb.fromBase64Encoding (base64) || mb.getSize() == 0)
+    if (! mb.fromBase64Encoding (base64) || mb.isEmpty())
         return false;
 
     const ScopedLock sl (chainLock);

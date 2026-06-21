@@ -27,7 +27,7 @@ const idleBtn: React.CSSProperties = {
 };
 
 /** Live per-track level meter (subscribes to its own level only). */
-function TrackMeter({ id }: { id: string }) {
+function TrackMeter({ id }: Readonly<{ id: string }>) {
   const level = useDawStore((s) => s.levels[id] ?? 0);
   return (
     <div style={{ flex: 1 }}>
@@ -38,7 +38,7 @@ function TrackMeter({ id }: { id: string }) {
 
 /** Expandable per-track aux-send row (height kept in sync with the lane spacer). */
 export const SEND_ROW_H = 52;
-function SendRow({ id }: { id: string }) {
+function SendRow({ id }: Readonly<{ id: string }>) {
   const { sends, setSend } = useDawStore(
     useShallow((s) => ({ sends: s.sends[id] ?? EMPTY_SENDS, setSend: s.setSend })),
   );
@@ -56,8 +56,19 @@ function SendRow({ id }: { id: string }) {
     >
       <span style={{ fontSize: 9, letterSpacing: "0.12em", color: "var(--text-label)" }}>SENDS</span>
       {["A", "B"].map((lbl, i) => (
-        <div key={lbl} onClick={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", gap: 7 }}>
-          <div onDoubleClick={() => setSend(id, i, 0)} title={`Send ${lbl} (double-click to zero)`}>
+        <div key={lbl} role="group" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          <div
+            role="button"
+            tabIndex={0}
+            onDoubleClick={() => setSend(id, i, 0)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setSend(id, i, 0);
+              }
+            }}
+            title={`Send ${lbl} (double-click to zero)`}
+          >
             <Dial value={sends[i] ?? 0} onChange={(v) => setSend(id, i, v)} label={null} size={26} color="var(--spectrum-violet)" />
           </div>
           <span style={{ fontSize: 9, color: "var(--text-3)", fontFamily: "var(--font-mono)" }}>{lbl}</span>
@@ -67,7 +78,7 @@ function SendRow({ id }: { id: string }) {
   );
 }
 
-export function TrackHeader({ track }: { track: Track }) {
+export function TrackHeader({ track }: Readonly<{ track: Track }>) {
   const id = track.id;
   const {
     muted,
@@ -118,8 +129,9 @@ export function TrackHeader({ track }: { track: Track }) {
   );
 
   const volDb = vol <= 0.001 ? "-∞" : (20 * Math.log10(vol)).toFixed(1) + " dB";
-  const panLabel =
-    Math.abs(pan - 0.5) < 0.005 ? "C" : pan < 0.5 ? `L${Math.round((0.5 - pan) * 200)}` : `R${Math.round((pan - 0.5) * 200)}`;
+  const panMag =
+    pan < 0.5 ? `L${Math.round((0.5 - pan) * 200)}` : `R${Math.round((pan - 0.5) * 200)}`;
+  const panLabel = Math.abs(pan - 0.5) < 0.005 ? "C" : panMag;
 
   const mStyle = { ...idleBtn, ...(muted ? { background: "var(--danger-grad)", color: "#fff", borderColor: "rgba(255,120,120,0.6)", boxShadow: "0 0 12px var(--danger-glow)" } : null) };
   const sStyle = { ...idleBtn, ...(solo ? { background: "var(--accent-grad)", color: "#fff", borderColor: "rgba(150,170,255,0.6)", boxShadow: "0 0 12px var(--accent-glow)" } : null) };
@@ -131,6 +143,14 @@ export function TrackHeader({ track }: { track: Track }) {
       <div
         onClick={() => selectTrack(id)}
         onDoubleClick={() => openTrackChain(id)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            selectTrack(id);
+          }
+        }}
         style={{
           height: 108,
           padding: "10px 16px",
@@ -143,9 +163,17 @@ export function TrackHeader({ track }: { track: Track }) {
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span
+            role="button"
+            tabIndex={0}
             onClick={(e) => {
               e.stopPropagation();
               toggleMute(id);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                toggleMute(id);
+              }
             }}
             title="Mute / unmute"
             style={{
@@ -253,8 +281,17 @@ export function TrackHeader({ track }: { track: Track }) {
           <button type="button" onClick={(e) => { e.stopPropagation(); toggleArm(id); }} style={aStyle}>●</button>
           <button type="button" onClick={(e) => { e.stopPropagation(); toggleAuto(id); }} title="Automation lane" style={autoBtnStyle}>A</button>
           <div
+            role="button"
+            tabIndex={0}
             onClick={(e) => e.stopPropagation()}
             onDoubleClick={(e) => { e.stopPropagation(); setPan(id, 0.5); }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                e.stopPropagation();
+                setPan(id, 0.5);
+              }
+            }}
             title={`Pan: ${panLabel} (double-click to center)`}
             style={{ flex: "none" }}
           >
@@ -265,7 +302,7 @@ export function TrackHeader({ track }: { track: Track }) {
 
         <div style={{ display: "flex", alignItems: "center", gap: 9, marginTop: 9 }}>
           <span style={{ fontSize: 9, color: "var(--text-label)", letterSpacing: "0.1em", flex: "none" }}>VOL</span>
-          <div style={{ flex: 1 }} onClick={(e) => e.stopPropagation()}>
+          <div role="group" style={{ flex: 1 }} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
             <Slider value={vol} onChange={(v) => setVolume(id, v)} />
           </div>
           <span

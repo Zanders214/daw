@@ -4,7 +4,7 @@ import { PlayheadMarker } from "./Playhead";
 
 const HEADER_W = 258;
 
-export function Ruler({ tracksRight }: { tracksRight: boolean }) {
+export function Ruler({ tracksRight }: Readonly<{ tracksRight: boolean }>) {
   const toggleTracksSide = useDawStore((s) => s.toggleTracksSide);
   const sb = "1px solid var(--layer-3)";
 

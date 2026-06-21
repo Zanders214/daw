@@ -19,7 +19,7 @@ export function Meter({
   glow = true,
   style,
   ...rest
-}: MeterProps) {
+}: Readonly<MeterProps>) {
   return (
     <div
       style={{

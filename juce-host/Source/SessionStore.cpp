@@ -29,14 +29,14 @@ File SessionStore::sessionFile (const String& name) const
     return getSessionsDir().getChildFile (sanitize (name) + ".json");
 }
 
-bool SessionStore::writeSession (const String& name, const var& data)
+bool SessionStore::writeSession (const String& name, const var& data) const
 {
     auto file = sessionFile (name);
     file.getParentDirectory().createDirectory();
     return file.replaceWithText (JSON::toString (data));
 }
 
-var SessionStore::readSession (const String& name)
+var SessionStore::readSession (const String& name) const
 {
     auto file = sessionFile (name);
     if (! file.existsAsFile())
@@ -44,13 +44,13 @@ var SessionStore::readSession (const String& name)
     return JSON::parse (file);
 }
 
-bool SessionStore::deleteSession (const String& name)
+bool SessionStore::deleteSession (const String& name) const
 {
     auto file = sessionFile (name);
     return file.existsAsFile() && file.deleteFile();
 }
 
-var SessionStore::listSessions()
+var SessionStore::listSessions() const
 {
     Array<var> out;
     for (const auto& entry : getSessionsDir().findChildFiles (File::findFiles, false, "*.json"))
@@ -58,7 +58,7 @@ var SessionStore::listSessions()
         if (entry.getFileNameWithoutExtension().startsWithChar ('_'))
             continue; // reserved (e.g. __autosave__)
 
-        auto* obj = JSON::parse (entry).getDynamicObject();
+        const auto* obj = JSON::parse (entry).getDynamicObject();
 
         auto* item = new DynamicObject();
         item->setProperty ("name", obj != nullptr && obj->hasProperty ("name")
@@ -70,14 +70,14 @@ var SessionStore::listSessions()
     return out;
 }
 
-bool SessionStore::writePrefs (const var& data)
+bool SessionStore::writePrefs (const var& data) const
 {
     auto file = getPrefsFile();
     file.getParentDirectory().createDirectory();
     return file.replaceWithText (JSON::toString (data));
 }
 
-var SessionStore::readPrefs()
+var SessionStore::readPrefs() const
 {
     auto file = getPrefsFile();
     if (! file.existsAsFile())

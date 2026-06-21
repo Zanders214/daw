@@ -11,7 +11,7 @@ export interface PanelProps extends HTMLAttributes<HTMLDivElement> {
  * Panel — the dark-glass shell every product lives in. A radial well with a
  * hairline border and a deep outer drop shadow.
  */
-export function Panel({ children, width, pad = 26, radius = 16, style, ...rest }: PanelProps) {
+export function Panel({ children, width, pad = 26, radius = 16, style, ...rest }: Readonly<PanelProps>) {
   return (
     <div
       style={{

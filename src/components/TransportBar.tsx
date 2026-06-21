@@ -173,7 +173,7 @@ export function TransportBar() {
 
   const [tempoEdit, setTempoEdit] = useState<string | null>(null);
   const commitTempo = () => {
-    const n = parseFloat(tempoEdit ?? "");
+    const n = Number.parseFloat(tempoEdit ?? "");
     if (!Number.isNaN(n)) setBpm(n);
     setTempoEdit(null);
   };
@@ -244,6 +244,14 @@ export function TransportBar() {
       <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
         <div
           onClick={openSettings}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              openSettings();
+            }
+          }}
           title="Settings"
           style={{
             width: 30,
@@ -358,9 +366,17 @@ export function TransportBar() {
           <PositionReadout />
         </div>
         <div
+          role="button"
+          tabIndex={0}
           style={{ ...readoutPill, cursor: "text" }}
           title="Double-click to set tempo"
           onDoubleClick={() => setTempoEdit(String(bpm))}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setTempoEdit(String(bpm));
+            }
+          }}
         >
           <span style={readoutCap}>TEMPO</span>
           {tempoEdit === null ? (

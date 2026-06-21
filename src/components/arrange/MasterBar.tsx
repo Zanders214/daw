@@ -63,19 +63,29 @@ function MasterPan() {
   const { masterPan, setMasterPan } = useDawStore(
     useShallow((s) => ({ masterPan: s.masterPan, setMasterPan: s.setMasterPan })),
   );
-  const label =
-    Math.abs(masterPan - 0.5) < 0.005
-      ? "C"
-      : masterPan < 0.5
-        ? `L${Math.round((0.5 - masterPan) * 200)}`
-        : `R${Math.round((masterPan - 0.5) * 200)}`;
+  const panMag =
+    masterPan < 0.5
+      ? `L${Math.round((0.5 - masterPan) * 200)}`
+      : `R${Math.round((masterPan - 0.5) * 200)}`;
+  const label = Math.abs(masterPan - 0.5) < 0.005 ? "C" : panMag;
   return (
     <div style={{ width: 70, flex: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
       <div style={{ display: "flex", justifyContent: "space-between", width: "100%", fontSize: 9, letterSpacing: "0.14em", color: "var(--text-label)" }}>
         <span>PAN</span>
         <span style={{ fontFamily: "var(--font-mono)", color: "var(--text-2)" }}>{label}</span>
       </div>
-      <div onDoubleClick={() => setMasterPan(0.5)} title="Master pan (double-click to center)">
+      <div
+        role="button"
+        tabIndex={0}
+        onDoubleClick={() => setMasterPan(0.5)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setMasterPan(0.5);
+          }
+        }}
+        title="Master pan (double-click to center)"
+      >
         <Dial value={masterPan} onChange={setMasterPan} label={null} size={30} color="var(--accent)" />
       </div>
     </div>
@@ -118,7 +128,18 @@ function ReturnsStrip() {
             >
               RET {lbl}
             </button>
-            <div onDoubleClick={() => setReturnGain(i, 1)} title={`Return ${lbl} level`}>
+            <div
+              role="button"
+              tabIndex={0}
+              onDoubleClick={() => setReturnGain(i, 1)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setReturnGain(i, 1);
+                }
+              }}
+              title={`Return ${lbl} level`}
+            >
               <Dial value={Math.min(1, returnGains[i] ?? 1)} onChange={(v) => setReturnGain(i, v)} label={null} size={26} color="var(--spectrum-violet)" />
             </div>
             <div style={{ width: 30 }}>
@@ -131,7 +152,7 @@ function ReturnsStrip() {
   );
 }
 
-export function MasterBar({ tracksRight }: { tracksRight: boolean }) {
+export function MasterBar({ tracksRight }: Readonly<{ tracksRight: boolean }>) {
   const { selMaster, openMasterChain } = useDawStore(
     useShallow((s) => ({ selMaster: s.selTrack === "master", openMasterChain: s.openMasterChain })),
   );
@@ -178,6 +199,14 @@ export function MasterBar({ tracksRight }: { tracksRight: boolean }) {
     >
       <div
         onClick={openMasterChain}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            openMasterChain();
+          }
+        }}
         title="Open master chain"
         style={{
           width: HEADER_W,

@@ -42,7 +42,7 @@ function chipStyle(active: boolean): React.CSSProperties {
 }
 
 /** Live automation value at the playhead (subscribes to playhead + envelope). */
-function AutoValueReadout({ nodeId, color }: { nodeId: string; color: string }) {
+function AutoValueReadout({ nodeId, color }: Readonly<{ nodeId: string; color: string }>) {
   const { ph, param, pts } = useDawStore(
     useShallow((s) => {
       const p = s.autoParam[nodeId] || "vol";
@@ -57,7 +57,7 @@ function AutoValueReadout({ nodeId, color }: { nodeId: string; color: string }) 
 /** Dropdown to automate a hosted device parameter on this node. Enumerates the
  *  params of each device in the node's insert rack (each carries a ready-to-use
  *  "dev:slot:i" id). Renders nothing in the browser dev-shell / when empty. */
-function DeviceParamSelect({ nodeId }: { nodeId: string }) {
+function DeviceParamSelect({ nodeId }: Readonly<{ nodeId: string }>) {
   const { devices, param, setAutoParam } = useDawStore(
     useShallow((s) => ({
       devices: s.nodeRacks[nodeId] ?? NO_DEVICES,
@@ -109,11 +109,11 @@ export function AutomationChips({
   nodeId,
   color,
   params,
-}: {
+}: Readonly<{
   nodeId: string;
   color: string;
   params: [AutomationParam, string][];
-}) {
+}>) {
   const { param, setAutoParam } = useDawStore(
     useShallow((s) => ({ param: s.autoParam[nodeId] || "vol", setAutoParam: s.setAutoParam })),
   );
@@ -155,7 +155,7 @@ export function AutomationChips({
 /** Editable breakpoint envelope for one node + param: click empty lane to add a
  *  point, drag a handle on both axes (time clamped between neighbors), alt- or
  *  right-click a handle to delete. */
-export function AutomationLane({ nodeId, color }: { nodeId: string; color: string }) {
+export function AutomationLane({ nodeId, color }: Readonly<{ nodeId: string; color: string }>) {
   const laneRef = useRef<HTMLDivElement>(null);
   const { param, pts, addAutoPoint, moveAutoPoint, deleteAutoPoint } = useDawStore(
     useShallow((s) => {
@@ -208,11 +208,11 @@ export function AutomationLane({ nodeId, color }: { nodeId: string; color: strin
       moveAutoPoint(nodeId, param, idx, { t: Math.max(lo, Math.min(hi, c.t)), v: c.v });
     };
     const up = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
+      globalThis.removeEventListener("pointermove", move);
+      globalThis.removeEventListener("pointerup", up);
     };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
+    globalThis.addEventListener("pointermove", move);
+    globalThis.addEventListener("pointerup", up);
   };
 
   return (
@@ -237,8 +237,16 @@ export function AutomationLane({ nodeId, color }: { nodeId: string; color: strin
       </svg>
       {pts.map((p, idx) => (
         <div
-          key={idx}
+          key={`${p.t}-${p.v}`}
+          role="button"
+          tabIndex={0}
           onPointerDown={startDrag(idx)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " " || e.key === "Delete" || e.key === "Backspace") {
+              e.preventDefault();
+              deleteAutoPoint(nodeId, param, idx);
+            }
+          }}
           onContextMenu={(e) => {
             e.preventDefault();
             e.stopPropagation();

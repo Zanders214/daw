@@ -40,7 +40,7 @@ public:
     };
 
     // ---- message thread ----
-    void set (const juce::String& key, std::vector<Point> points, Target target)
+    void set (const juce::String& key, std::vector<Point> points, const Target& target)
     {
         std::sort (points.begin(), points.end(),
                    [] (const Point& a, const Point& b) { return a.t < b.t; });
@@ -63,25 +63,23 @@ public:
     // ---- audio thread ----
     /** Evaluate every lane at `beats` (block-start playhead) and write to its
         target. Lock-free on a missed try-lock (manual values persist). */
-    void apply (double beats)
+    void apply (double beats) const
     {
         const juce::ScopedTryLock stl (lock);
         if (! stl.isLocked())
             return;
 
-        for (auto& entry : lanes)
+        for (const auto& [key, lane] : lanes)
         {
-            const Lane& lane = entry.second;
             const float v = valueAt (lane.points, beats);
             if (lane.target.kind == Kind::f32)
             {
                 if (lane.target.f32 != nullptr)
                     lane.target.f32->store (juce::jlimit (lane.target.lo, lane.target.hi, v));
             }
-            else if (lane.target.kind == Kind::param)
+            else if (lane.target.kind == Kind::param && lane.target.rack != nullptr)
             {
-                if (lane.target.rack != nullptr)
-                    lane.target.rack->setParamValue (lane.target.slot, lane.target.paramIndex, v);
+                lane.target.rack->setParamValue (lane.target.slot, lane.target.paramIndex, v);
             }
         }
     }

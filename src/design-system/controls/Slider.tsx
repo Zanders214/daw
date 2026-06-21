@@ -21,7 +21,7 @@ export function Slider({
   gradient = "var(--ramp-cool)",
   style,
   ...rest
-}: SliderProps) {
+}: Readonly<SliderProps>) {
   const clamp = (x: number) => Math.min(1, Math.max(0, x));
   const pct = (value * 100).toFixed(1) + "%";
 
@@ -33,11 +33,11 @@ export function Slider({
     set(e.clientX);
     const move = (ev: PointerEvent) => set(ev.clientX);
     const up = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
+      globalThis.removeEventListener("pointermove", move);
+      globalThis.removeEventListener("pointerup", up);
     };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
+    globalThis.addEventListener("pointermove", move);
+    globalThis.addEventListener("pointerup", up);
   };
 
   return (
