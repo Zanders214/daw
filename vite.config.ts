@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import { fileURLToPath, URL } from "node:url";
 
@@ -21,6 +21,25 @@ export default defineConfig({
     watch: {
       // Tauri's own source lives outside the web app.
       ignored: ["**/src-tauri/**"],
+    },
+  },
+  // Vitest: unit tests for pure logic, with V8 coverage exported as lcov for
+  // SonarQube Cloud to import (see sonar-project.properties).
+  test: {
+    environment: "node",
+    include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "lcov"],
+      reportsDirectory: "coverage",
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: [
+        "src/**/*.{test,spec}.{ts,tsx}",
+        "src/main.tsx",
+        "src/**/*.d.ts",
+        "src/data/**",
+        "src/styles/**",
+      ],
     },
   },
 });

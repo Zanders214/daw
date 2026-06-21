@@ -12,6 +12,13 @@ src-tauri/gen/
 # JUCE host (CMake) build output
 juce-host/build/
 
+# CMake build output at repo root (used by CI for the Sonar compile DB)
+build/
+
+# Test coverage (Vitest) + Sonar Rust Clippy report
+coverage/
+clippy-report.json
+
 # Logs
 *.log
 npm-debug.log*
