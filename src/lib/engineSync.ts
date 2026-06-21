@@ -8,7 +8,7 @@
  * cycle with the store, which imports this module for `newSession`).
  */
 import { engine, engineActive } from "./engine";
-import { TRACK_DEFS } from "../data/seed";
+import { TRACK_DEFS, GROUP_DEFS } from "../data/seed";
 import { DEFAULT_VOLUME } from "./constants";
 import type { DeviceKey } from "../types";
 import type { DawState } from "../store/useDawStore";
@@ -21,11 +21,13 @@ export function applySessionToEngine(s: DawState): void {
   engine.transport.setLoopStart(s.loopStart);
   engine.transport.setLoopEnd(s.loopEnd);
   engine.mixer.setMasterVolume(s.masterVolume);
+  engine.mixer.setMasterPan(s.masterPan);
 
   // Re-assert each track's mix state + audio file so create-on-demand channels
   // match the UI exactly (explicit false resets a track the session cleared).
   TRACK_DEFS.forEach((t) => {
     engine.mixer.setTrackVolume(t.id, s.volumes[t.id] ?? DEFAULT_VOLUME);
+    engine.mixer.setTrackPan(t.id, s.pans[t.id] ?? 0.5);
     engine.mixer.setTrackMute(t.id, !!s.mutes[t.id]);
     engine.mixer.setTrackSolo(t.id, !!s.solos[t.id]);
     engine.mixer.setTrackArm(t.id, !!s.arms[t.id]);
@@ -33,6 +35,22 @@ export function applySessionToEngine(s: DawState): void {
     const tf = s.trackFiles[t.id];
     if (tf?.loaded && tf.path) engine.track.assignFile(t.id, tf.path);
     else engine.track.clearFile(t.id);
+
+    const snd = s.sends[t.id] ?? [];
+    engine.mixer.setTrackSend(t.id, 0, snd[0] ?? 0);
+    engine.mixer.setTrackSend(t.id, 1, snd[1] ?? 0);
+  });
+
+  (s.returnGains ?? [1, 1]).forEach((g, i) => engine.returns.setGain(i, g ?? 1));
+
+  // Group sub-mix buses: assign each track to its group (static, from GROUP_DEFS)
+  // and re-assert each group's gain/pan/mute/solo.
+  GROUP_DEFS.forEach((g) => {
+    g.tracks.forEach((tid) => engine.mixer.setTrackGroup(tid, g.id));
+    engine.group.setGain(g.id, s.groupVolumes[g.id] ?? 1);
+    engine.group.setPan(g.id, s.groupPans[g.id] ?? 0.5);
+    engine.group.setMute(g.id, !!s.groupMutes[g.id]);
+    engine.group.setSolo(g.id, !!s.groupSolos[g.id]);
   });
 
   (Object.keys(s.devices) as DeviceKey[]).forEach((k) =>

@@ -2,6 +2,8 @@
 
 #include <JuceHeader.h>
 #include "TrackChannel.h"
+#include "GroupBus.h"
+#include "DeviceRack.h"
 #include <array>
 #include <atomic>
 
@@ -59,14 +61,43 @@ public:
     // on demand. Scalar controls are lock-free; file (re)assignment takes
     // `tracksLock` (same pattern as the plugin chain).
     void setTrackGain (const juce::String& id, float gainLinear);
+    void setTrackPan  (const juce::String& id, float pan); // 0=L, 0.5=C, 1=R
     void setTrackMute (const juce::String& id, bool muted);
     void setTrackSolo (const juce::String& id, bool soloed);
     void setTrackArm  (const juce::String& id, bool armed);
     bool assignTrackFile (const juce::String& id, const juce::File& file);
     void clearTrackFile  (const juce::String& id);
 
+    // Group sub-mix buses (created on demand, keyed by the UI's group ids).
+    void setTrackGroup (const juce::String& trackId, const juce::String& groupId); // "" = master
+    void setGroupGain  (const juce::String& groupId, float gainLinear);
+    void setGroupPan   (const juce::String& groupId, float pan);
+    void setGroupMute  (const juce::String& groupId, bool muted);
+    void setGroupSolo  (const juce::String& groupId, bool soloed);
+    /** Per-group meter levels { id: 0..1 } for the state event. */
+    juce::var buildGroupLevels();
+
+    // Aux sends / returns (fixed count). Tracks tap post-fader into a send bus;
+    // each return applies a gain and sums back into the master.
+    static constexpr int numSends = 2;
+    void setTrackSend (const juce::String& trackId, int sendIdx, float amount);
+    void setReturnGain (int sendIdx, float gainLinear);
+    /** Return meter levels [a, b] for the state event. */
+    juce::var buildReturnLevels();
+
+    // Per-node insert FX racks (track / group / "return-N"). The instances live
+    // in each node; these resolve a node id to its rack.
+    DeviceRack* rackForNode (const juce::String& nodeId);          // null if absent
+    DeviceRack* ensureNodeRack (const juce::String& nodeId);       // create track/group if needed
+    /** { nodeId: [ {key,name,bypassed}, ... ] } for loaded node-rack slots. */
+    juce::var buildNodeRacks();
+    /** { nodeId: { key: base64, ... } } full state, for session save. */
+    juce::var buildNodeRackStates();
+
     void setMasterVolume (float v) { masterVolume.store (juce::jlimit (0.0f, 2.0f, v)); }
     float getMasterVolume() const { return masterVolume.load(); }
+    void setMasterPan (float v) { masterPan.store (juce::jlimit (0.0f, 1.0f, v)); }
+    float getMasterPan() const { return masterPan.load(); }
 
     /** Per-track meter levels { id: 0..1 } for the state event. */
     juce::var buildTrackLevels();
@@ -105,7 +136,9 @@ private:
     void prepareSlot (int slot);
     juce::AudioPluginInstance* getInstance (int slot) const;
     TrackChannel& ensureTrack (const juce::String& id);
+    GroupBus& ensureGroup (const juce::String& id);
     void recomputeAnySolo();
+    void recomputeAnyGroupSolo();
     double beatsToSeconds (double beats) const;
 
     static constexpr int numSlots = 3;
@@ -134,8 +167,16 @@ private:
     juce::CriticalSection tracksLock;
     juce::OwnedArray<TrackChannel> tracks;
     juce::HashMap<juce::String, TrackChannel*> trackById;
+    juce::OwnedArray<GroupBus> groups;       // sub-mix buses (created on demand)
+    juce::HashMap<juce::String, GroupBus*> groupById;
     std::atomic<int> anySolo { 0 };          // cached count of soloed tracks
+    std::atomic<int> anyGroupSolo { 0 };     // cached count of soloed groups
+    std::array<juce::AudioBuffer<float>, numSends> sendBuses;
+    std::array<DeviceRack, numSends> returnRacks;
+    std::array<std::atomic<float>, numSends> returnGain  { { {1.0f}, {1.0f} } };
+    std::array<std::atomic<float>, numSends> returnLevel { { {0.0f}, {0.0f} } };
     std::atomic<float> masterVolume { 1.0f };
+    std::atomic<float> masterPan { 0.5f };
 
     // Transport state
     std::atomic<bool> playing { false };

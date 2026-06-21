@@ -6,10 +6,10 @@ import type {
   DeviceKey,
   ThemeName,
 } from "../types";
-import { TRACK_DEFS, GROUP_DEFS } from "../data/seed";
+import { TRACK_DEFS } from "../data/seed";
 import { DEFAULT_VOLUME, TOTAL_BEATS } from "../lib/constants";
 import { engine, engineActive } from "../lib/engine";
-import type { EngineState, TrackInfos, DeviceInfo } from "../lib/engine";
+import type { EngineState, TrackInfos, DeviceInfo, NodeRacks } from "../lib/engine";
 import { applySessionToEngine } from "../lib/engineSync";
 import type { PrefsData, SessionUi } from "../lib/session";
 
@@ -38,10 +38,12 @@ export interface DawState {
   solos: Bools;
   arms: Bools;
   volumes: Nums;
+  pans: Nums; // track id -> 0 (L) .. 0.5 (C) .. 1 (R)
   trackFiles: TrackInfos;
 
   // ---- mixer / loop ----
   masterVolume: number;
+  masterPan: number;
   loopStart: number;
   loopEnd: number;
 
@@ -76,6 +78,17 @@ export interface DawState {
   countIn: number;
   autoSave: boolean;
 
+  // ---- group buses (sub-mixes) ----
+  groupVolumes: Nums;
+  groupPans: Nums;
+  groupMutes: Bools;
+  groupSolos: Bools;
+
+  // ---- aux sends / returns ----
+  sends: Record<string, number[]>; // track id -> [sendA, sendB]
+  returnGains: number[]; // [retA, retB]
+  sendsOpen: Bools; // per-track sends-row expand
+
   // ---- groups & automation ----
   groupCollapsed: Bools;
   autoLanes: Bools;
@@ -84,6 +97,9 @@ export interface DawState {
 
   // ---- transient (driven by the rAF loop) ----
   levels: Nums; // per-track meter levels 0..1
+  groupLevels: Nums; // per-group meter levels 0..1
+  returnLevels: number[]; // per-return meter levels 0..1
+  nodeRacks: NodeRacks; // per-node insert FX contents (engine-driven)
   master: number; // master meter level 0..1
   reel: number; // tape-reel rotation in degrees
 
@@ -100,8 +116,10 @@ export interface DawState {
   toggleSolo: (id: string) => void;
   toggleArm: (id: string) => void;
   setVolume: (id: string, v: number) => void;
+  setPan: (id: string, v: number) => void;
   setBpm: (v: number) => void;
   setMasterVolume: (v: number) => void;
+  setMasterPan: (v: number) => void;
   setLoopStart: (v: number) => void;
   setLoopEnd: (v: number) => void;
   pickTrackFile: (id: string) => void;
@@ -123,6 +141,11 @@ export interface DawState {
   toggleGroup: (gid: string) => void;
   toggleGroupMute: (gid: string) => void;
   toggleGroupSolo: (gid: string) => void;
+  setGroupVolume: (gid: string, v: number) => void;
+  setGroupPan: (gid: string, v: number) => void;
+  setSend: (id: string, idx: number, v: number) => void;
+  setReturnGain: (idx: number, v: number) => void;
+  toggleSendsRow: (id: string) => void;
 
   toggleDevice: (k: DeviceKey) => void;
   setPreAmount: (v: number) => void;
@@ -141,6 +164,15 @@ export interface DawState {
 
   openTrackChain: (id: string) => void;
   openMasterChain: () => void;
+  openGroupChain: (gid: string) => void;
+  openReturnChain: (idx: number) => void;
+
+  // ---- per-node insert FX ----
+  setNodeRacks: (r: NodeRacks) => void;
+  addNodeDevice: (nodeId: string, key: DeviceKey) => void;
+  removeNodeDevice: (nodeId: string, key: DeviceKey) => void;
+  setNodeDeviceBypass: (nodeId: string, key: DeviceKey, b: boolean) => void;
+  openNodeEditor: (nodeId: string, key: DeviceKey) => void;
   openSettings: () => void;
   closeSettings: () => void;
   openSessions: () => void;
@@ -181,9 +213,11 @@ export const useDawStore = create<DawState>((set, get) => ({
   solos: {},
   arms: { kick: true },
   volumes: {},
+  pans: {},
   trackFiles: {},
 
   masterVolume: 1,
+  masterPan: 0.5,
   loopStart: 0,
   loopEnd: TOTAL_BEATS,
 
@@ -214,12 +248,22 @@ export const useDawStore = create<DawState>((set, get) => ({
   countIn: 1,
   autoSave: true,
 
+  groupVolumes: {},
+  groupPans: {},
+  groupMutes: {},
+  groupSolos: {},
+  sends: {},
+  returnGains: [1, 1],
+  sendsOpen: {},
   groupCollapsed: {},
   autoLanes: {},
   autoParam: {},
   autoData: {},
 
   levels: {},
+  groupLevels: {},
+  returnLevels: [0, 0],
+  nodeRacks: {},
   master: 0.04,
   reel: 0,
 
@@ -281,9 +325,17 @@ export const useDawStore = create<DawState>((set, get) => ({
     if (engineActive()) engine.mixer.setTrackVolume(id, v);
     set((s) => ({ volumes: { ...s.volumes, [id]: v } }));
   },
+  setPan: (id, v) => {
+    if (engineActive()) engine.mixer.setTrackPan(id, v);
+    set((s) => ({ pans: { ...s.pans, [id]: v } }));
+  },
   setMasterVolume: (v) => {
     if (engineActive()) engine.mixer.setMasterVolume(v);
     set({ masterVolume: v });
+  },
+  setMasterPan: (v) => {
+    if (engineActive()) engine.mixer.setMasterPan(v);
+    set({ masterPan: v });
   },
   pickTrackFile: (id) => {
     if (engineActive()) engine.track.pickFile(id);
@@ -305,10 +357,18 @@ export const useDawStore = create<DawState>((set, get) => ({
       loopStart: ui.loopStart ?? s.loopStart,
       loopEnd: ui.loopEnd ?? s.loopEnd,
       volumes: ui.volumes ?? s.volumes,
+      pans: ui.pans ?? s.pans,
       mutes: ui.mutes ?? s.mutes,
       solos: ui.solos ?? s.solos,
       arms: ui.arms ?? s.arms,
       masterVolume: ui.masterVolume ?? s.masterVolume,
+      masterPan: ui.masterPan ?? s.masterPan,
+      groupVolumes: ui.groupVolumes ?? s.groupVolumes,
+      groupPans: ui.groupPans ?? s.groupPans,
+      groupMutes: ui.groupMutes ?? s.groupMutes,
+      groupSolos: ui.groupSolos ?? s.groupSolos,
+      sends: ui.sends ?? s.sends,
+      returnGains: ui.returnGains ?? s.returnGains,
       trackFiles: ui.trackFiles ?? s.trackFiles,
       devices: ui.devices ?? s.devices,
       preAmount: ui.preAmount ?? s.preAmount,
@@ -338,10 +398,18 @@ export const useDawStore = create<DawState>((set, get) => ({
       loopStart: 0,
       loopEnd: TOTAL_BEATS,
       volumes: {},
+      pans: {},
       mutes: {},
       solos: {},
       arms: {},
       masterVolume: 1,
+      masterPan: 0.5,
+      groupVolumes: {},
+      groupPans: {},
+      groupMutes: {},
+      groupSolos: {},
+      sends: {},
+      returnGains: [1, 1],
       trackFiles: {},
       devices: { eq: true, tape: false, pre: true },
       preAmount: 0.62,
@@ -358,23 +426,40 @@ export const useDawStore = create<DawState>((set, get) => ({
   toggleGroup: (gid) =>
     set((s) => ({ groupCollapsed: { ...s.groupCollapsed, [gid]: !s.groupCollapsed[gid] } })),
   toggleGroupMute: (gid) => {
-    const g = GROUP_DEFS.find((x) => x.id === gid);
-    if (!g) return;
-    const all = g.tracks.every((id) => get().mutes[id]);
-    const m = { ...get().mutes };
-    g.tracks.forEach((id) => (m[id] = !all));
-    if (engineActive()) g.tracks.forEach((id) => engine.mixer.setTrackMute(id, !all));
-    set({ mutes: m });
+    const v = !get().groupMutes[gid];
+    if (engineActive()) engine.group.setMute(gid, v);
+    set((s) => ({ groupMutes: { ...s.groupMutes, [gid]: v } }));
   },
   toggleGroupSolo: (gid) => {
-    const g = GROUP_DEFS.find((x) => x.id === gid);
-    if (!g) return;
-    const all = g.tracks.every((id) => get().solos[id]);
-    const so = { ...get().solos };
-    g.tracks.forEach((id) => (so[id] = !all));
-    if (engineActive()) g.tracks.forEach((id) => engine.mixer.setTrackSolo(id, !all));
-    set({ solos: so });
+    const v = !get().groupSolos[gid];
+    if (engineActive()) engine.group.setSolo(gid, v);
+    set((s) => ({ groupSolos: { ...s.groupSolos, [gid]: v } }));
   },
+  setGroupVolume: (gid, v) => {
+    if (engineActive()) engine.group.setGain(gid, v);
+    set((s) => ({ groupVolumes: { ...s.groupVolumes, [gid]: v } }));
+  },
+  setGroupPan: (gid, v) => {
+    if (engineActive()) engine.group.setPan(gid, v);
+    set((s) => ({ groupPans: { ...s.groupPans, [gid]: v } }));
+  },
+  setSend: (id, idx, v) => {
+    if (engineActive()) engine.mixer.setTrackSend(id, idx, v);
+    set((s) => {
+      const cur = s.sends[id] ? [...s.sends[id]] : [0, 0];
+      cur[idx] = v;
+      return { sends: { ...s.sends, [id]: cur } };
+    });
+  },
+  setReturnGain: (idx, v) => {
+    if (engineActive()) engine.returns.setGain(idx, v);
+    set((s) => {
+      const cur = [...s.returnGains];
+      cur[idx] = v;
+      return { returnGains: cur };
+    });
+  },
+  toggleSendsRow: (id) => set((s) => ({ sendsOpen: { ...s.sendsOpen, [id]: !s.sendsOpen[id] } })),
 
   toggleDevice: (k) => {
     const enabled = !get().devices[k];
@@ -402,6 +487,22 @@ export const useDawStore = create<DawState>((set, get) => ({
 
   openTrackChain: (id) => set({ selTrack: id, rackOpen: true }),
   openMasterChain: () => set({ selTrack: "master", rackOpen: true }),
+  openGroupChain: (gid) => set({ selTrack: gid, rackOpen: true }),
+  openReturnChain: (idx) => set({ selTrack: `return-${idx}`, rackOpen: true }),
+
+  setNodeRacks: (r) => set({ nodeRacks: r }),
+  addNodeDevice: (nodeId, key) => {
+    if (engineActive()) engine.node.add(nodeId, key);
+  },
+  removeNodeDevice: (nodeId, key) => {
+    if (engineActive()) engine.node.remove(nodeId, key);
+  },
+  setNodeDeviceBypass: (nodeId, key, b) => {
+    if (engineActive()) engine.node.setBypass(nodeId, key, b);
+  },
+  openNodeEditor: (nodeId, key) => {
+    if (engineActive()) engine.node.openEditor(nodeId, key);
+  },
   openSettings: () => set({ settingsOpen: true }),
   closeSettings: () => set({ settingsOpen: false }),
   openSessions: () => set({ sessionsOpen: true }),
@@ -489,6 +590,8 @@ export const useDawStore = create<DawState>((set, get) => ({
       master: p.master ?? s.master,
       reel: p.reel ?? s.reel,
       levels: p.levels ?? s.levels,
+      groupLevels: p.groupLevels ?? s.groupLevels,
+      returnLevels: p.returnLevels ?? s.returnLevels,
       bpm: p.tempo ?? s.bpm,
       loopStart: p.loopStart ?? s.loopStart,
       loopEnd: p.loopEnd ?? s.loopEnd,

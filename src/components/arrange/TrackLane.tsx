@@ -5,11 +5,12 @@ import { hexA } from "../../lib/color";
 import { genNotes } from "../../lib/notes";
 import { TOTAL_BARS } from "../../lib/constants";
 import { AutomationLane } from "./AutomationLane";
+import { SEND_ROW_H } from "./TrackHeader";
 import type { Track } from "../../types";
 
 export function TrackLane({ track }: { track: Track }) {
   const id = track.id;
-  const { selected, showGrid, vibrant, dimmed, selClip, autoOpen, selectClip } = useDawStore(
+  const { selected, showGrid, vibrant, dimmed, selClip, autoOpen, sendsOpen, selectClip } = useDawStore(
     useShallow((s) => {
       const soloActive = Object.values(s.solos).some(Boolean);
       const audible = !s.mutes[id] && (!soloActive || !!s.solos[id]);
@@ -20,6 +21,7 @@ export function TrackLane({ track }: { track: Track }) {
         dimmed: !audible,
         selClip: s.selClip,
         autoOpen: !!s.autoLanes[id],
+        sendsOpen: !!s.sendsOpen[id],
         selectClip: s.selectClip,
       };
     }),
@@ -134,6 +136,7 @@ export function TrackLane({ track }: { track: Track }) {
       })}
       </div>
       {autoOpen && <AutomationLane track={track} />}
+      {sendsOpen && <div style={{ height: SEND_ROW_H, borderBottom: "1px solid var(--layer-2)" }} />}
     </>
   );
 }

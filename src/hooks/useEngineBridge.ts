@@ -19,6 +19,7 @@ export function useEngineBridge() {
     const unsub = subscribeEngine({
       onState: (s) => useDawStore.getState().setEngineState(s),
       onTracks: (t) => useDawStore.getState().setEngineTracks(t),
+      onNodeRacks: (r) => useDawStore.getState().setNodeRacks(r),
       onSessionImported: (p) => {
         applySession({ version: SESSION_VERSION, name: p.name ?? "Imported", ui: p.ui as SessionUi });
         useDawStore.getState().setCurrentSessionName(p.name ?? null);

@@ -1,23 +1,8 @@
 #include "AudioEngine.h"
+#include "PluginEditorWindow.h"
+#include "PluginHost.h"
 
 using namespace juce;
-
-namespace
-{
-    /** A window that hosts a plugin's editor and notifies on close. */
-    class PluginEditorWindow : public DocumentWindow
-    {
-    public:
-        PluginEditorWindow (const String& name)
-            : DocumentWindow (name, Colours::black, DocumentWindow::allButtons)
-        {
-            setUsingNativeTitleBar (true);
-        }
-
-        std::function<void()> onCloseCallback;
-        void closeButtonPressed() override { if (onCloseCallback) onCloseCallback(); }
-    };
-}
 
 AudioEngine::AudioEngine()
 {
@@ -221,9 +206,145 @@ void AudioEngine::recomputeAnySolo()
 }
 
 void AudioEngine::setTrackGain (const String& id, float gainLinear) { ensureTrack (id).gain.store (jlimit (0.0f, 4.0f, gainLinear)); }
+void AudioEngine::setTrackPan  (const String& id, float pan)        { ensureTrack (id).pan.store (jlimit (0.0f, 1.0f, pan)); }
 void AudioEngine::setTrackMute (const String& id, bool muted)       { ensureTrack (id).mute.store (muted); }
 void AudioEngine::setTrackSolo (const String& id, bool soloed)      { ensureTrack (id).solo.store (soloed); recomputeAnySolo(); }
 void AudioEngine::setTrackArm  (const String& id, bool armed)       { ensureTrack (id).arm.store (armed); }
+
+GroupBus& AudioEngine::ensureGroup (const String& id)
+{
+    const ScopedLock sl (tracksLock);
+    if (auto* existing = groupById[id])
+        return *existing;
+
+    auto* g = groups.add (new GroupBus (id));
+    groupById.set (id, g);
+    if (currentSampleRate > 0.0)
+        g->prepare (currentSampleRate, currentBlockSize);
+    return *g;
+}
+
+void AudioEngine::recomputeAnyGroupSolo()
+{
+    const ScopedLock sl (tracksLock);
+    int count = 0;
+    for (auto* g : groups)
+        if (g->solo.load())
+            ++count;
+    anyGroupSolo.store (count);
+}
+
+void AudioEngine::setTrackGroup (const String& trackId, const String& groupId)
+{
+    auto& t = ensureTrack (trackId);
+    t.group.store (groupId.isEmpty() ? nullptr : &ensureGroup (groupId));
+}
+
+void AudioEngine::setGroupGain (const String& groupId, float gainLinear) { ensureGroup (groupId).gain.store (jlimit (0.0f, 4.0f, gainLinear)); }
+void AudioEngine::setGroupPan  (const String& groupId, float pan)        { ensureGroup (groupId).pan.store (jlimit (0.0f, 1.0f, pan)); }
+void AudioEngine::setGroupMute (const String& groupId, bool muted)       { ensureGroup (groupId).mute.store (muted); }
+void AudioEngine::setGroupSolo (const String& groupId, bool soloed)      { ensureGroup (groupId).solo.store (soloed); recomputeAnyGroupSolo(); }
+
+var AudioEngine::buildGroupLevels()
+{
+    auto* obj = new DynamicObject();
+    const ScopedTryLock stl (tracksLock);
+    if (stl.isLocked())
+        for (auto* g : groups)
+            obj->setProperty (Identifier (g->getId()), (double) g->level.load());
+    return var (obj);
+}
+
+void AudioEngine::setTrackSend (const String& trackId, int sendIdx, float amount)
+{
+    if (isPositiveAndBelow (sendIdx, numSends))
+        ensureTrack (trackId).sends[(size_t) sendIdx].store (jlimit (0.0f, 1.0f, amount));
+}
+
+void AudioEngine::setReturnGain (int sendIdx, float gainLinear)
+{
+    if (isPositiveAndBelow (sendIdx, numSends))
+        returnGain[(size_t) sendIdx].store (jlimit (0.0f, 4.0f, gainLinear));
+}
+
+var AudioEngine::buildReturnLevels()
+{
+    Array<var> out;
+    for (int i = 0; i < numSends; ++i)
+        out.add ((double) returnLevel[(size_t) i].load());
+    return out;
+}
+
+DeviceRack* AudioEngine::rackForNode (const String& nodeId)
+{
+    if (nodeId.startsWith ("return-"))
+    {
+        const int i = nodeId.fromFirstOccurrenceOf ("return-", false, false).getIntValue();
+        return isPositiveAndBelow (i, numSends) ? &returnRacks[(size_t) i] : nullptr;
+    }
+    const ScopedLock sl (tracksLock);
+    if (auto* g = groupById[nodeId]) return &g->inserts;
+    if (auto* t = trackById[nodeId]) return &t->inserts;
+    return nullptr;
+}
+
+DeviceRack* AudioEngine::ensureNodeRack (const String& nodeId)
+{
+    if (nodeId.startsWith ("return-"))
+        return rackForNode (nodeId);
+    // Group ids are "g-..." in the UI seed; everything else is a track id.
+    if (nodeId.startsWith ("g-"))
+        return &ensureGroup (nodeId).inserts;
+    return &ensureTrack (nodeId).inserts;
+}
+
+var AudioEngine::buildNodeRacks()
+{
+    auto* obj = new DynamicObject();
+    const ScopedLock sl (tracksLock);
+
+    auto addRack = [obj] (const String& nodeId, DeviceRack& r)
+    {
+        Array<var> slots;
+        for (int s = 0; s < DeviceRack::numSlots; ++s)
+            if (r.has (s))
+            {
+                auto* o = new DynamicObject();
+                o->setProperty ("key", PluginHost::slotKey (s));
+                o->setProperty ("name", r.get (s)->getName());
+                o->setProperty ("bypassed", r.isBypassed (s));
+                slots.add (var (o));
+            }
+        if (! slots.isEmpty())
+            obj->setProperty (Identifier (nodeId), var (slots));
+    };
+
+    for (auto* t : tracks) addRack (t->getId(), t->inserts);
+    for (auto* g : groups) addRack (g->getId(), g->inserts);
+    for (int i = 0; i < numSends; ++i) addRack ("return-" + String (i), returnRacks[(size_t) i]);
+    return var (obj);
+}
+
+var AudioEngine::buildNodeRackStates()
+{
+    auto* obj = new DynamicObject();
+    const ScopedLock sl (tracksLock);
+
+    auto addRack = [obj] (const String& nodeId, DeviceRack& r)
+    {
+        auto* no = new DynamicObject();
+        bool any = false;
+        for (int s = 0; s < DeviceRack::numSlots; ++s)
+            if (r.has (s)) { no->setProperty (PluginHost::slotKey (s), r.getState (s)); any = true; }
+        if (any)
+            obj->setProperty (Identifier (nodeId), var (no));
+    };
+
+    for (auto* t : tracks) addRack (t->getId(), t->inserts);
+    for (auto* g : groups) addRack (g->getId(), g->inserts);
+    for (int i = 0; i < numSends; ++i) addRack ("return-" + String (i), returnRacks[(size_t) i]);
+    return var (obj);
+}
 
 bool AudioEngine::assignTrackFile (const String& id, const File& file)
 {
@@ -453,7 +574,14 @@ void AudioEngine::audioDeviceAboutToStart (AudioIODevice* device)
         const ScopedLock sl (tracksLock);
         for (auto* t : tracks)
             t->prepare (currentSampleRate, currentBlockSize);
+        for (auto* g : groups)
+            g->prepare (currentSampleRate, currentBlockSize);
     }
+
+    for (auto& sb : sendBuses)
+        sb.setSize (2, currentBlockSize, false, false, true);
+    for (auto& r : returnRacks)
+        r.prepare (currentSampleRate, currentBlockSize);
 }
 
 void AudioEngine::audioDeviceStopped()
@@ -469,7 +597,11 @@ void AudioEngine::audioDeviceStopped()
         const ScopedLock sl (tracksLock);
         for (auto* t : tracks)
             t->releaseResources();
+        for (auto* g : groups)
+            g->inserts.release();
     }
+    for (auto& r : returnRacks)
+        r.release();
 }
 
 void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputChannelData,
@@ -495,17 +627,58 @@ void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputCha
                 scratch.copyFrom (ch, 0, inputChannelData[ch], numSamples);
     }
 
-    // 2) Sum the multitrack mixer onto the bus (try-lock so loads never block
-    //    audio). Muted / soloed-out tracks still advance to stay in sync.
+    // Aux send buses accumulate post-fader taps; cleared every block so a missed
+    // try-lock yields silence (not stale audio) at the returns.
+    for (int i = 0; i < numSends; ++i)
+    {
+        sendBuses[(size_t) i].setSize (2, numSamples, false, false, true);
+        sendBuses[(size_t) i].clear();
+    }
+
+    // 2) Sum the multitrack mixer. Each track renders into its group's buffer (or
+    //    straight to the master scratch when ungrouped) and taps the send buses;
+    //    each group then applies its own gain/pan, meters, and sums into the
+    //    master; finally the returns sum back in. Try-lock so loads never block
+    //    audio. Muted / soloed-out tracks still advance to stay in sync.
     {
         const ScopedTryLock stl (tracksLock);
         if (stl.isLocked())
         {
-            const bool soloing = anySolo.load() > 0;
+            for (auto* g : groups)
+                g->clearBuffer (numSamples);
+
+            const bool trackSoloing = anySolo.load() > 0;
+            const bool groupSoloing = anyGroupSolo.load() > 0;
+
             for (auto* t : tracks)
             {
-                const bool audible = ! t->mute.load() && (! soloing || t->solo.load());
-                t->renderInto (scratch, numSamples, audible);
+                auto* g = t->group.load();
+                const bool trackOK = ! t->mute.load() && (! trackSoloing || t->solo.load());
+                const bool groupOK = (g == nullptr) ? (! groupSoloing)
+                                                    : (! g->mute.load() && (! groupSoloing || g->solo.load()));
+                AudioBuffer<float>& dest = (g != nullptr) ? g->getBuffer() : scratch;
+                t->renderInto (dest, sendBuses.data(), numSends, numSamples, trackOK && groupOK);
+            }
+
+            for (auto* g : groups)
+                g->sumInto (scratch, numSamples);
+
+            // Returns: run the return's insert FX, apply its gain, meter, and sum
+            // into the master.
+            for (int i = 0; i < numSends; ++i)
+            {
+                auto& rb = sendBuses[(size_t) i];
+                midi.clear();
+                returnRacks[(size_t) i].process (rb, midi);
+                rb.applyGain (returnGain[(size_t) i].load());
+
+                float rpeak = 0.0f;
+                for (int ch = 0; ch < rb.getNumChannels(); ++ch)
+                    rpeak = jmax (rpeak, rb.getMagnitude (ch, 0, numSamples));
+                returnLevel[(size_t) i].store (jmax (rpeak, returnLevel[(size_t) i].load() * 0.88f));
+
+                for (int ch = 0; ch < scratch.getNumChannels(); ++ch)
+                    scratch.addFrom (ch, 0, rb, jmin (ch, rb.getNumChannels() - 1), 0, numSamples);
             }
         }
     }
@@ -525,6 +698,14 @@ void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputCha
 
     // 4) Master volume.
     scratch.applyGain (masterVolume.load());
+
+    // 4b) Master pan (stereo balance; unity at center).
+    const float mpan = masterPan.load();
+    if (scratch.getNumChannels() >= 2 && ! approximatelyEqual (mpan, 0.5f))
+    {
+        scratch.applyGain (0, 0, numSamples, mpan <= 0.5f ? 1.0f : (1.0f - mpan) * 2.0f);
+        scratch.applyGain (1, 0, numSamples, mpan >= 0.5f ? 1.0f : mpan * 2.0f);
+    }
 
     // 5) Meter (decaying peak).
     float peak = 0.0f;

@@ -46,18 +46,22 @@ void TrackChannel::prepare (double sampleRate, int blockSize)
     preparedBlockSize  = blockSize;
     trackScratch.setSize (2, blockSize, false, false, true);
     transport.prepareToPlay (blockSize, sampleRate);
+    inserts.prepare (sampleRate, blockSize);
 }
 
 void TrackChannel::releaseResources()
 {
     transport.releaseResources();
+    inserts.release();
 }
 
 void TrackChannel::start()                            { transport.start(); }
 void TrackChannel::stop()                             { transport.stop(); }
 void TrackChannel::setPositionSeconds (double seconds){ transport.setPosition (seconds); }
 
-void TrackChannel::renderInto (AudioBuffer<float>& bus, int numSamples, bool audible)
+void TrackChannel::renderInto (AudioBuffer<float>& bus,
+                               AudioBuffer<float>* sendBuses, int numSendBuses,
+                               int numSamples, bool audible)
 {
     if (! fileLoaded.load())
     {
@@ -77,12 +81,37 @@ void TrackChannel::renderInto (AudioBuffer<float>& bus, int numSamples, bool aud
         return;
     }
 
+    // Pre-fader insert FX.
+    rackMidi.clear();
+    inserts.process (trackScratch, rackMidi);
+
     trackScratch.applyGain (gain.load());
+
+    // Stereo balance: unity at center, attenuate the opposite side toward an edge.
+    const float p = pan.load();
+    if (trackScratch.getNumChannels() >= 2 && ! approximatelyEqual (p, 0.5f))
+    {
+        trackScratch.applyGain (0, 0, numSamples, p <= 0.5f ? 1.0f : (1.0f - p) * 2.0f);
+        trackScratch.applyGain (1, 0, numSamples, p >= 0.5f ? 1.0f : p * 2.0f);
+    }
 
     const int busCh = bus.getNumChannels();
     const int srcCh = trackScratch.getNumChannels();
     for (int ch = 0; ch < busCh; ++ch)
         bus.addFrom (ch, 0, trackScratch, jmin (ch, srcCh - 1), 0, numSamples);
+
+    // Post-fader aux sends: add a scaled copy of this (gain+pan) block to each bus.
+    const int ns = jmin (numSendBuses, (int) sends.size());
+    for (int i = 0; i < ns; ++i)
+    {
+        const float amt = sends[(size_t) i].load();
+        if (amt > 0.0001f)
+        {
+            auto& sb = sendBuses[i];
+            for (int ch = 0; ch < sb.getNumChannels(); ++ch)
+                sb.addFrom (ch, 0, trackScratch, jmin (ch, srcCh - 1), 0, numSamples, amt);
+        }
+    }
 
     float peak = 0.0f;
     for (int ch = 0; ch < srcCh; ++ch)

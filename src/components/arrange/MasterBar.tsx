@@ -1,6 +1,6 @@
 import { useShallow } from "zustand/react/shallow";
 import { useDawStore } from "../../store/useDawStore";
-import { Meter, Slider } from "../../design-system";
+import { Meter, Slider, Dial } from "../../design-system";
 
 const HEADER_W = 258;
 
@@ -54,6 +54,79 @@ function MasterFader() {
         <span style={{ fontFamily: "var(--font-mono)", color: "var(--text-2)" }}>{db}</span>
       </div>
       <Slider value={masterVolume} onChange={setMasterVolume} gradient="var(--accent-grad)" />
+    </div>
+  );
+}
+
+/** Master pan dial + L/C/R readout (subscribes to masterPan). */
+function MasterPan() {
+  const { masterPan, setMasterPan } = useDawStore(
+    useShallow((s) => ({ masterPan: s.masterPan, setMasterPan: s.setMasterPan })),
+  );
+  const label =
+    Math.abs(masterPan - 0.5) < 0.005
+      ? "C"
+      : masterPan < 0.5
+        ? `L${Math.round((0.5 - masterPan) * 200)}`
+        : `R${Math.round((masterPan - 0.5) * 200)}`;
+  return (
+    <div style={{ width: 70, flex: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", width: "100%", fontSize: 9, letterSpacing: "0.14em", color: "var(--text-label)" }}>
+        <span>PAN</span>
+        <span style={{ fontFamily: "var(--font-mono)", color: "var(--text-2)" }}>{label}</span>
+      </div>
+      <div onDoubleClick={() => setMasterPan(0.5)} title="Master pan (double-click to center)">
+        <Dial value={masterPan} onChange={setMasterPan} label={null} size={30} color="var(--accent)" />
+      </div>
+    </div>
+  );
+}
+
+/** Aux return gains + meters + chain access (subscribes to returnGains/returnLevels). */
+function ReturnsStrip() {
+  const { returnGains, returnLevels, setReturnGain, openReturnChain, selNode } = useDawStore(
+    useShallow((s) => ({
+      returnGains: s.returnGains,
+      returnLevels: s.returnLevels,
+      setReturnGain: s.setReturnGain,
+      openReturnChain: s.openReturnChain,
+      selNode: s.selTrack,
+    })),
+  );
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, flex: "none" }}>
+      {["A", "B"].map((lbl, i) => {
+        const sel = selNode === `return-${i}`;
+        return (
+          <div key={lbl} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, width: 46 }}>
+            <button
+              type="button"
+              onClick={() => openReturnChain(i)}
+              title={`Open return ${lbl} chain`}
+              style={{
+                fontSize: 9,
+                letterSpacing: "0.1em",
+                fontFamily: "var(--font-display)",
+                fontWeight: 700,
+                cursor: "pointer",
+                padding: "2px 6px",
+                borderRadius: 5,
+                background: sel ? "var(--accent-soft)" : "transparent",
+                color: sel ? "var(--accent)" : "var(--text-label)",
+                border: "1px solid " + (sel ? "var(--accent-line)" : "transparent"),
+              }}
+            >
+              RET {lbl}
+            </button>
+            <div onDoubleClick={() => setReturnGain(i, 1)} title={`Return ${lbl} level`}>
+              <Dial value={Math.min(1, returnGains[i] ?? 1)} onChange={(v) => setReturnGain(i, v)} label={null} size={26} color="var(--spectrum-violet)" />
+            </div>
+            <div style={{ width: 30 }}>
+              <Meter value={returnLevels[i] ?? 0} height={4} />
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -137,6 +210,8 @@ export function MasterBar({ tracksRight }: { tracksRight: boolean }) {
       <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 18, padding: "0 20px", minWidth: 0 }}>
         <MasterOutMeter />
         <MasterFader />
+        <MasterPan />
+        <ReturnsStrip />
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={dot("#34d8ff")} />
           <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-2)", fontFamily: "var(--font-mono)" }}>EQ</span>

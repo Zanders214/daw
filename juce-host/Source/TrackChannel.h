@@ -2,6 +2,9 @@
 
 #include <JuceHeader.h>
 #include <atomic>
+#include "DeviceRack.h"
+
+class GroupBus;
 
 /**
  * TrackChannel — one channel of the multitrack mixer. Owns an optional audio
@@ -45,16 +48,28 @@ public:
         and ADD into `bus` and meter it (otherwise the meter decays). The pull
         happens regardless of audibility so a muted/soloed-out track stays in
         sync with the transport. */
-    void renderInto (juce::AudioBuffer<float>& bus, int numSamples, bool audible);
+    void renderInto (juce::AudioBuffer<float>& bus,
+                     juce::AudioBuffer<float>* sendBuses, int numSendBuses,
+                     int numSamples, bool audible);
     /** Decay the meter when the track is silent (muted / soloed-out / no file). */
     void decayMeter() noexcept { level.store (level.load() * 0.88f); }
 
     // ---- real-time controls (atomics; lock-free from any thread) ----
     std::atomic<float> gain  { 0.8f };   // matches DEFAULT_VOLUME on the JS side
+    std::atomic<float> pan   { 0.5f };   // 0 = hard L, 0.5 = center, 1 = hard R
     std::atomic<bool>  mute  { false };
     std::atomic<bool>  solo  { false };
     std::atomic<bool>  arm   { false };
     std::atomic<float> level { 0.0f };   // decaying peak meter (0..1)
+
+    /** Sub-mix routing: which group bus this track sums into (null = master). */
+    std::atomic<GroupBus*> group { nullptr };
+
+    /** Post-fader aux send amounts (0..1), one per send bus. */
+    std::array<std::atomic<float>, 2> sends { { {0.0f}, {0.0f} } };
+
+    /** Pre-fader insert FX chain for this track. */
+    DeviceRack inserts;
 
 private:
     juce::String id;
@@ -64,6 +79,7 @@ private:
     std::unique_ptr<juce::AudioFormatReaderSource> readerSource;
     juce::AudioTransportSource transport;
     juce::AudioBuffer<float> trackScratch;
+    juce::MidiBuffer rackMidi;            // empty MIDI for the insert chain
     double preparedSampleRate { 0.0 };
     int    preparedBlockSize  { 0 };
 
