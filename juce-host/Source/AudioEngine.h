@@ -28,6 +28,12 @@ public:
     double getSampleRate() const { return currentSampleRate; }
     int getBlockSize() const { return currentBlockSize; }
 
+    // Audio device settings (real). `getDevicesInfo` returns the current setup
+    // plus the available outputs / sample rates / buffer sizes; `applySettings`
+    // applies { sampleRate(Hz), bufferSize, outputDevice } to the live device.
+    juce::var getDevicesInfo();
+    void applySettings (const juce::var& opts);
+
     // Transport
     void setPlaying (bool shouldPlay);
     void stop();

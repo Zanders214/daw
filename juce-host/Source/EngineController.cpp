@@ -184,11 +184,13 @@ var EngineController::handle (const String& name, const Array<var>& args)
     if (name == "pluginsAssign") { loadSlotFromPath (slotOf(), arg (1).toString()); return {}; }
     if (name == "pluginsPickFile"){ pickPluginFile (slotOf()); return {}; }
 
+    // ---- audio device settings ----
+    if (name == "audioGetDevices")  { return audioEngine.getDevicesInfo(); }
+    if (name == "audioSetSettings") { audioEngine.applySettings (arg (0)); return audioEngine.getDevicesInfo(); }
+
     // ---- legacy single source ----
     if (name == "sourcePickFile")   { pickSourceFile(); return {}; }
     if (name == "sourceSetInputMode"){ audioEngine.setInputMode (arg (0).toString()); return {}; }
 
-    // audioGetDevices / audioSetSettings are still accepted as no-ops here; they
-    // are implemented in stage 4 (real device settings).
     return {};
 }

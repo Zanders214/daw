@@ -142,6 +142,53 @@ void AudioEngine::setInputMode (const String& mode)
     inputMode = mode;
 }
 
+// ---- audio device settings ----
+var AudioEngine::getDevicesInfo()
+{
+    auto* obj = new DynamicObject();
+
+    AudioDeviceManager::AudioDeviceSetup setup;
+    deviceManager.getAudioDeviceSetup (setup);
+    obj->setProperty ("outputDevice", setup.outputDeviceName);
+    obj->setProperty ("inputDevice", setup.inputDeviceName);
+    obj->setProperty ("sampleRate", setup.sampleRate);
+    obj->setProperty ("bufferSize", setup.bufferSize);
+
+    Array<var> rates, sizes, outputs;
+    if (auto* dev = deviceManager.getCurrentAudioDevice())
+    {
+        for (auto r : dev->getAvailableSampleRates()) rates.add (r);
+        for (auto b : dev->getAvailableBufferSizes()) sizes.add (b);
+    }
+    if (auto* type = deviceManager.getCurrentDeviceTypeObject())
+    {
+        type->scanForDevices();
+        for (const auto& n : type->getDeviceNames (false)) outputs.add (n);
+    }
+    obj->setProperty ("sampleRates", rates);
+    obj->setProperty ("bufferSizes", sizes);
+    obj->setProperty ("outputs", outputs);
+    return var (obj);
+}
+
+void AudioEngine::applySettings (const var& opts)
+{
+    AudioDeviceManager::AudioDeviceSetup setup;
+    deviceManager.getAudioDeviceSetup (setup);
+
+    if (opts.hasProperty ("sampleRate")) setup.sampleRate = (double) opts.getProperty ("sampleRate", setup.sampleRate);
+    if (opts.hasProperty ("bufferSize")) setup.bufferSize = (int)    opts.getProperty ("bufferSize", setup.bufferSize);
+    if (opts.hasProperty ("outputDevice"))
+    {
+        setup.outputDeviceName = opts.getProperty ("outputDevice", setup.outputDeviceName).toString();
+        setup.useDefaultOutputChannels = true;
+    }
+
+    const String err = deviceManager.setAudioDeviceSetup (setup, true);
+    if (err.isNotEmpty())
+        Logger::writeToLog ("Audio device setup error: " + err);
+}
+
 // ---- loop region ----
 void AudioEngine::setLoopRegion (double startBeats, double endBeats)
 {
