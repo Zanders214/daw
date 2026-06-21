@@ -107,10 +107,12 @@ export const engine = {
   },
   mixer: {
     setTrackVolume: (id: string, v: number) => call("mixerSetTrackVolume", id, v),
+    setTrackPan: (id: string, v: number) => call("mixerSetTrackPan", id, v),
     setTrackMute: (id: string, v: boolean) => call("mixerSetTrackMute", id, v),
     setTrackSolo: (id: string, v: boolean) => call("mixerSetTrackSolo", id, v),
     setTrackArm: (id: string, v: boolean) => call("mixerSetTrackArm", id, v),
     setMasterVolume: (v: number) => call("mixerSetMasterVolume", v),
+    setMasterPan: (v: number) => call("mixerSetMasterPan", v),
   },
   track: {
     assignFile: (id: string, path: string) => call("trackAssignFile", id, path),

@@ -21,11 +21,13 @@ export function applySessionToEngine(s: DawState): void {
   engine.transport.setLoopStart(s.loopStart);
   engine.transport.setLoopEnd(s.loopEnd);
   engine.mixer.setMasterVolume(s.masterVolume);
+  engine.mixer.setMasterPan(s.masterPan);
 
   // Re-assert each track's mix state + audio file so create-on-demand channels
   // match the UI exactly (explicit false resets a track the session cleared).
   TRACK_DEFS.forEach((t) => {
     engine.mixer.setTrackVolume(t.id, s.volumes[t.id] ?? DEFAULT_VOLUME);
+    engine.mixer.setTrackPan(t.id, s.pans[t.id] ?? 0.5);
     engine.mixer.setTrackMute(t.id, !!s.mutes[t.id]);
     engine.mixer.setTrackSolo(t.id, !!s.solos[t.id]);
     engine.mixer.setTrackArm(t.id, !!s.arms[t.id]);

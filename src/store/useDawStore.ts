@@ -38,10 +38,12 @@ export interface DawState {
   solos: Bools;
   arms: Bools;
   volumes: Nums;
+  pans: Nums; // track id -> 0 (L) .. 0.5 (C) .. 1 (R)
   trackFiles: TrackInfos;
 
   // ---- mixer / loop ----
   masterVolume: number;
+  masterPan: number;
   loopStart: number;
   loopEnd: number;
 
@@ -100,8 +102,10 @@ export interface DawState {
   toggleSolo: (id: string) => void;
   toggleArm: (id: string) => void;
   setVolume: (id: string, v: number) => void;
+  setPan: (id: string, v: number) => void;
   setBpm: (v: number) => void;
   setMasterVolume: (v: number) => void;
+  setMasterPan: (v: number) => void;
   setLoopStart: (v: number) => void;
   setLoopEnd: (v: number) => void;
   pickTrackFile: (id: string) => void;
@@ -181,9 +185,11 @@ export const useDawStore = create<DawState>((set, get) => ({
   solos: {},
   arms: { kick: true },
   volumes: {},
+  pans: {},
   trackFiles: {},
 
   masterVolume: 1,
+  masterPan: 0.5,
   loopStart: 0,
   loopEnd: TOTAL_BEATS,
 
@@ -281,9 +287,17 @@ export const useDawStore = create<DawState>((set, get) => ({
     if (engineActive()) engine.mixer.setTrackVolume(id, v);
     set((s) => ({ volumes: { ...s.volumes, [id]: v } }));
   },
+  setPan: (id, v) => {
+    if (engineActive()) engine.mixer.setTrackPan(id, v);
+    set((s) => ({ pans: { ...s.pans, [id]: v } }));
+  },
   setMasterVolume: (v) => {
     if (engineActive()) engine.mixer.setMasterVolume(v);
     set({ masterVolume: v });
+  },
+  setMasterPan: (v) => {
+    if (engineActive()) engine.mixer.setMasterPan(v);
+    set({ masterPan: v });
   },
   pickTrackFile: (id) => {
     if (engineActive()) engine.track.pickFile(id);
@@ -305,10 +319,12 @@ export const useDawStore = create<DawState>((set, get) => ({
       loopStart: ui.loopStart ?? s.loopStart,
       loopEnd: ui.loopEnd ?? s.loopEnd,
       volumes: ui.volumes ?? s.volumes,
+      pans: ui.pans ?? s.pans,
       mutes: ui.mutes ?? s.mutes,
       solos: ui.solos ?? s.solos,
       arms: ui.arms ?? s.arms,
       masterVolume: ui.masterVolume ?? s.masterVolume,
+      masterPan: ui.masterPan ?? s.masterPan,
       trackFiles: ui.trackFiles ?? s.trackFiles,
       devices: ui.devices ?? s.devices,
       preAmount: ui.preAmount ?? s.preAmount,
@@ -338,10 +354,12 @@ export const useDawStore = create<DawState>((set, get) => ({
       loopStart: 0,
       loopEnd: TOTAL_BEATS,
       volumes: {},
+      pans: {},
       mutes: {},
       solos: {},
       arms: {},
       masterVolume: 1,
+      masterPan: 0.5,
       trackFiles: {},
       devices: { eq: true, tape: false, pre: true },
       preAmount: 0.62,

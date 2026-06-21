@@ -1,6 +1,6 @@
 import { useShallow } from "zustand/react/shallow";
 import { useDawStore } from "../../store/useDawStore";
-import { Meter, Slider } from "../../design-system";
+import { Meter, Slider, Dial } from "../../design-system";
 import { getAutoPts, valAt, fmtAuto } from "../../lib/automation";
 import { DEFAULT_VOLUME } from "../../lib/constants";
 import type { AutomationParam, Track } from "../../types";
@@ -114,6 +114,7 @@ export function TrackHeader({ track }: { track: Track }) {
     armed,
     selected,
     vol,
+    pan,
     autoOpen,
     fileLoaded,
     fileName,
@@ -124,6 +125,7 @@ export function TrackHeader({ track }: { track: Track }) {
     toggleArm,
     toggleAuto,
     setVolume,
+    setPan,
     pickTrackFile,
     clearTrackFile,
   } = useDawStore(
@@ -133,6 +135,7 @@ export function TrackHeader({ track }: { track: Track }) {
       armed: !!s.arms[id],
       selected: s.selTrack === id,
       vol: s.volumes[id] ?? DEFAULT_VOLUME,
+      pan: s.pans[id] ?? 0.5,
       autoOpen: !!s.autoLanes[id],
       fileLoaded: !!s.trackFiles[id]?.loaded,
       fileName: s.trackFiles[id]?.name,
@@ -143,12 +146,15 @@ export function TrackHeader({ track }: { track: Track }) {
       toggleArm: s.toggleArm,
       toggleAuto: s.toggleAuto,
       setVolume: s.setVolume,
+      setPan: s.setPan,
       pickTrackFile: s.pickTrackFile,
       clearTrackFile: s.clearTrackFile,
     })),
   );
 
   const volDb = vol <= 0.001 ? "-∞" : (20 * Math.log10(vol)).toFixed(1) + " dB";
+  const panLabel =
+    Math.abs(pan - 0.5) < 0.005 ? "C" : pan < 0.5 ? `L${Math.round((0.5 - pan) * 200)}` : `R${Math.round((pan - 0.5) * 200)}`;
 
   const mStyle = { ...idleBtn, ...(muted ? { background: "var(--danger-grad)", color: "#fff", borderColor: "rgba(255,120,120,0.6)", boxShadow: "0 0 12px var(--danger-glow)" } : null) };
   const sStyle = { ...idleBtn, ...(solo ? { background: "var(--accent-grad)", color: "#fff", borderColor: "rgba(150,170,255,0.6)", boxShadow: "0 0 12px var(--accent-glow)" } : null) };
@@ -258,6 +264,14 @@ export function TrackHeader({ track }: { track: Track }) {
           <button type="button" onClick={(e) => { e.stopPropagation(); toggleSolo(id); }} style={sStyle}>S</button>
           <button type="button" onClick={(e) => { e.stopPropagation(); toggleArm(id); }} style={aStyle}>●</button>
           <button type="button" onClick={(e) => { e.stopPropagation(); toggleAuto(id); }} title="Automation lane" style={autoBtnStyle}>A</button>
+          <div
+            onClick={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => { e.stopPropagation(); setPan(id, 0.5); }}
+            title={`Pan: ${panLabel} (double-click to center)`}
+            style={{ flex: "none" }}
+          >
+            <Dial value={pan} onChange={(v) => setPan(id, v)} label={null} size={28} color="var(--accent)" />
+          </div>
           <TrackMeter id={id} />
         </div>
 

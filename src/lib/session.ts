@@ -32,10 +32,12 @@ export interface SessionUi {
   loopStart: number;
   loopEnd: number;
   volumes: Record<string, number>;
+  pans: Record<string, number>;
   mutes: Record<string, boolean>;
   solos: Record<string, boolean>;
   arms: Record<string, boolean>;
   masterVolume: number;
+  masterPan: number;
   trackFiles: TrackInfos;
   devices: Record<DeviceKey, boolean>;
   preAmount: number;
@@ -75,10 +77,12 @@ export function serializeSession(s: DawState): SessionUi {
     loopStart: s.loopStart,
     loopEnd: s.loopEnd,
     volumes: s.volumes,
+    pans: s.pans,
     mutes: s.mutes,
     solos: s.solos,
     arms: s.arms,
     masterVolume: s.masterVolume,
+    masterPan: s.masterPan,
     trackFiles: s.trackFiles,
     devices: s.devices,
     preAmount: s.preAmount,

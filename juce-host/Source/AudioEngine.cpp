@@ -221,6 +221,7 @@ void AudioEngine::recomputeAnySolo()
 }
 
 void AudioEngine::setTrackGain (const String& id, float gainLinear) { ensureTrack (id).gain.store (jlimit (0.0f, 4.0f, gainLinear)); }
+void AudioEngine::setTrackPan  (const String& id, float pan)        { ensureTrack (id).pan.store (jlimit (0.0f, 1.0f, pan)); }
 void AudioEngine::setTrackMute (const String& id, bool muted)       { ensureTrack (id).mute.store (muted); }
 void AudioEngine::setTrackSolo (const String& id, bool soloed)      { ensureTrack (id).solo.store (soloed); recomputeAnySolo(); }
 void AudioEngine::setTrackArm  (const String& id, bool armed)       { ensureTrack (id).arm.store (armed); }
@@ -525,6 +526,14 @@ void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputCha
 
     // 4) Master volume.
     scratch.applyGain (masterVolume.load());
+
+    // 4b) Master pan (stereo balance; unity at center).
+    const float mpan = masterPan.load();
+    if (scratch.getNumChannels() >= 2 && ! approximatelyEqual (mpan, 0.5f))
+    {
+        scratch.applyGain (0, 0, numSamples, mpan <= 0.5f ? 1.0f : (1.0f - mpan) * 2.0f);
+        scratch.applyGain (1, 0, numSamples, mpan >= 0.5f ? 1.0f : mpan * 2.0f);
+    }
 
     // 5) Meter (decaying peak).
     float peak = 0.0f;

@@ -259,10 +259,12 @@ var EngineController::handle (const String& name, const Array<var>& args)
 
     // ---- mixer ----
     if (name == "mixerSetTrackVolume")  { audioEngine.setTrackGain (arg (0).toString(), (float) (double) arg (1)); return {}; }
+    if (name == "mixerSetTrackPan")     { audioEngine.setTrackPan  (arg (0).toString(), (float) (double) arg (1)); return {}; }
     if (name == "mixerSetTrackMute")    { audioEngine.setTrackMute (arg (0).toString(), (bool) arg (1)); return {}; }
     if (name == "mixerSetTrackSolo")    { audioEngine.setTrackSolo (arg (0).toString(), (bool) arg (1)); return {}; }
     if (name == "mixerSetTrackArm")     { audioEngine.setTrackArm  (arg (0).toString(), (bool) arg (1)); return {}; }
     if (name == "mixerSetMasterVolume") { audioEngine.setMasterVolume ((float) (double) arg (0)); return {}; }
+    if (name == "mixerSetMasterPan")    { audioEngine.setMasterPan ((float) (double) arg (0)); return {}; }
 
     // ---- per-track audio source ----
     if (name == "trackAssignFile") { audioEngine.assignTrackFile (arg (0).toString(), File (arg (1).toString())); emitTrackInfo(); return {}; }

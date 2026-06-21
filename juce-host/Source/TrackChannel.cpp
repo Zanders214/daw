@@ -79,6 +79,14 @@ void TrackChannel::renderInto (AudioBuffer<float>& bus, int numSamples, bool aud
 
     trackScratch.applyGain (gain.load());
 
+    // Stereo balance: unity at center, attenuate the opposite side toward an edge.
+    const float p = pan.load();
+    if (trackScratch.getNumChannels() >= 2 && ! approximatelyEqual (p, 0.5f))
+    {
+        trackScratch.applyGain (0, 0, numSamples, p <= 0.5f ? 1.0f : (1.0f - p) * 2.0f);
+        trackScratch.applyGain (1, 0, numSamples, p >= 0.5f ? 1.0f : p * 2.0f);
+    }
+
     const int busCh = bus.getNumChannels();
     const int srcCh = trackScratch.getNumChannels();
     for (int ch = 0; ch < busCh; ++ch)

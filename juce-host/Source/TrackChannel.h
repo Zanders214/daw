@@ -51,6 +51,7 @@ public:
 
     // ---- real-time controls (atomics; lock-free from any thread) ----
     std::atomic<float> gain  { 0.8f };   // matches DEFAULT_VOLUME on the JS side
+    std::atomic<float> pan   { 0.5f };   // 0 = hard L, 0.5 = center, 1 = hard R
     std::atomic<bool>  mute  { false };
     std::atomic<bool>  solo  { false };
     std::atomic<bool>  arm   { false };

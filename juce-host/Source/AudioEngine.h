@@ -59,6 +59,7 @@ public:
     // on demand. Scalar controls are lock-free; file (re)assignment takes
     // `tracksLock` (same pattern as the plugin chain).
     void setTrackGain (const juce::String& id, float gainLinear);
+    void setTrackPan  (const juce::String& id, float pan); // 0=L, 0.5=C, 1=R
     void setTrackMute (const juce::String& id, bool muted);
     void setTrackSolo (const juce::String& id, bool soloed);
     void setTrackArm  (const juce::String& id, bool armed);
@@ -67,6 +68,8 @@ public:
 
     void setMasterVolume (float v) { masterVolume.store (juce::jlimit (0.0f, 2.0f, v)); }
     float getMasterVolume() const { return masterVolume.load(); }
+    void setMasterPan (float v) { masterPan.store (juce::jlimit (0.0f, 1.0f, v)); }
+    float getMasterPan() const { return masterPan.load(); }
 
     /** Per-track meter levels { id: 0..1 } for the state event. */
     juce::var buildTrackLevels();
@@ -136,6 +139,7 @@ private:
     juce::HashMap<juce::String, TrackChannel*> trackById;
     std::atomic<int> anySolo { 0 };          // cached count of soloed tracks
     std::atomic<float> masterVolume { 1.0f };
+    std::atomic<float> masterPan { 0.5f };
 
     // Transport state
     std::atomic<bool> playing { false };
