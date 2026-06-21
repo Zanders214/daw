@@ -1,8 +1,11 @@
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useDawStore } from "../store/useDawStore";
 import { OUTPUT_DEVICES, MIDI_INPUTS } from "../data/seed";
 import type { ThemeName } from "../types";
+
+const FALLBACK_SAMPLE_RATES = [44.1, 48, 96];
+const FALLBACK_BUFFER_SIZES = [64, 128, 256, 512];
 
 function segStyle(active: boolean): React.CSSProperties {
   return {
@@ -126,6 +129,10 @@ export function Settings() {
       sampleRate: st.sampleRate,
       bufferSize: st.bufferSize,
       outputDevice: st.outputDevice,
+      availableOutputs: st.availableOutputs,
+      availableSampleRates: st.availableSampleRates,
+      availableBufferSizes: st.availableBufferSizes,
+      refreshDevices: st.refreshDevices,
       midiInput: st.midiInput,
       midiThru: st.midiThru,
       metronome: st.metronome,
@@ -147,9 +154,22 @@ export function Settings() {
     })),
   );
 
+  // Pull the real device list from the engine whenever the panel opens.
+  useEffect(() => {
+    if (s.settingsOpen) s.refreshDevices();
+  }, [s.settingsOpen, s.refreshDevices]);
+
   if (!s.settingsOpen) return null;
 
   const latencyMs = (s.bufferSize / (s.sampleRate * 1000) * 2000).toFixed(1);
+
+  const outputOptions = s.availableOutputs.length ? s.availableOutputs : OUTPUT_DEVICES;
+  const rateOptions = (s.availableSampleRates.length ? s.availableSampleRates : FALLBACK_SAMPLE_RATES).map(
+    (r) => [r, String(r)] as [number, string],
+  );
+  const bufferOptions = (s.availableBufferSizes.length ? s.availableBufferSizes : FALLBACK_BUFFER_SIZES).map(
+    (b) => [b, String(b)] as [number, string],
+  );
 
   return (
     <div
@@ -275,7 +295,7 @@ export function Settings() {
               onChange={(e) => s.setOutputDevice(e.target.value)}
               style={selectStyle}
             >
-              {OUTPUT_DEVICES.map((d) => (
+              {outputOptions.map((d) => (
                 <option key={d} value={d}>
                   {d}
                 </option>
@@ -284,15 +304,7 @@ export function Settings() {
           </Row>
           <Row label="Sample rate" desc="Higher rates cost more CPU">
             <div style={{ display: "flex", alignItems: "center" }}>
-              <Segmented<number>
-                options={[
-                  [44.1, "44.1"],
-                  [48, "48"],
-                  [96, "96"],
-                ]}
-                value={s.sampleRate}
-                onPick={s.setSampleRate}
-              />
+              <Segmented<number> options={rateOptions} value={s.sampleRate} onPick={s.setSampleRate} />
               <span style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--text-faint)", marginLeft: 8 }}>
                 kHz
               </span>
@@ -300,16 +312,7 @@ export function Settings() {
           </Row>
           <Row label="Buffer size" desc="Smaller = lower latency, more CPU">
             <div style={{ display: "flex", alignItems: "center" }}>
-              <Segmented<number>
-                options={[
-                  [64, "64"],
-                  [128, "128"],
-                  [256, "256"],
-                  [512, "512"],
-                ]}
-                value={s.bufferSize}
-                onPick={s.setBufferSize}
-              />
+              <Segmented<number> options={bufferOptions} value={s.bufferSize} onPick={s.setBufferSize} />
               <span style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--text-faint)", marginLeft: 8 }}>
                 smp
               </span>

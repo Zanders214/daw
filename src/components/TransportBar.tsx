@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useDawStore } from "../store/useDawStore";
 import { Wordmark, GlowButton, Meter } from "../design-system";
@@ -147,6 +148,7 @@ export function TransportBar() {
     toggleLoop,
     toggleMetronome,
     openSettings,
+    setBpm,
   } = useDawStore(
     useShallow((s) => ({
       playing: s.playing,
@@ -161,8 +163,16 @@ export function TransportBar() {
       toggleLoop: s.toggleLoop,
       toggleMetronome: s.toggleMetronome,
       openSettings: s.openSettings,
+      setBpm: s.setBpm,
     })),
   );
+
+  const [tempoEdit, setTempoEdit] = useState<string | null>(null);
+  const commitTempo = () => {
+    const n = parseFloat(tempoEdit ?? "");
+    if (!Number.isNaN(n)) setBpm(n);
+    setTempoEdit(null);
+  };
 
   const loopBtnStyle: React.CSSProperties = {
     height: 48,
@@ -308,20 +318,50 @@ export function TransportBar() {
           <span style={readoutCap}>POSITION</span>
           <PositionReadout />
         </div>
-        <div style={readoutPill}>
+        <div
+          style={{ ...readoutPill, cursor: "text" }}
+          title="Double-click to set tempo"
+          onDoubleClick={() => setTempoEdit(String(bpm))}
+        >
           <span style={readoutCap}>TEMPO</span>
-          <span
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: 22,
-              color: "var(--spectrum-cyan)",
-              letterSpacing: "0.04em",
-              lineHeight: 1.1,
-            }}
-          >
-            {bpm}
-            <span style={{ fontSize: 11, color: "var(--text-3)" }}> BPM</span>
-          </span>
+          {tempoEdit === null ? (
+            <span
+              style={{
+                fontFamily: "var(--font-mono)",
+                fontSize: 22,
+                color: "var(--spectrum-cyan)",
+                letterSpacing: "0.04em",
+                lineHeight: 1.1,
+              }}
+            >
+              {bpm}
+              <span style={{ fontSize: 11, color: "var(--text-3)" }}> BPM</span>
+            </span>
+          ) : (
+            <input
+              autoFocus
+              type="number"
+              min={20}
+              value={tempoEdit}
+              onChange={(e) => setTempoEdit(e.target.value)}
+              onBlur={commitTempo}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitTempo();
+                else if (e.key === "Escape") setTempoEdit(null);
+              }}
+              style={{
+                width: 72,
+                background: "var(--well)",
+                border: "1px solid var(--accent-line)",
+                borderRadius: 5,
+                color: "var(--spectrum-cyan)",
+                fontFamily: "var(--font-mono)",
+                fontSize: 20,
+                lineHeight: 1.1,
+                padding: "0 4px",
+              }}
+            />
+          )}
         </div>
         <div style={readoutPill}>
           <span style={readoutCap}>SIG</span>

@@ -28,9 +28,11 @@ private:
     juce::var buildState();
     void emit (const juce::Identifier& id, const juce::var& payload);
     void emitPluginStatuses();
+    void emitTrackInfo();
     void loadSlotFromPath (int slot, const juce::String& path);
     void pickPluginFile (int slot);
     void pickSourceFile();
+    void pickTrackFile (const juce::String& trackId);
 
     AudioEngine audioEngine;
     PluginHost pluginHost;

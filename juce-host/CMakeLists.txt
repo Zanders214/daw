@@ -41,6 +41,7 @@ target_sources(ZandersDAW PRIVATE
     Source/WebUI.cpp
     Source/EngineController.cpp
     Source/AudioEngine.cpp
+    Source/TrackChannel.cpp
     Source/PluginHost.cpp)
 
 # ----------------------------------------------------------------------------

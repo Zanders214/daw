@@ -31,6 +31,7 @@ AudioEngine::~AudioEngine()
 
 void AudioEngine::initialise()
 {
+    readThread.startThread();
     deviceManager.initialiseWithDefaultDevices (2, 2);
     deviceManager.addAudioCallback (this);
 }
@@ -41,15 +42,36 @@ void AudioEngine::shutdown()
     for (int i = 0; i < numSlots; ++i)
         closeEditor (i);
 
-    const ScopedLock sl (chainLock);
-    for (auto& p : chain)
-        if (p != nullptr)
-            p->releaseResources();
+    {
+        const ScopedLock sl (chainLock);
+        for (auto& p : chain)
+            if (p != nullptr)
+                p->releaseResources();
+    }
+
+    {
+        const ScopedLock sl (tracksLock);
+        for (auto* t : tracks)
+        {
+            t->stop();
+            t->clearFile();
+            t->releaseResources();
+        }
+        tracks.clear();
+        trackById.clear();
+    }
+    readThread.stopThread (2000);
+
     transportSource.setSource (nullptr);
     readerSource.reset();
 }
 
 // ---- transport ----
+double AudioEngine::beatsToSeconds (double beats) const
+{
+    return beats * 60.0 / jmax (1.0, tempo.load());
+}
+
 void AudioEngine::setPlaying (bool shouldPlay)
 {
     playing.store (shouldPlay);
@@ -57,6 +79,21 @@ void AudioEngine::setPlaying (bool shouldPlay)
     {
         if (shouldPlay) transportSource.start();
         else            transportSource.stop();
+    }
+
+    const ScopedLock sl (tracksLock);
+    const double secs = beatsToSeconds (playheadBeats.load());
+    for (auto* t : tracks)
+    {
+        if (shouldPlay)
+        {
+            t->setPositionSeconds (secs);
+            t->start();
+        }
+        else
+        {
+            t->stop();
+        }
     }
 }
 
@@ -66,11 +103,24 @@ void AudioEngine::stop()
     transportSource.stop();
     transportSource.setPosition (0.0);
     playheadBeats.store (0.0);
+
+    const ScopedLock sl (tracksLock);
+    for (auto* t : tracks)
+    {
+        t->stop();
+        t->setPositionSeconds (0.0);
+    }
 }
 
 void AudioEngine::setPosition (double beats)
 {
-    playheadBeats.store (jlimit (0.0, totalBeats, beats));
+    const double b = jlimit (0.0, totalBeats, beats);
+    playheadBeats.store (b);
+
+    const double secs = beatsToSeconds (b);
+    const ScopedLock sl (tracksLock);
+    for (auto* t : tracks)
+        t->setPositionSeconds (secs);
 }
 
 // ---- source ----
@@ -90,6 +140,134 @@ bool AudioEngine::loadAudioFile (const File& file)
 void AudioEngine::setInputMode (const String& mode)
 {
     inputMode = mode;
+}
+
+// ---- audio device settings ----
+var AudioEngine::getDevicesInfo()
+{
+    auto* obj = new DynamicObject();
+
+    AudioDeviceManager::AudioDeviceSetup setup;
+    deviceManager.getAudioDeviceSetup (setup);
+    obj->setProperty ("outputDevice", setup.outputDeviceName);
+    obj->setProperty ("inputDevice", setup.inputDeviceName);
+    obj->setProperty ("sampleRate", setup.sampleRate);
+    obj->setProperty ("bufferSize", setup.bufferSize);
+
+    Array<var> rates, sizes, outputs;
+    if (auto* dev = deviceManager.getCurrentAudioDevice())
+    {
+        for (auto r : dev->getAvailableSampleRates()) rates.add (r);
+        for (auto b : dev->getAvailableBufferSizes()) sizes.add (b);
+    }
+    if (auto* type = deviceManager.getCurrentDeviceTypeObject())
+    {
+        type->scanForDevices();
+        for (const auto& n : type->getDeviceNames (false)) outputs.add (n);
+    }
+    obj->setProperty ("sampleRates", rates);
+    obj->setProperty ("bufferSizes", sizes);
+    obj->setProperty ("outputs", outputs);
+    return var (obj);
+}
+
+void AudioEngine::applySettings (const var& opts)
+{
+    AudioDeviceManager::AudioDeviceSetup setup;
+    deviceManager.getAudioDeviceSetup (setup);
+
+    if (opts.hasProperty ("sampleRate")) setup.sampleRate = (double) opts.getProperty ("sampleRate", setup.sampleRate);
+    if (opts.hasProperty ("bufferSize")) setup.bufferSize = (int)    opts.getProperty ("bufferSize", setup.bufferSize);
+    if (opts.hasProperty ("outputDevice"))
+    {
+        setup.outputDeviceName = opts.getProperty ("outputDevice", setup.outputDeviceName).toString();
+        setup.useDefaultOutputChannels = true;
+    }
+
+    const String err = deviceManager.setAudioDeviceSetup (setup, true);
+    if (err.isNotEmpty())
+        Logger::writeToLog ("Audio device setup error: " + err);
+}
+
+// ---- loop region ----
+void AudioEngine::setLoopRegion (double startBeats, double endBeats)
+{
+    loopStartBeats.store (jlimit (0.0, totalBeats, startBeats));
+    loopEndBeats.store   (jlimit (0.0, totalBeats, endBeats));
+}
+
+// ---- mixer (multitrack) ----
+TrackChannel& AudioEngine::ensureTrack (const String& id)
+{
+    const ScopedLock sl (tracksLock);
+    if (auto* existing = trackById[id])
+        return *existing;
+
+    auto* ch = tracks.add (new TrackChannel (id));
+    trackById.set (id, ch);
+    if (currentSampleRate > 0.0)
+        ch->prepare (currentSampleRate, currentBlockSize);
+    return *ch;
+}
+
+void AudioEngine::recomputeAnySolo()
+{
+    const ScopedLock sl (tracksLock);
+    int count = 0;
+    for (auto* t : tracks)
+        if (t->solo.load())
+            ++count;
+    anySolo.store (count);
+}
+
+void AudioEngine::setTrackGain (const String& id, float gainLinear) { ensureTrack (id).gain.store (jlimit (0.0f, 4.0f, gainLinear)); }
+void AudioEngine::setTrackMute (const String& id, bool muted)       { ensureTrack (id).mute.store (muted); }
+void AudioEngine::setTrackSolo (const String& id, bool soloed)      { ensureTrack (id).solo.store (soloed); recomputeAnySolo(); }
+void AudioEngine::setTrackArm  (const String& id, bool armed)       { ensureTrack (id).arm.store (armed); }
+
+bool AudioEngine::assignTrackFile (const String& id, const File& file)
+{
+    auto& ch = ensureTrack (id);
+    const ScopedLock sl (tracksLock); // serialize the source swap against the audio thread
+    const bool ok = ch.loadFile (audioFormatManager, readThread, file);
+    if (ok && playing.load())
+    {
+        ch.setPositionSeconds (beatsToSeconds (playheadBeats.load()));
+        ch.start();
+    }
+    return ok;
+}
+
+void AudioEngine::clearTrackFile (const String& id)
+{
+    const ScopedLock sl (tracksLock);
+    if (auto* t = trackById[id])
+        t->clearFile();
+}
+
+var AudioEngine::buildTrackLevels()
+{
+    auto* obj = new DynamicObject();
+    const ScopedTryLock stl (tracksLock);
+    if (stl.isLocked())
+        for (auto* t : tracks)
+            obj->setProperty (Identifier (t->getId()), (double) t->level.load());
+    return var (obj);
+}
+
+var AudioEngine::buildTrackInfo()
+{
+    auto* obj = new DynamicObject();
+    const ScopedLock sl (tracksLock);
+    for (auto* t : tracks)
+    {
+        auto* s = new DynamicObject();
+        s->setProperty ("loaded", t->hasFile());
+        s->setProperty ("name", t->getFileName());
+        s->setProperty ("path", t->getFilePath());
+        obj->setProperty (Identifier (t->getId()), var (s));
+    }
+    return var (obj);
 }
 
 // ---- plugin chain ----
@@ -238,18 +416,32 @@ void AudioEngine::audioDeviceAboutToStart (AudioIODevice* device)
 
     transportSource.prepareToPlay (currentBlockSize, currentSampleRate);
 
-    const ScopedLock sl (chainLock);
-    for (int i = 0; i < numSlots; ++i)
-        prepareSlot (i);
+    {
+        const ScopedLock sl (chainLock);
+        for (int i = 0; i < numSlots; ++i)
+            prepareSlot (i);
+    }
+    {
+        const ScopedLock sl (tracksLock);
+        for (auto* t : tracks)
+            t->prepare (currentSampleRate, currentBlockSize);
+    }
 }
 
 void AudioEngine::audioDeviceStopped()
 {
     transportSource.releaseResources();
-    const ScopedLock sl (chainLock);
-    for (auto& p : chain)
-        if (p != nullptr)
-            p->releaseResources();
+    {
+        const ScopedLock sl (chainLock);
+        for (auto& p : chain)
+            if (p != nullptr)
+                p->releaseResources();
+    }
+    {
+        const ScopedLock sl (tracksLock);
+        for (auto* t : tracks)
+            t->releaseResources();
+    }
 }
 
 void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputChannelData,
@@ -260,9 +452,9 @@ void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputCha
                                                     const AudioIODeviceCallbackContext&)
 {
     scratch.setSize (2, numSamples, false, false, true);
-    scratch.clear();
+    scratch.clear(); // master bus accumulator
 
-    // 1) Fill the working buffer from the source.
+    // 1) Legacy single source (Phase 1 path: file player or input monitor).
     if (inputMode == "file" && fileLoaded.load())
     {
         AudioSourceChannelInfo info (&scratch, 0, numSamples);
@@ -275,7 +467,22 @@ void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputCha
                 scratch.copyFrom (ch, 0, inputChannelData[ch], numSamples);
     }
 
-    // 2) Run the FX chain in series (try-lock so loads never block audio).
+    // 2) Sum the multitrack mixer onto the bus (try-lock so loads never block
+    //    audio). Muted / soloed-out tracks still advance to stay in sync.
+    {
+        const ScopedTryLock stl (tracksLock);
+        if (stl.isLocked())
+        {
+            const bool soloing = anySolo.load() > 0;
+            for (auto* t : tracks)
+            {
+                const bool audible = ! t->mute.load() && (! soloing || t->solo.load());
+                t->renderInto (scratch, numSamples, audible);
+            }
+        }
+    }
+
+    // 3) Run the master FX chain in series (try-lock so loads never block audio).
     {
         const ScopedTryLock stl (chainLock);
         if (stl.isLocked())
@@ -288,25 +495,51 @@ void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputCha
         }
     }
 
-    // 3) Meter (decaying peak).
+    // 4) Master volume.
+    scratch.applyGain (masterVolume.load());
+
+    // 5) Meter (decaying peak).
     float peak = 0.0f;
     for (int ch = 0; ch < scratch.getNumChannels(); ++ch)
         peak = jmax (peak, scratch.getMagnitude (ch, 0, numSamples));
     masterLevel.store (jmax (peak, masterLevel.load() * 0.88f));
 
-    // 4) Write to the output device.
+    // 6) Write to the output device.
     for (int ch = 0; ch < numOutputChannels; ++ch)
         if (outputChannelData[ch] != nullptr)
             FloatVectorOperations::copy (outputChannelData[ch],
                                          scratch.getReadPointer (jmin (ch, 1)), numSamples);
 
-    // 5) Advance the beat clock.
+    // 7) Advance the beat clock, wrapping within the loop region when looping.
     if (playing.load())
     {
-        double beats = playheadBeats.load()
-                     + (double) numSamples / currentSampleRate * (tempo.load() / 60.0);
-        while (beats >= totalBeats)
-            beats -= totalBeats;
+        const double bpm = tempo.load();
+        double beats = playheadBeats.load() + (double) numSamples / currentSampleRate * (bpm / 60.0);
+
+        const double loS = loopStartBeats.load();
+        const double loE = loopEndBeats.load();
+        bool wrapped = false;
+
+        if (looping.load() && loE > loS)
+        {
+            if (beats >= loE) { beats = loS + std::fmod (beats - loS, loE - loS); wrapped = true; }
+        }
+        else
+        {
+            while (beats >= totalBeats) { beats -= totalBeats; wrapped = true; }
+        }
         playheadBeats.store (beats);
+
+        // On a wrap, re-seek the sources so audio stays aligned to the loop.
+        if (wrapped)
+        {
+            const double secs = beats * 60.0 / jmax (1.0, bpm);
+            const ScopedTryLock stl (tracksLock);
+            if (stl.isLocked())
+                for (auto* t : tracks)
+                    t->setPositionSeconds (secs);
+            if (inputMode == "file" && fileLoaded.load())
+                transportSource.setPosition (secs);
+        }
     }
 }

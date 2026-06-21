@@ -46,7 +46,11 @@ var EngineController::buildState()
     obj->setProperty ("playing", audioEngine.isPlaying());
     obj->setProperty ("master", (double) audioEngine.getMasterLevel());
     obj->setProperty ("reel", reel);
-    obj->setProperty ("levels", var (new DynamicObject())); // per-track meters: Phase 3
+    obj->setProperty ("levels", audioEngine.buildTrackLevels());
+    obj->setProperty ("loopStart", audioEngine.getLoopStart());
+    obj->setProperty ("loopEnd", audioEngine.getLoopEnd());
+    obj->setProperty ("tempo", audioEngine.getTempo());
+    obj->setProperty ("masterVolume", (double) audioEngine.getMasterVolume());
     return var (obj);
 }
 
@@ -68,6 +72,11 @@ void EngineController::emitPluginStatuses()
         obj->setProperty (PluginHost::slotKey (slot), var (s));
     }
     emit ("enginePlugins", var (obj));
+}
+
+void EngineController::emitTrackInfo()
+{
+    emit ("engineTracks", audioEngine.buildTrackInfo());
 }
 
 void EngineController::loadSlotFromPath (int slot, const String& path)
@@ -120,6 +129,22 @@ void EngineController::pickSourceFile()
         });
 }
 
+void EngineController::pickTrackFile (const String& trackId)
+{
+    chooser = std::make_unique<FileChooser> ("Choose audio for the track", File(),
+                                             "*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg");
+    chooser->launchAsync (FileBrowserComponent::openMode | FileBrowserComponent::canSelectFiles,
+        [this, trackId] (const FileChooser& fc)
+        {
+            const auto result = fc.getResult();
+            if (result.exists())
+            {
+                audioEngine.assignTrackFile (trackId, result);
+                emitTrackInfo();
+            }
+        });
+}
+
 var EngineController::handle (const String& name, const Array<var>& args)
 {
     const auto arg = [&args] (int i) -> var { return i < args.size() ? args[i] : var(); };
@@ -132,6 +157,20 @@ var EngineController::handle (const String& name, const Array<var>& args)
     if (name == "transportSetLooping")  { audioEngine.setLooping ((bool) arg (0)); return {}; }
     if (name == "transportSetRecording"){ audioEngine.setRecording ((bool) arg (0)); return {}; }
     if (name == "transportSetTempo")    { audioEngine.setTempo ((double) arg (0)); return {}; }
+    if (name == "transportSetLoopStart"){ audioEngine.setLoopRegion ((double) arg (0), audioEngine.getLoopEnd()); return {}; }
+    if (name == "transportSetLoopEnd")  { audioEngine.setLoopRegion (audioEngine.getLoopStart(), (double) arg (0)); return {}; }
+
+    // ---- mixer ----
+    if (name == "mixerSetTrackVolume")  { audioEngine.setTrackGain (arg (0).toString(), (float) (double) arg (1)); return {}; }
+    if (name == "mixerSetTrackMute")    { audioEngine.setTrackMute (arg (0).toString(), (bool) arg (1)); return {}; }
+    if (name == "mixerSetTrackSolo")    { audioEngine.setTrackSolo (arg (0).toString(), (bool) arg (1)); return {}; }
+    if (name == "mixerSetTrackArm")     { audioEngine.setTrackArm  (arg (0).toString(), (bool) arg (1)); return {}; }
+    if (name == "mixerSetMasterVolume") { audioEngine.setMasterVolume ((float) (double) arg (0)); return {}; }
+
+    // ---- per-track audio source ----
+    if (name == "trackAssignFile") { audioEngine.assignTrackFile (arg (0).toString(), File (arg (1).toString())); emitTrackInfo(); return {}; }
+    if (name == "trackClearFile")  { audioEngine.clearTrackFile (arg (0).toString()); emitTrackInfo(); return {}; }
+    if (name == "trackPickFile")   { pickTrackFile (arg (0).toString()); return {}; }
 
     // ---- device chain ----
     if (name == "deviceSetBypass") { audioEngine.setBypassed (slotOf(), (bool) arg (1)); return {}; }
@@ -145,11 +184,13 @@ var EngineController::handle (const String& name, const Array<var>& args)
     if (name == "pluginsAssign") { loadSlotFromPath (slotOf(), arg (1).toString()); return {}; }
     if (name == "pluginsPickFile"){ pickPluginFile (slotOf()); return {}; }
 
-    // ---- source / audio settings (mixer + audioSetSettings: Phase 2) ----
+    // ---- audio device settings ----
+    if (name == "audioGetDevices")  { return audioEngine.getDevicesInfo(); }
+    if (name == "audioSetSettings") { audioEngine.applySettings (arg (0)); return audioEngine.getDevicesInfo(); }
+
+    // ---- legacy single source ----
     if (name == "sourcePickFile")   { pickSourceFile(); return {}; }
     if (name == "sourceSetInputMode"){ audioEngine.setInputMode (arg (0).toString()); return {}; }
 
-    // Unhandled commands (mixer*, audioGetDevices, audioSetSettings) are accepted as
-    // no-ops for now; they land in later phases.
     return {};
 }

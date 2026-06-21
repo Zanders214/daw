@@ -115,6 +115,8 @@ export function TrackHeader({ track }: { track: Track }) {
     selected,
     vol,
     autoOpen,
+    fileLoaded,
+    fileName,
     selectTrack,
     openTrackChain,
     toggleMute,
@@ -122,6 +124,8 @@ export function TrackHeader({ track }: { track: Track }) {
     toggleArm,
     toggleAuto,
     setVolume,
+    pickTrackFile,
+    clearTrackFile,
   } = useDawStore(
     useShallow((s) => ({
       muted: !!s.mutes[id],
@@ -130,6 +134,8 @@ export function TrackHeader({ track }: { track: Track }) {
       selected: s.selTrack === id,
       vol: s.volumes[id] ?? DEFAULT_VOLUME,
       autoOpen: !!s.autoLanes[id],
+      fileLoaded: !!s.trackFiles[id]?.loaded,
+      fileName: s.trackFiles[id]?.name,
       selectTrack: s.selectTrack,
       openTrackChain: s.openTrackChain,
       toggleMute: s.toggleMute,
@@ -137,6 +143,8 @@ export function TrackHeader({ track }: { track: Track }) {
       toggleArm: s.toggleArm,
       toggleAuto: s.toggleAuto,
       setVolume: s.setVolume,
+      pickTrackFile: s.pickTrackFile,
+      clearTrackFile: s.clearTrackFile,
     })),
   );
 
@@ -196,6 +204,53 @@ export function TrackHeader({ track }: { track: Track }) {
             {track.name}
           </span>
           <span style={{ fontSize: 9, fontFamily: "var(--font-mono)", color: "var(--text-faint)" }}>{track.io}</span>
+          <button
+            type="button"
+            title={fileLoaded ? `Audio: ${fileName ?? ""} — click to replace` : "Load an audio file"}
+            onClick={(e) => {
+              e.stopPropagation();
+              pickTrackFile(id);
+            }}
+            style={{
+              width: 22,
+              height: 22,
+              borderRadius: 6,
+              fontSize: 11,
+              lineHeight: 1,
+              cursor: "pointer",
+              flex: "none",
+              fontFamily: "var(--font-display)",
+              ...(fileLoaded
+                ? { background: "var(--accent-soft)", color: "var(--accent)", border: "1px solid var(--accent-line)" }
+                : { background: "var(--layer-2)", color: "var(--text-3)", border: "1px solid var(--layer-5)" }),
+            }}
+          >
+            ♪
+          </button>
+          {fileLoaded && (
+            <button
+              type="button"
+              title="Clear audio"
+              onClick={(e) => {
+                e.stopPropagation();
+                clearTrackFile(id);
+              }}
+              style={{
+                width: 22,
+                height: 22,
+                borderRadius: 6,
+                fontSize: 10,
+                lineHeight: 1,
+                cursor: "pointer",
+                flex: "none",
+                background: "var(--layer-2)",
+                color: "var(--text-3)",
+                border: "1px solid var(--layer-5)",
+              }}
+            >
+              ✕
+            </button>
+          )}
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 9 }}>
