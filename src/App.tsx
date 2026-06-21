@@ -19,10 +19,10 @@ export function App() {
   // The DAW is authored at a fixed 1920×1080; scale it uniformly to the window.
   const [scale, setScale] = useState(1);
   useEffect(() => {
-    const fit = () => setScale(Math.min(window.innerWidth / 1920, window.innerHeight / 1080));
+    const fit = () => setScale(Math.min(globalThis.innerWidth / 1920, globalThis.innerHeight / 1080));
     fit();
-    window.addEventListener("resize", fit);
-    return () => window.removeEventListener("resize", fit);
+    globalThis.addEventListener("resize", fit);
+    return () => globalThis.removeEventListener("resize", fit);
   }, []);
 
   return (

@@ -90,7 +90,7 @@ const SPREFIX = "zdaw:session:";
 /** Strip disallowed characters and cap length before persisting a user-supplied
  *  session name to browser storage (avoids storing tainted input verbatim). */
 const sanitizeName = (s: string): string =>
-  s.replace(/[^\p{L}\p{N}\p{M} ._()\-]/gu, "").slice(0, 200);
+  s.replace(/[^\p{L}\p{N}\p{M} ._()-]/gu, "").slice(0, 200);
 
 const browserBackend: SessionBackend = {
   canUseFiles: false,

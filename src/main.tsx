@@ -22,9 +22,9 @@ function showFatal(message: string): void {
   el.textContent = `Zanders DAW hit an error:\n\n${message}`;
 }
 
-window.addEventListener("error", (e) => showFatal(`${e.message}\n${e.error?.stack ?? ""}`));
-window.addEventListener("unhandledrejection", (e) =>
-  showFatal(`Unhandled promise rejection:\n${String((e.reason && e.reason.stack) || e.reason)}`),
+globalThis.addEventListener("error", (e) => showFatal(`${e.message}\n${e.error?.stack ?? ""}`));
+globalThis.addEventListener("unhandledrejection", (e) =>
+  showFatal(`Unhandled promise rejection:\n${String(e.reason?.stack || e.reason)}`),
 );
 
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { failed: boolean }> {

@@ -124,14 +124,13 @@ export function Sessions() {
 
   return (
     <div
-      onClick={close}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) close();
+      }}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " " || e.key === "Escape") {
-          e.preventDefault();
-          close();
-        }
+        if (e.key === "Escape") close();
       }}
       style={{
         position: "absolute",
@@ -146,9 +145,6 @@ export function Sessions() {
       }}
     >
       <div
-        role="group"
-        onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => e.stopPropagation()}
         style={{
           width: 640,
           maxHeight: "86%",
