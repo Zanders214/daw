@@ -32,7 +32,7 @@ export function Keyboard({
   onRelease,
   style,
   ...rest
-}: KeyboardProps) {
+}: Readonly<KeyboardProps>) {
   const N = Math.max(7, Math.round(whites));
   const ww = 100 / N;
   const whiteSemis = [0, 2, 4, 5, 7, 9, 11];

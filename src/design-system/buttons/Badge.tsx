@@ -8,7 +8,7 @@ export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
  * Badge — a tiny all-caps pill in the blue accent, used for the product mode
  * label (VST3, BUILD-UP, WIND-DOWN) in a panel header.
  */
-export function Badge({ children, style, ...rest }: BadgeProps) {
+export function Badge({ children, style, ...rest }: Readonly<BadgeProps>) {
   return (
     <span
       style={{

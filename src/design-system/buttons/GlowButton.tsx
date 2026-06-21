@@ -20,7 +20,7 @@ export function GlowButton({
   idleLabel,
   style,
   ...rest
-}: GlowButtonProps) {
+}: Readonly<GlowButtonProps>) {
   const palette =
     variant === "danger"
       ? {

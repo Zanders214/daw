@@ -17,7 +17,7 @@ export function Wordmark({
   size = 17,
   style,
   ...rest
-}: WordmarkProps) {
+}: Readonly<WordmarkProps>) {
   return (
     <div
       style={{
