@@ -21,6 +21,7 @@ namespace
             "mixerSetTrackGroup", "mixerSetMasterVolume", "mixerSetMasterPan",
             "groupSetGain", "groupSetPan", "groupSetMute", "groupSetSolo",
             "mixerSetTrackSend", "returnSetGain",
+            "automationSet", "automationClear", "automationClearAll",
             "nodeDeviceAdd", "nodeDeviceRemove", "nodeDeviceSetBypass",
             "nodeDeviceOpenEditor", "nodeDeviceCloseEditor",
             "trackAssignFile", "trackPickFile", "trackClearFile",

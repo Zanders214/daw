@@ -328,6 +328,23 @@ var EngineController::handle (const String& name, const Array<var>& args)
     if (name == "mixerSetTrackSend") { audioEngine.setTrackSend (arg (0).toString(), (int) arg (1), (float) (double) arg (2)); return {}; }
     if (name == "returnSetGain")     { audioEngine.setReturnGain ((int) arg (0), (float) (double) arg (1)); return {}; }
 
+    // ---- parameter automation ----
+    if (name == "automationSet")
+    {
+        std::vector<AutomationStore::Point> pts;
+        if (auto* arr = arg (2).getArray())
+        {
+            pts.reserve ((size_t) arr->size());
+            for (const auto& pv : *arr)
+                pts.push_back ({ (double) pv.getProperty ("t", 0.0),
+                                 (float) (double) pv.getProperty ("v", 0.0) });
+        }
+        audioEngine.setAutomation (arg (0).toString(), arg (1).toString(), std::move (pts));
+        return {};
+    }
+    if (name == "automationClear")    { audioEngine.clearAutomation (arg (0).toString(), arg (1).toString()); return {}; }
+    if (name == "automationClearAll") { audioEngine.clearAllAutomation(); return {}; }
+
     // ---- per-node insert FX ----
     if (name == "nodeDeviceAdd")    { nodeDeviceAdd (arg (0).toString(), arg (1).toString()); return {}; }
     if (name == "nodeDeviceRemove") { if (auto* r = audioEngine.rackForNode (arg (0).toString())) r->remove (PluginHost::slotIndex (arg (1).toString())); emitNodeRacks(); return {}; }

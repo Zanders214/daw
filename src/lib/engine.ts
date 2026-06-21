@@ -136,6 +136,14 @@ export const engine = {
   returns: {
     setGain: (idx: number, v: number) => call("returnSetGain", idx, v),
   },
+  automation: {
+    // Replace one node+param breakpoint envelope (points = AutoPoint[] {t,v}).
+    // Only enabled lanes are pushed; the engine evaluates them per audio block.
+    set: (nodeId: string, paramId: string, points: { t: number; v: number }[]) =>
+      call("automationSet", nodeId, paramId, points),
+    clear: (nodeId: string, paramId: string) => call("automationClear", nodeId, paramId),
+    clearAll: () => call("automationClearAll"),
+  },
   node: {
     // Per-node insert FX (nodeId = track id | group id | "return-N"; key = eq/tape/pre).
     add: (nodeId: string, key: DeviceKey) => call("nodeDeviceAdd", nodeId, key),
