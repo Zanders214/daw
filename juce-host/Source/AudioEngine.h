@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include "TrackChannel.h"
+#include "GroupBus.h"
 #include <array>
 #include <atomic>
 
@@ -66,6 +67,15 @@ public:
     bool assignTrackFile (const juce::String& id, const juce::File& file);
     void clearTrackFile  (const juce::String& id);
 
+    // Group sub-mix buses (created on demand, keyed by the UI's group ids).
+    void setTrackGroup (const juce::String& trackId, const juce::String& groupId); // "" = master
+    void setGroupGain  (const juce::String& groupId, float gainLinear);
+    void setGroupPan   (const juce::String& groupId, float pan);
+    void setGroupMute  (const juce::String& groupId, bool muted);
+    void setGroupSolo  (const juce::String& groupId, bool soloed);
+    /** Per-group meter levels { id: 0..1 } for the state event. */
+    juce::var buildGroupLevels();
+
     void setMasterVolume (float v) { masterVolume.store (juce::jlimit (0.0f, 2.0f, v)); }
     float getMasterVolume() const { return masterVolume.load(); }
     void setMasterPan (float v) { masterPan.store (juce::jlimit (0.0f, 1.0f, v)); }
@@ -108,7 +118,9 @@ private:
     void prepareSlot (int slot);
     juce::AudioPluginInstance* getInstance (int slot) const;
     TrackChannel& ensureTrack (const juce::String& id);
+    GroupBus& ensureGroup (const juce::String& id);
     void recomputeAnySolo();
+    void recomputeAnyGroupSolo();
     double beatsToSeconds (double beats) const;
 
     static constexpr int numSlots = 3;
@@ -137,7 +149,10 @@ private:
     juce::CriticalSection tracksLock;
     juce::OwnedArray<TrackChannel> tracks;
     juce::HashMap<juce::String, TrackChannel*> trackById;
+    juce::OwnedArray<GroupBus> groups;       // sub-mix buses (created on demand)
+    juce::HashMap<juce::String, GroupBus*> groupById;
     std::atomic<int> anySolo { 0 };          // cached count of soloed tracks
+    std::atomic<int> anyGroupSolo { 0 };     // cached count of soloed groups
     std::atomic<float> masterVolume { 1.0f };
     std::atomic<float> masterPan { 0.5f };
 

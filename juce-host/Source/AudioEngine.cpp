@@ -226,6 +226,50 @@ void AudioEngine::setTrackMute (const String& id, bool muted)       { ensureTrac
 void AudioEngine::setTrackSolo (const String& id, bool soloed)      { ensureTrack (id).solo.store (soloed); recomputeAnySolo(); }
 void AudioEngine::setTrackArm  (const String& id, bool armed)       { ensureTrack (id).arm.store (armed); }
 
+GroupBus& AudioEngine::ensureGroup (const String& id)
+{
+    const ScopedLock sl (tracksLock);
+    if (auto* existing = groupById[id])
+        return *existing;
+
+    auto* g = groups.add (new GroupBus (id));
+    groupById.set (id, g);
+    if (currentSampleRate > 0.0)
+        g->prepare (currentBlockSize);
+    return *g;
+}
+
+void AudioEngine::recomputeAnyGroupSolo()
+{
+    const ScopedLock sl (tracksLock);
+    int count = 0;
+    for (auto* g : groups)
+        if (g->solo.load())
+            ++count;
+    anyGroupSolo.store (count);
+}
+
+void AudioEngine::setTrackGroup (const String& trackId, const String& groupId)
+{
+    auto& t = ensureTrack (trackId);
+    t.group.store (groupId.isEmpty() ? nullptr : &ensureGroup (groupId));
+}
+
+void AudioEngine::setGroupGain (const String& groupId, float gainLinear) { ensureGroup (groupId).gain.store (jlimit (0.0f, 4.0f, gainLinear)); }
+void AudioEngine::setGroupPan  (const String& groupId, float pan)        { ensureGroup (groupId).pan.store (jlimit (0.0f, 1.0f, pan)); }
+void AudioEngine::setGroupMute (const String& groupId, bool muted)       { ensureGroup (groupId).mute.store (muted); }
+void AudioEngine::setGroupSolo (const String& groupId, bool soloed)      { ensureGroup (groupId).solo.store (soloed); recomputeAnyGroupSolo(); }
+
+var AudioEngine::buildGroupLevels()
+{
+    auto* obj = new DynamicObject();
+    const ScopedTryLock stl (tracksLock);
+    if (stl.isLocked())
+        for (auto* g : groups)
+            obj->setProperty (Identifier (g->getId()), (double) g->level.load());
+    return var (obj);
+}
+
 bool AudioEngine::assignTrackFile (const String& id, const File& file)
 {
     auto& ch = ensureTrack (id);
@@ -454,6 +498,8 @@ void AudioEngine::audioDeviceAboutToStart (AudioIODevice* device)
         const ScopedLock sl (tracksLock);
         for (auto* t : tracks)
             t->prepare (currentSampleRate, currentBlockSize);
+        for (auto* g : groups)
+            g->prepare (currentBlockSize);
     }
 }
 
@@ -496,18 +542,32 @@ void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputCha
                 scratch.copyFrom (ch, 0, inputChannelData[ch], numSamples);
     }
 
-    // 2) Sum the multitrack mixer onto the bus (try-lock so loads never block
-    //    audio). Muted / soloed-out tracks still advance to stay in sync.
+    // 2) Sum the multitrack mixer. Each track renders into its group's buffer (or
+    //    straight to the master scratch when ungrouped); each group then applies
+    //    its own gain/pan, meters, and sums into the master. Try-lock so loads
+    //    never block audio. Muted / soloed-out tracks still advance to stay in sync.
     {
         const ScopedTryLock stl (tracksLock);
         if (stl.isLocked())
         {
-            const bool soloing = anySolo.load() > 0;
+            for (auto* g : groups)
+                g->clearBuffer (numSamples);
+
+            const bool trackSoloing = anySolo.load() > 0;
+            const bool groupSoloing = anyGroupSolo.load() > 0;
+
             for (auto* t : tracks)
             {
-                const bool audible = ! t->mute.load() && (! soloing || t->solo.load());
-                t->renderInto (scratch, numSamples, audible);
+                auto* g = t->group.load();
+                const bool trackOK = ! t->mute.load() && (! trackSoloing || t->solo.load());
+                const bool groupOK = (g == nullptr) ? (! groupSoloing)
+                                                    : (! g->mute.load() && (! groupSoloing || g->solo.load()));
+                AudioBuffer<float>& dest = (g != nullptr) ? g->getBuffer() : scratch;
+                t->renderInto (dest, numSamples, trackOK && groupOK);
             }
+
+            for (auto* g : groups)
+                g->sumInto (scratch, numSamples);
         }
     }
 

@@ -47,6 +47,7 @@ var EngineController::buildState()
     obj->setProperty ("master", (double) audioEngine.getMasterLevel());
     obj->setProperty ("reel", reel);
     obj->setProperty ("levels", audioEngine.buildTrackLevels());
+    obj->setProperty ("groupLevels", audioEngine.buildGroupLevels());
     obj->setProperty ("loopStart", audioEngine.getLoopStart());
     obj->setProperty ("loopEnd", audioEngine.getLoopEnd());
     obj->setProperty ("tempo", audioEngine.getTempo());
@@ -263,8 +264,15 @@ var EngineController::handle (const String& name, const Array<var>& args)
     if (name == "mixerSetTrackMute")    { audioEngine.setTrackMute (arg (0).toString(), (bool) arg (1)); return {}; }
     if (name == "mixerSetTrackSolo")    { audioEngine.setTrackSolo (arg (0).toString(), (bool) arg (1)); return {}; }
     if (name == "mixerSetTrackArm")     { audioEngine.setTrackArm  (arg (0).toString(), (bool) arg (1)); return {}; }
+    if (name == "mixerSetTrackGroup")   { audioEngine.setTrackGroup (arg (0).toString(), arg (1).toString()); return {}; }
     if (name == "mixerSetMasterVolume") { audioEngine.setMasterVolume ((float) (double) arg (0)); return {}; }
     if (name == "mixerSetMasterPan")    { audioEngine.setMasterPan ((float) (double) arg (0)); return {}; }
+
+    // ---- group sub-mix buses ----
+    if (name == "groupSetGain") { audioEngine.setGroupGain (arg (0).toString(), (float) (double) arg (1)); return {}; }
+    if (name == "groupSetPan")  { audioEngine.setGroupPan  (arg (0).toString(), (float) (double) arg (1)); return {}; }
+    if (name == "groupSetMute") { audioEngine.setGroupMute (arg (0).toString(), (bool) arg (1)); return {}; }
+    if (name == "groupSetSolo") { audioEngine.setGroupSolo (arg (0).toString(), (bool) arg (1)); return {}; }
 
     // ---- per-track audio source ----
     if (name == "trackAssignFile") { audioEngine.assignTrackFile (arg (0).toString(), File (arg (1).toString())); emitTrackInfo(); return {}; }

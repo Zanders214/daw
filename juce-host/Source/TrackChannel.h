@@ -3,6 +3,8 @@
 #include <JuceHeader.h>
 #include <atomic>
 
+class GroupBus;
+
 /**
  * TrackChannel — one channel of the multitrack mixer. Owns an optional audio
  * source (a file played through an AudioTransportSource, which gives free
@@ -56,6 +58,9 @@ public:
     std::atomic<bool>  solo  { false };
     std::atomic<bool>  arm   { false };
     std::atomic<float> level { 0.0f };   // decaying peak meter (0..1)
+
+    /** Sub-mix routing: which group bus this track sums into (null = master). */
+    std::atomic<GroupBus*> group { nullptr };
 
 private:
     juce::String id;

@@ -8,7 +8,7 @@
  * cycle with the store, which imports this module for `newSession`).
  */
 import { engine, engineActive } from "./engine";
-import { TRACK_DEFS } from "../data/seed";
+import { TRACK_DEFS, GROUP_DEFS } from "../data/seed";
 import { DEFAULT_VOLUME } from "./constants";
 import type { DeviceKey } from "../types";
 import type { DawState } from "../store/useDawStore";
@@ -35,6 +35,16 @@ export function applySessionToEngine(s: DawState): void {
     const tf = s.trackFiles[t.id];
     if (tf?.loaded && tf.path) engine.track.assignFile(t.id, tf.path);
     else engine.track.clearFile(t.id);
+  });
+
+  // Group sub-mix buses: assign each track to its group (static, from GROUP_DEFS)
+  // and re-assert each group's gain/pan/mute/solo.
+  GROUP_DEFS.forEach((g) => {
+    g.tracks.forEach((tid) => engine.mixer.setTrackGroup(tid, g.id));
+    engine.group.setGain(g.id, s.groupVolumes[g.id] ?? 1);
+    engine.group.setPan(g.id, s.groupPans[g.id] ?? 0.5);
+    engine.group.setMute(g.id, !!s.groupMutes[g.id]);
+    engine.group.setSolo(g.id, !!s.groupSolos[g.id]);
   });
 
   (Object.keys(s.devices) as DeviceKey[]).forEach((k) =>
