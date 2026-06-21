@@ -16,7 +16,10 @@ namespace
         return {
             "transportSetPlaying", "transportStop", "transportSetPosition",
             "transportSetLooping", "transportSetRecording", "transportSetTempo",
+            "transportSetLoopStart", "transportSetLoopEnd",
             "mixerSetTrackVolume", "mixerSetTrackMute", "mixerSetTrackSolo", "mixerSetTrackArm",
+            "mixerSetMasterVolume",
+            "trackAssignFile", "trackPickFile", "trackClearFile",
             "deviceSetBypass", "deviceSetParam", "deviceOpenEditor", "deviceCloseEditor", "deviceListParams",
             "pluginsScan", "pluginsAssign", "pluginsPickFile",
             "audioGetDevices", "audioSetSettings",

@@ -60,7 +60,17 @@ export interface EngineState {
   master?: number;
   reel?: number;
   levels?: Record<string, number>;
+  loopStart?: number;
+  loopEnd?: number;
+  tempo?: number;
+  masterVolume?: number;
 }
+export interface TrackInfo {
+  loaded: boolean;
+  name?: string;
+  path?: string;
+}
+export type TrackInfos = Record<string, TrackInfo>;
 export interface EngineParam {
   id: string;
   name: string;
@@ -83,12 +93,20 @@ export const engine = {
     setLooping: (v: boolean) => call("transportSetLooping", v),
     setRecording: (v: boolean) => call("transportSetRecording", v),
     setTempo: (bpm: number) => call("transportSetTempo", bpm),
+    setLoopStart: (beats: number) => call("transportSetLoopStart", beats),
+    setLoopEnd: (beats: number) => call("transportSetLoopEnd", beats),
   },
   mixer: {
     setTrackVolume: (id: string, v: number) => call("mixerSetTrackVolume", id, v),
     setTrackMute: (id: string, v: boolean) => call("mixerSetTrackMute", id, v),
     setTrackSolo: (id: string, v: boolean) => call("mixerSetTrackSolo", id, v),
     setTrackArm: (id: string, v: boolean) => call("mixerSetTrackArm", id, v),
+    setMasterVolume: (v: number) => call("mixerSetMasterVolume", v),
+  },
+  track: {
+    assignFile: (id: string, path: string) => call("trackAssignFile", id, path),
+    pickFile: (id: string) => call("trackPickFile", id),
+    clearFile: (id: string) => call("trackClearFile", id),
   },
   device: {
     setBypass: (key: DeviceKey, bypassed: boolean) => call("deviceSetBypass", key, bypassed),
@@ -116,6 +134,7 @@ export interface EngineHandlers {
   onState?: (s: EngineState) => void;
   onParams?: (p: { key: DeviceKey; params: EngineParam[] }) => void;
   onPlugins?: (p: PluginStatuses) => void;
+  onTracks?: (t: TrackInfos) => void;
   onReady?: (info: unknown) => void;
 }
 
@@ -128,6 +147,7 @@ export function subscribeEngine(h: EngineHandlers): () => void {
   if (h.onState) add("engineState", (p) => h.onState!(p as EngineState));
   if (h.onParams) add("engineParams", (p) => h.onParams!(p as { key: DeviceKey; params: EngineParam[] }));
   if (h.onPlugins) add("enginePlugins", (p) => h.onPlugins!(p as PluginStatuses));
+  if (h.onTracks) add("engineTracks", (p) => h.onTracks!(p as TrackInfos));
   if (h.onReady) add("engineReady", (p) => h.onReady!(p));
   return () => {
     if (b.removeEventListener) tokens.forEach((t) => b.removeEventListener!(t));
