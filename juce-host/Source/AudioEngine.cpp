@@ -364,6 +364,34 @@ var AudioEngine::listParams (int slot)
     return out;
 }
 
+String AudioEngine::getPluginState (int slot) const
+{
+    auto* inst = getInstance (slot);
+    if (inst == nullptr)
+        return {};
+
+    // Guard against a concurrent processBlock (audio thread try-locks chainLock).
+    const ScopedLock sl (chainLock);
+    juce::MemoryBlock mb;
+    inst->getStateInformation (mb);
+    return mb.toBase64Encoding();
+}
+
+bool AudioEngine::setPluginState (int slot, const String& base64)
+{
+    auto* inst = getInstance (slot);
+    if (inst == nullptr || base64.isEmpty())
+        return false;
+
+    juce::MemoryBlock mb;
+    if (! mb.fromBase64Encoding (base64) || mb.getSize() == 0)
+        return false;
+
+    const ScopedLock sl (chainLock);
+    inst->setStateInformation (mb.getData(), (int) mb.getSize());
+    return true;
+}
+
 void AudioEngine::openEditor (int slot)
 {
     auto* inst = getInstance (slot);

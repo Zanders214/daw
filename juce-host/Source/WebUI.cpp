@@ -23,7 +23,9 @@ namespace
             "deviceSetBypass", "deviceSetParam", "deviceOpenEditor", "deviceCloseEditor", "deviceListParams",
             "pluginsScan", "pluginsAssign", "pluginsPickFile",
             "audioGetDevices", "audioSetSettings",
-            "sourcePickFile", "sourceSetInputMode"
+            "sourcePickFile", "sourceSetInputMode",
+            "sessionSave", "sessionLoad", "sessionList", "sessionDelete",
+            "sessionExport", "sessionImport", "prefsSave", "prefsLoad"
         };
     }
 

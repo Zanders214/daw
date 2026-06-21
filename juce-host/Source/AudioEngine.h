@@ -82,6 +82,12 @@ public:
     bool isBypassed (int slot) const { return (slot >= 0 && slot < 3) && bypassed[(size_t) slot].load(); }
     void setParam (int slot, const juce::String& paramId, float value01);
     juce::var listParams (int slot);
+
+    /** Full opaque plugin state as base64 (for session persistence). */
+    juce::String getPluginState (int slot) const;
+    /** Restore opaque plugin state from base64; false if the slot is empty/invalid. */
+    bool setPluginState (int slot, const juce::String& base64);
+
     void openEditor (int slot);
     void closeEditor (int slot);
 

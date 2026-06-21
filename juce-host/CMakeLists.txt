@@ -42,7 +42,8 @@ target_sources(ZandersDAW PRIVATE
     Source/EngineController.cpp
     Source/AudioEngine.cpp
     Source/TrackChannel.cpp
-    Source/PluginHost.cpp)
+    Source/PluginHost.cpp
+    Source/SessionStore.cpp)
 
 # ----------------------------------------------------------------------------
 # Bundle the built web UI (Vite `dist/`) as BinaryData.
