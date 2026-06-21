@@ -404,11 +404,12 @@ var AudioEngine::buildNodeRackStates()
     auto addRack = [obj] (const String& nodeId, DeviceRack& r)
     {
         auto* no = new DynamicObject();
+        const var noVar (no); // establish ownership immediately so `no` can't leak when unused
         bool any = false;
         for (int s = 0; s < DeviceRack::numSlots; ++s)
             if (r.has (s)) { no->setProperty (PluginHost::slotKey (s), r.getState (s)); any = true; }
         if (any)
-            obj->setProperty (Identifier (nodeId), var (no));
+            obj->setProperty (Identifier (nodeId), noVar);
     };
 
     for (auto* t : tracks) addRack (t->getId(), t->inserts);

@@ -20,15 +20,15 @@ public:
     juce::File sessionFile (const juce::String& name) const;
     juce::File getPrefsFile() const;      // ZandersDAW/prefs.json
 
-    bool writeSession (const juce::String& name, const juce::var& data);
-    juce::var readSession (const juce::String& name);   // {} if missing/invalid
-    bool deleteSession (const juce::String& name);
+    bool writeSession (const juce::String& name, const juce::var& data) const;
+    juce::var readSession (const juce::String& name) const;   // {} if missing/invalid
+    bool deleteSession (const juce::String& name) const;
     /** Saved sessions as an array of { name, savedAt }, excluding reserved
         names whose file stem starts with '_'. */
-    juce::var listSessions();
+    juce::var listSessions() const;
 
-    bool writePrefs (const juce::var& data);
-    juce::var readPrefs();                               // {} if missing/invalid
+    bool writePrefs (const juce::var& data) const;
+    juce::var readPrefs() const;                               // {} if missing/invalid
 
     /** Map an arbitrary session name to a safe, stable filename stem. */
     static juce::String sanitize (const juce::String& name);

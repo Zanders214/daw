@@ -18,7 +18,7 @@ public:
 
         // The UI is authored at 1920×1080; open a bit smaller and let it scale.
         centreWithSize (1440, 810);
-        setVisible (true);
+        Component::setVisible (true);
     }
 
     void closeButtonPressed() override

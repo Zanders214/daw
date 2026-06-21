@@ -43,7 +43,7 @@ private:
     // Session persistence. The `ui` payload is owned by the web; this class adds
     // the `engine` payload (full plugin state) and does the file I/O.
     juce::var buildSession (const juce::String& name, const juce::var& uiPayload);
-    juce::var buildEnginePayload();                       // { plugins: { slot: base64 } }
+    juce::var buildEnginePayload(); // full plugin state, keyed by slot, base64-encoded
     void applyEnginePayload (const juce::var& enginePayload);
     void sessionExport (const juce::String& name, const juce::var& uiPayload);
     void sessionImport();
