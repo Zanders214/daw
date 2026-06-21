@@ -101,7 +101,7 @@ std::unique_ptr<WebBrowserComponent> createWebView (EngineController& controller
         options = options.withNativeFunction (
             Identifier (name),
             [&controller, name] (const Array<var>& args,
-                                 WebBrowserComponent::NativeFunctionCompletion completion)
+                                 const WebBrowserComponent::NativeFunctionCompletion& completion)
             {
                 completion (controller.handle (name, args));
             });

@@ -39,7 +39,7 @@ String PluginHost::expectedPluginName (int index)
     }
 }
 
-bool PluginHost::describeFile (const File& file, PluginDescription& outDesc)
+bool PluginHost::describeFile (const File& file, PluginDescription& outDesc) const
 {
     OwnedArray<PluginDescription> found;
     for (auto* format : formatManager.getFormats())
@@ -54,7 +54,7 @@ bool PluginHost::describeFile (const File& file, PluginDescription& outDesc)
 }
 
 void PluginHost::createAsync (const PluginDescription& desc, double sampleRate, int blockSize,
-                              CreateCallback cb)
+                              const CreateCallback& cb)
 {
     formatManager.createPluginInstanceAsync (
         desc, sampleRate, blockSize,
@@ -64,21 +64,22 @@ void PluginHost::createAsync (const PluginDescription& desc, double sampleRate, 
         });
 }
 
-void PluginHost::scanDefaultLocations (const std::function<void (int, File)>& onFound)
+static void reportMatchingSlots (const File& f, const std::function<void (int, File)>& onFound)
+{
+    const auto name = f.getFileNameWithoutExtension();
+    for (int slot = 0; slot < PluginHost::numSlots; ++slot)
+        if (name.containsIgnoreCase (PluginHost::expectedPluginName (slot)))
+            onFound (slot, f);
+}
+
+void PluginHost::scanDefaultLocations (const std::function<void (int, File)>& onFound) const
 {
     for (auto* format : formatManager.getFormats())
     {
         const auto locations = format->getDefaultLocationsToSearch();
         const auto files = format->searchPathsForPlugins (locations, true, false);
-
         for (const auto& path : files)
-        {
-            File f (path);
-            const auto name = f.getFileNameWithoutExtension();
-            for (int slot = 0; slot < numSlots; ++slot)
-                if (name.containsIgnoreCase (expectedPluginName (slot)))
-                    onFound (slot, f);
-        }
+            reportMatchingSlots (File (path), onFound);
     }
 }
 
@@ -96,12 +97,12 @@ void PluginHost::loadConfig()
         return;
 
     auto json = JSON::parse (file);
-    if (auto* obj = json.getDynamicObject())
+    if (const auto* obj = json.getDynamicObject())
         for (int i = 0; i < numSlots; ++i)
             slotPaths[i] = obj->getProperty (slotKey (i)).toString();
 }
 
-void PluginHost::saveConfig()
+void PluginHost::saveConfig() const
 {
     auto* obj = new DynamicObject();
     for (int i = 0; i < numSlots; ++i)

@@ -139,7 +139,9 @@ var AudioEngine::getDevicesInfo()
     obj->setProperty ("sampleRate", setup.sampleRate);
     obj->setProperty ("bufferSize", setup.bufferSize);
 
-    Array<var> rates, sizes, outputs;
+    Array<var> rates;
+    Array<var> sizes;
+    Array<var> outputs;
     if (auto* dev = deviceManager.getCurrentAudioDevice())
     {
         for (auto r : dev->getAvailableSampleRates()) rates.add (r);
@@ -291,7 +293,7 @@ void AudioEngine::clearAllAutomation() { automation.clearAll(); }
 AutomationStore::Target AudioEngine::resolveAutoTarget (const String& nodeId, const String& paramId)
 {
     AutomationStore::Target t;
-    const auto f32 = [&t] (std::atomic<float>* p, float lo, float hi) -> AutomationStore::Target
+    const auto f32 = [&t] (std::atomic<float>* p, float lo, float hi)
     {
         t.kind = AutomationStore::Kind::f32;
         t.f32 = p;
@@ -577,7 +579,7 @@ bool AudioEngine::setPluginState (int slot, const String& base64)
         return false;
 
     juce::MemoryBlock mb;
-    if (! mb.fromBase64Encoding (base64) || mb.getSize() == 0)
+    if (! mb.fromBase64Encoding (base64) || mb.isEmpty())
         return false;
 
     const ScopedLock sl (chainLock);
