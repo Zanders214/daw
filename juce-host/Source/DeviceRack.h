@@ -119,6 +119,25 @@ public:
                     inst->processBlock (buf, midi);
     }
 
+    /** Automation: set a hosted parameter by index (normalized 0..1) under a
+        try-lock; no-op if the slot/index is empty or a load is in progress. Uses
+        setValue (not setValueNotifyingHost) — called every block, so it must not
+        flood host-notification listeners. */
+    void setParamValue (int slot, int paramIndex, float value01)
+    {
+        if (! juce::isPositiveAndBelow (slot, numSlots))
+            return;
+        const juce::ScopedTryLock stl (lock);
+        if (! stl.isLocked())
+            return;
+        if (auto* inst = chain[(size_t) slot].get())
+        {
+            const auto& params = inst->getParameters();
+            if (juce::isPositiveAndBelow (paramIndex, params.size()))
+                params[paramIndex]->setValue (juce::jlimit (0.0f, 1.0f, value01));
+        }
+    }
+
 private:
     void prepareInstance (juce::AudioPluginInstance* inst)
     {

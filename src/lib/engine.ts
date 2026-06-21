@@ -151,6 +151,9 @@ export const engine = {
     setBypass: (nodeId: string, key: DeviceKey, b: boolean) => call("nodeDeviceSetBypass", nodeId, key, b),
     openEditor: (nodeId: string, key: DeviceKey) => call("nodeDeviceOpenEditor", nodeId, key),
     closeEditor: (nodeId: string, key: DeviceKey) => call("nodeDeviceCloseEditor", nodeId, key),
+    // Params of one node device, each with a ready-to-use automation id ("dev:slot:i").
+    listParams: (nodeId: string, key: DeviceKey) =>
+      call("nodeDeviceListParams", nodeId, key) as Promise<{ id: string; name: string }[] | undefined>,
   },
   track: {
     assignFile: (id: string, path: string) => call("trackAssignFile", id, path),

@@ -23,7 +23,7 @@ namespace
             "mixerSetTrackSend", "returnSetGain",
             "automationSet", "automationClear", "automationClearAll",
             "nodeDeviceAdd", "nodeDeviceRemove", "nodeDeviceSetBypass",
-            "nodeDeviceOpenEditor", "nodeDeviceCloseEditor",
+            "nodeDeviceOpenEditor", "nodeDeviceCloseEditor", "nodeDeviceListParams",
             "trackAssignFile", "trackPickFile", "trackClearFile",
             "deviceSetBypass", "deviceSetParam", "deviceOpenEditor", "deviceCloseEditor", "deviceListParams",
             "pluginsScan", "pluginsAssign", "pluginsPickFile",

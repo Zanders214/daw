@@ -1,6 +1,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "DeviceRack.h"
 #include <atomic>
 #include <map>
 #include <vector>
@@ -21,16 +22,21 @@ class AutomationStore
 public:
     struct Point { double t; float v; };
 
-    /** Where an evaluated value is written. `f32` is a raw pointer to the same
-        atomic the manual setter writes (gain / pan / send / return / master).
-        `none` is inert (envelope stored but not applied — e.g. legacy params). */
-    enum class Kind { none, f32 };
+    /** Where an evaluated value is written. `f32` writes the same atomic the
+        manual setter does (gain / pan / send / return / master). `param` writes
+        a hosted plugin parameter via a stable DeviceRack* (the instance is
+        looked up under the rack's lock at apply time, so a removed device simply
+        no-ops — no dangling pointer). `none` is inert (e.g. legacy params). */
+    enum class Kind { none, f32, param };
     struct Target
     {
         Kind kind { Kind::none };
         std::atomic<float>* f32 { nullptr };
         float lo { 0.0f };
         float hi { 1.0f };
+        DeviceRack* rack { nullptr };
+        int slot { 0 };
+        int paramIndex { 0 };
     };
 
     // ---- message thread ----
@@ -66,9 +72,17 @@ public:
         for (auto& entry : lanes)
         {
             const Lane& lane = entry.second;
-            if (lane.target.kind == Kind::f32 && lane.target.f32 != nullptr)
-                lane.target.f32->store (juce::jlimit (lane.target.lo, lane.target.hi,
-                                                      valueAt (lane.points, beats)));
+            const float v = valueAt (lane.points, beats);
+            if (lane.target.kind == Kind::f32)
+            {
+                if (lane.target.f32 != nullptr)
+                    lane.target.f32->store (juce::jlimit (lane.target.lo, lane.target.hi, v));
+            }
+            else if (lane.target.kind == Kind::param)
+            {
+                if (lane.target.rack != nullptr)
+                    lane.target.rack->setParamValue (lane.target.slot, lane.target.paramIndex, v);
+            }
         }
     }
 

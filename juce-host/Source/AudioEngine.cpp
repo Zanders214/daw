@@ -300,6 +300,23 @@ AutomationStore::Target AudioEngine::resolveAutoTarget (const String& nodeId, co
         return t;
     };
 
+    // Device (plugin) param: "dev:<slot>:<index>" on any node with a rack
+    // (track / group / return). The rack pointer is stable; the instance is
+    // looked up under its lock at apply time, so a removed device just no-ops.
+    if (paramId.startsWith ("dev:"))
+    {
+        auto toks = StringArray::fromTokens (paramId, ":", "");
+        if (toks.size() == 3)
+            if (auto* rack = rackForNode (nodeId))
+            {
+                t.kind = AutomationStore::Kind::param;
+                t.rack = rack;
+                t.slot = toks[1].getIntValue();
+                t.paramIndex = toks[2].getIntValue();
+            }
+        return t;
+    }
+
     if (nodeId == "master")
     {
         if (paramId == "mvol") return f32 (&masterVolume, 0.0f, 2.0f);

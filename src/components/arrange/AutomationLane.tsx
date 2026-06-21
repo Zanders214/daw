@@ -1,10 +1,14 @@
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useDawStore } from "../../store/useDawStore";
 import { getAutoPts, valAt, fmtAuto } from "../../lib/automation";
+import { engine } from "../../lib/engine";
+import type { NodeDevice } from "../../lib/engine";
 import { hexA } from "../../lib/color";
 import { TOTAL_BEATS } from "../../lib/constants";
 import type { AutoPoint, AutomationParam } from "../../types";
+
+const NO_DEVICES: NodeDevice[] = [];
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
 /** Minimum time gap kept between adjacent breakpoints so they never cross. */
@@ -50,6 +54,56 @@ function AutoValueReadout({ nodeId, color }: { nodeId: string; color: string }) 
   );
 }
 
+/** Dropdown to automate a hosted device parameter on this node. Enumerates the
+ *  params of each device in the node's insert rack (each carries a ready-to-use
+ *  "dev:slot:i" id). Renders nothing in the browser dev-shell / when empty. */
+function DeviceParamSelect({ nodeId }: { nodeId: string }) {
+  const { devices, param, setAutoParam } = useDawStore(
+    useShallow((s) => ({
+      devices: s.nodeRacks[nodeId] ?? NO_DEVICES,
+      param: s.autoParam[nodeId] || "vol",
+      setAutoParam: s.setAutoParam,
+    })),
+  );
+  const [opts, setOpts] = useState<{ id: string; label: string }[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const all: { id: string; label: string }[] = [];
+      for (const d of devices) {
+        const params = await engine.node.listParams(nodeId, d.key);
+        if (params) for (const p of params) all.push({ id: p.id, label: `${d.name ?? d.key} · ${p.name}` });
+      }
+      if (!cancelled) setOpts(all);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [nodeId, devices]);
+
+  if (opts.length === 0) return null;
+  const isDev = param.startsWith("dev:");
+  return (
+    <select
+      value={isDev ? param : ""}
+      onClick={(e) => e.stopPropagation()}
+      onChange={(e) => {
+        if (e.target.value) setAutoParam(nodeId, e.target.value);
+      }}
+      title="Automate a device parameter"
+      style={{ ...chipStyle(isDev), appearance: "none", maxWidth: 140 }}
+    >
+      <option value="">FX…</option>
+      {opts.map((o) => (
+        <option key={o.id} value={o.id}>
+          {o.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 /** Header row (param picker + live readout) for a node's automation lane. */
 export function AutomationChips({
   nodeId,
@@ -90,6 +144,7 @@ export function AutomationChips({
             {l}
           </button>
         ))}
+        <DeviceParamSelect nodeId={nodeId} />
       </div>
       <span style={{ flex: 1 }} />
       <AutoValueReadout nodeId={nodeId} color={color} />
