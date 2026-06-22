@@ -33,7 +33,7 @@ declare global {
 }
 
 function backend(): JuceBackend | undefined {
-  return typeof globalThis.window === "undefined" ? undefined : globalThis.window.__JUCE__?.backend;
+  return globalThis.window === undefined ? undefined : globalThis.window.__JUCE__?.backend;
 }
 
 /** True when running inside the JUCE host (native engine available). */

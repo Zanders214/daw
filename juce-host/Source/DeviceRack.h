@@ -40,7 +40,7 @@ public:
         sampleRate = sr;
         blockSize = bs;
         const juce::ScopedLock sl (lock);
-        for (auto* d : devices)
+        for (const auto* d : devices)
             prepareInstance (d->instance.get());
     }
 

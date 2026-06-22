@@ -13,6 +13,19 @@ import type { Clip, Track } from "../../types";
 /** Grid step in bars: whole bars, or quarter-bar when Alt (fine) is held. */
 const step = (fine: boolean) => (fine ? 0.25 : 1);
 
+/** One selected clip's original position, captured before a multi-clip drag. */
+type ClipSnapshot = { trackId: string; clipId: string; startBar: number };
+
+/** Snapshot the start bars of every clip in `track` whose id is in `selIds`. */
+const snapshotSelectedInTrack = (track: Track, selIds: string[]): ClipSnapshot[] =>
+  track.clips
+    .filter((cc) => selIds.includes(cc.id))
+    .map((cc) => ({ trackId: track.id, clipId: cc.id, startBar: cc.bar }));
+
+/** Apply a snapped bar `delta` to a snapshot, yielding setClipBars updates. */
+const shiftSnapshot = (snapshot: ClipSnapshot[], delta: number) =>
+  snapshot.map((u) => ({ trackId: u.trackId, clipId: u.clipId, bar: u.startBar + delta }));
+
 export function TrackLane({ track }: Readonly<{ track: Track }>) {
   const id = track.id;
   const {
@@ -79,13 +92,13 @@ export function TrackLane({ track }: Readonly<{ track: Track }>) {
     if (multi) {
       // Move every selected clip (across tracks) by the same snapped bar delta.
       const snapshot = useDawStore.getState().tracks.flatMap((t) =>
-        t.clips.filter((cc) => selClips.includes(cc.id)).map((cc) => ({ trackId: t.id, clipId: cc.id, startBar: cc.bar })),
+        snapshotSelectedInTrack(t, selClips),
       );
       startDrag((ev) => {
         if (!moved && Math.abs(ev.clientX - startX) < 3) return;
         moved = true;
         const delta = snap(barsAt(ev.clientX, rect) - startBar, step(ev.altKey));
-        setClipBars(snapshot.map((u) => ({ trackId: u.trackId, clipId: u.clipId, bar: u.startBar + delta })));
+        setClipBars(shiftSnapshot(snapshot, delta));
       });
       return;
     }
@@ -95,8 +108,8 @@ export function TrackLane({ track }: Readonly<{ track: Track }>) {
       if (!moved && Math.abs(ev.clientX - startX) < 3) return; // preserve plain click→select
       moved = true;
       const bar = snap(barsAt(ev.clientX, rect) - grabOffset, step(ev.altKey));
-      const destEl = document.elementFromPoint(ev.clientX, ev.clientY)?.closest("[data-track-id]");
-      const dest = destEl?.getAttribute("data-track-id");
+      const destEl = document.elementFromPoint(ev.clientX, ev.clientY)?.closest<HTMLElement>("[data-track-id]");
+      const dest = destEl?.dataset.trackId;
       if (dest && dest !== curTrack) {
         moveClipToTrack(curTrack, c.id, dest, bar);
         curTrack = dest;
@@ -155,11 +168,12 @@ export function TrackLane({ track }: Readonly<{ track: Track }>) {
     return map;
   }, [track, isMidi]);
 
+  const restingBg = selected ? "rgba(94,147,255,0.05)" : "transparent";
   const laneStyle: React.CSSProperties = {
     position: "relative",
     height: 108,
     borderBottom: "1px solid var(--layer-2)",
-    backgroundColor: over ? hexA(track.color, 0.12) : selected ? "rgba(94,147,255,0.05)" : "transparent",
+    backgroundColor: over ? hexA(track.color, 0.12) : restingBg,
     outline: over ? `1px dashed ${track.color}` : "none",
     outlineOffset: -2,
   };
@@ -210,7 +224,6 @@ export function TrackLane({ track }: Readonly<{ track: Track }>) {
             onPointerDown={startMove(c)}
             onDoubleClick={(e) => { e.stopPropagation(); openEditor(id, c.id); }}
             onContextMenu={(e) => { e.preventDefault(); removeClip(id, c.id); }}
-            role="button"
             tabIndex={0}
             onKeyDown={onClipKey(c)}
             title="Drag to move · edges to resize · Del to delete · ⌘/Ctrl+D to duplicate"

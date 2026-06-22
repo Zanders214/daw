@@ -26,7 +26,9 @@ public:
     const juce::String& getId() const noexcept { return id; }
 
     // ---- metadata (message thread only; for the arrange/mixer + session) ----
-    juce::String displayName, type, color;
+    juce::String displayName;
+    juce::String type;
+    juce::String color;
     void setMeta (const juce::String& n, const juce::String& t, const juce::String& c)
     {
         if (n.isNotEmpty()) displayName = n;

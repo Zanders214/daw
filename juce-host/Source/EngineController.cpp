@@ -459,10 +459,10 @@ std::optional<var> EngineController::handleNodeDevice (const String& name, const
     // remove / set-bypass / open / close editor all act on the same (rack, instance id).
     auto* r = audioEngine.rackForNode (arg (0).toString());
     const String inst = arg (1).toString();
-    if (name == "nodeDeviceRemove")      { if (r != nullptr) r->remove (inst);                    emitNodeRacks(); return var(); }
-    if (name == "nodeDeviceSetBypass")   { if (r != nullptr) r->setBypass (inst, (bool) arg (2)); emitNodeRacks(); return var(); }
-    if (name == "nodeDeviceOpenEditor")  { if (r != nullptr) r->openEditor (inst);  return var(); }
-    if (name == "nodeDeviceCloseEditor") { if (r != nullptr) r->closeEditor (inst); return var(); }
+    if (name == "nodeDeviceRemove")      { if (r != nullptr) { r->remove (inst); }                    emitNodeRacks(); return var(); }
+    if (name == "nodeDeviceSetBypass")   { if (r != nullptr) { r->setBypass (inst, (bool) arg (2)); } emitNodeRacks(); return var(); }
+    if (name == "nodeDeviceOpenEditor")  { if (r != nullptr) { r->openEditor (inst); }  return var(); }
+    if (name == "nodeDeviceCloseEditor") { if (r != nullptr) { r->closeEditor (inst); } return var(); }
     return std::nullopt;
 }
 
@@ -549,7 +549,7 @@ std::optional<var> EngineController::handleSession (const String& name, const Ar
 var EngineController::nodeDeviceListParams (const String& nodeId, const String& instanceId)
 {
     Array<var> out;
-    auto* r = audioEngine.rackForNode (nodeId);
+    const auto* r = audioEngine.rackForNode (nodeId);
     const auto* inst = r != nullptr ? r->get (instanceId) : nullptr;
     if (inst != nullptr)
     {

@@ -131,7 +131,7 @@ function AddDeviceMenu({ nodeId }: Readonly<{ nodeId: string }>) {
       onDrop={(e) => {
         setOver(false);
         const item = getDragItem(e.dataTransfer);
-        if (!item || item.kind !== "fx") return;
+        if (item?.kind !== "fx") return;
         e.preventDefault();
         addNodeDevice(nodeId, deviceDescriptorForItem(item));
       }}

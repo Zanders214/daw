@@ -447,8 +447,8 @@ var AudioEngine::buildNodeRacks()
             obj->setProperty (Identifier (nodeId), var (list));
     };
 
-    for (auto* t : tracks) addRack (t->getId(), t->inserts);
-    for (auto* g : groups) addRack (g->getId(), g->inserts);
+    for (const auto* t : tracks) addRack (t->getId(), t->inserts);
+    for (const auto* g : groups) addRack (g->getId(), g->inserts);
     for (int i = 0; i < numSends; ++i) addRack ("return-" + String (i), returnRacks[(size_t) i]);
     return var (obj);
 }
@@ -475,8 +475,8 @@ var AudioEngine::buildNodeRackStates()
             obj->setProperty (Identifier (nodeId), var (list));
     };
 
-    for (auto* t : tracks) addRack (t->getId(), t->inserts);
-    for (auto* g : groups) addRack (g->getId(), g->inserts);
+    for (const auto* t : tracks) addRack (t->getId(), t->inserts);
+    for (const auto* g : groups) addRack (g->getId(), g->inserts);
     for (int i = 0; i < numSends; ++i) addRack ("return-" + String (i), returnRacks[(size_t) i]);
     return var (obj);
 }
@@ -740,7 +740,7 @@ void AudioEngine::audioDeviceStopped()
         for (const auto* g : groups)
             g->inserts.release();
     }
-    for (auto& r : returnRacks)
+    for (const auto& r : returnRacks)
         r.release();
 }
 

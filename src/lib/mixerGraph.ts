@@ -12,6 +12,7 @@
  */
 import type { DawState } from "../store/useDawStore";
 import { DEFAULT_VOLUME } from "./constants";
+import { whiteNoise } from "./noise";
 import { ensureAudio } from "./audio";
 
 const NUM_RETURNS = 2;
@@ -68,8 +69,6 @@ export function mixSignature(s: DawState): string {
 
 // ---- the graph (needs an AudioContext) ----
 
-type Kind = string;
-
 interface FxChain { input: AudioNode; output: AudioNode; nodes: AudioNode[] }
 
 interface NodeStrip {
@@ -96,7 +95,7 @@ const groups = new Map<string, NodeStrip>();
 const num = (v: number, d: number) => (Number.isFinite(v) ? v : d);
 
 /** Build one device approximation as an {input,output} pair. */
-function buildDevice(c: AudioContext, kind: Kind, preAmount?: number): FxChain {
+function buildDevice(c: AudioContext, kind: string, preAmount?: number): FxChain {
   if (kind === "eq") {
     const low = c.createBiquadFilter();
     low.type = "lowshelf"; low.frequency.value = 120; low.gain.value = 3;
@@ -122,7 +121,7 @@ function buildDevice(c: AudioContext, kind: Kind, preAmount?: number): FxChain {
 }
 
 /** Series-connect a list of device kinds into one FX chain (pass-through if empty). */
-function buildChain(c: AudioContext, kinds: { kind: Kind; preAmount?: number }[]): FxChain {
+function buildChain(c: AudioContext, kinds: { kind: string; preAmount?: number }[]): FxChain {
   if (kinds.length === 0) {
     const g = c.createGain();
     return { input: g, output: g, nodes: [g] };
@@ -133,7 +132,7 @@ function buildChain(c: AudioContext, kinds: { kind: Kind; preAmount?: number }[]
 }
 
 /** Re-wire a strip's FX chain (input → [fx] → gain) when its devices change. */
-function setStripFx(c: AudioContext, strip: NodeStrip, kinds: { kind: Kind; preAmount?: number }[]) {
+function setStripFx(c: AudioContext, strip: NodeStrip, kinds: { kind: string; preAmount?: number }[]) {
   try { strip.input.disconnect(); } catch { /* not connected */ }
   if (strip.fx) for (const n of strip.fx.nodes) { try { n.disconnect(); } catch { /* idem */ } }
   const fx = buildChain(c, kinds);
@@ -172,7 +171,7 @@ function ensureGraph(c: AudioContext) {
   const reverb = c.createConvolver();
   reverb.buffer = makeImpulse(c, 1.6);
   returns[0].input.connect(reverb); reverb.connect(returns[0].gain);
-  const delay = c.createDelay(1.0);
+  const delay = c.createDelay(1);
   delay.delayTime.value = 0.33;
   const fb = c.createGain(); fb.gain.value = 0.38;
   returns[1].input.connect(delay); delay.connect(fb); fb.connect(delay); delay.connect(returns[1].gain);
@@ -184,7 +183,8 @@ function makeImpulse(c: AudioContext, seconds: number): AudioBuffer {
   const buf = c.createBuffer(2, len, c.sampleRate);
   for (let ch = 0; ch < 2; ch++) {
     const data = buf.getChannelData(ch);
-    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len) ** 2.2;
+    const noise = whiteNoise(len);
+    for (let i = 0; i < len; i++) data[i] = noise[i] * (1 - i / len) ** 2.2;
   }
   return buf;
 }
@@ -216,17 +216,16 @@ function ensureGroup(c: AudioContext, groupId: string): NodeStrip {
   return g;
 }
 
-/** Reconcile the whole graph to a store snapshot. No-op without an AudioContext. */
-export function syncGraph(s: DawState): void {
-  const c = ensureAudio();
-  if (!c) return;
-  ensureGraph(c);
-  const M = master!;
+/** Enabled, non-bypassed device kinds for a node's insert rack. */
+function activeRackKinds(s: DawState, nodeId: string): { kind: string }[] {
+  return (s.nodeRacks[nodeId] ?? []).filter((d) => !d.bypassed).map((d) => ({ kind: d.kind }));
+}
 
-  // Master fader/pan + FX from the enabled house devices (+ live pre amount).
+/** Master fader/pan + FX from the enabled house devices (+ live pre amount). */
+function syncMaster(c: AudioContext, s: DawState, M: MasterStrip): void {
   M.gain.gain.value = num(s.masterVolume, 1);
   M.pan.pan.value = panToStereo(num(s.masterPan, 0.5));
-  const masterKinds: { kind: Kind; preAmount?: number }[] = [];
+  const masterKinds: { kind: string; preAmount?: number }[] = [];
   if (s.devices.eq) masterKinds.push({ kind: "eq" });
   if (s.devices.tape) masterKinds.push({ kind: "tape" });
   if (s.devices.pre) masterKinds.push({ kind: "pre", preAmount: s.preAmount });
@@ -236,10 +235,10 @@ export function syncGraph(s: DawState): void {
     // Pre enabled and unchanged: just track the live HPF cutoff.
     for (const n of M.fx.nodes) if (n instanceof BiquadFilterNode && n.type === "highpass") n.frequency.value = preHpfHz(s.preAmount);
   }
+}
 
-  returns.forEach((r, i) => { r.gain.gain.value = num(s.returnGains?.[i] ?? 1, 1); });
-
-  // Groups: create missing, set gain/pan/FX; remove stale.
+/** Groups: create missing, set gain/pan/FX; remove stale. */
+function syncGroups(c: AudioContext, s: DawState): void {
   const wantGroups = new Set(s.groups.map((g) => g.id));
   for (const g of s.groups) {
     const gs = ensureGroup(c, g.id);
@@ -247,37 +246,58 @@ export function syncGraph(s: DawState): void {
     gs.pan.pan.value = panToStereo(num(s.groupPans[g.id] ?? 0.5, 0.5));
     const sig = rackSig(s, g.id);
     if (sig !== gs.fxSig) {
-      setStripFx(c, gs, (s.nodeRacks[g.id] ?? []).filter((d) => !d.bypassed).map((d) => ({ kind: d.kind })));
+      setStripFx(c, gs, activeRackKinds(s, g.id));
       gs.fxSig = sig;
     }
   }
   for (const [id, gs] of groups) if (!wantGroups.has(id)) { disconnectStrip(gs); groups.delete(id); }
+}
 
-  // Tracks: create missing, set gain/pan/sends/route/FX; remove stale.
-  const wantTracks = new Set(s.tracks.map((t) => t.id));
-  for (const t of s.tracks) {
-    getTrackInput(t.id); // ensure strip exists
-    const st = tracks.get(t.id)!;
-    st.gain.gain.value = effectiveTrackGain(s, t.id);
-    st.pan.pan.value = panToStereo(num(s.pans[t.id] ?? 0.5, 0.5));
-    const snd = s.sends[t.id] ?? [];
-    st.sends.forEach((sg, i) => { sg.gain.value = num(snd[i] ?? 0, 0); });
+/** Re-point a track's pan to its destination (group or master) and re-tap sends. */
+function routeTrack(c: AudioContext, st: TrackStrip, destId: string | null, M: MasterStrip): void {
+  try { st.pan.disconnect(); } catch { /* idem */ }
+  const dest = destId ? ensureGroup(c, destId).input : M.input;
+  st.pan.connect(dest);
+  st.sends.forEach((sg, i) => { st.pan.connect(sg); sg.connect(returns[i].input); });
+  st.destId = destId;
+}
 
-    const destId = groupOfTrack(s, t.id);
-    if (destId !== st.destId) {
-      try { st.pan.disconnect(); } catch { /* idem */ }
-      const dest = destId ? ensureGroup(c, destId).input : M.input;
-      st.pan.connect(dest);
-      st.sends.forEach((sg, i) => { st.pan.connect(sg); sg.connect(returns[i].input); });
-      st.destId = destId;
-    }
-    const sig = rackSig(s, t.id);
-    if (sig !== st.fxSig) {
-      setStripFx(c, st, (s.nodeRacks[t.id] ?? []).filter((d) => !d.bypassed).map((d) => ({ kind: d.kind })));
-      st.fxSig = sig;
-    }
+/** One track strip: gain/pan/sends/route/FX. */
+function syncTrack(c: AudioContext, s: DawState, t: { id: string }, M: MasterStrip): void {
+  getTrackInput(t.id); // ensure strip exists
+  const st = tracks.get(t.id)!;
+  st.gain.gain.value = effectiveTrackGain(s, t.id);
+  st.pan.pan.value = panToStereo(num(s.pans[t.id] ?? 0.5, 0.5));
+  const snd = s.sends[t.id] ?? [];
+  st.sends.forEach((sg, i) => { sg.gain.value = num(snd[i] ?? 0, 0); });
+
+  const destId = groupOfTrack(s, t.id);
+  if (destId !== st.destId) routeTrack(c, st, destId, M);
+  const sig = rackSig(s, t.id);
+  if (sig !== st.fxSig) {
+    setStripFx(c, st, activeRackKinds(s, t.id));
+    st.fxSig = sig;
   }
+}
+
+/** Tracks: create missing, set gain/pan/sends/route/FX; remove stale. */
+function syncTracks(c: AudioContext, s: DawState, M: MasterStrip): void {
+  const wantTracks = new Set(s.tracks.map((t) => t.id));
+  for (const t of s.tracks) syncTrack(c, s, t, M);
   for (const [id, st] of tracks) if (!wantTracks.has(id)) { disconnectStrip(st); tracks.delete(id); }
+}
+
+/** Reconcile the whole graph to a store snapshot. No-op without an AudioContext. */
+export function syncGraph(s: DawState): void {
+  const c = ensureAudio();
+  if (!c) return;
+  ensureGraph(c);
+  const M = master!;
+
+  syncMaster(c, s, M);
+  returns.forEach((r, i) => { r.gain.gain.value = num(s.returnGains?.[i] ?? 1, 1); });
+  syncGroups(c, s);
+  syncTracks(c, s, M);
 }
 
 function disconnectStrip(strip: NodeStrip) {

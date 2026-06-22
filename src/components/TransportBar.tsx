@@ -242,16 +242,9 @@ export function TransportBar() {
     >
       {/* brand */}
       <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
-        <div
+        <button
+          type="button"
           onClick={openSettings}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              openSettings();
-            }
-          }}
           title="Settings"
           style={{
             width: 30,
@@ -264,6 +257,10 @@ export function TransportBar() {
             alignItems: "center",
             justifyContent: "center",
             cursor: "pointer",
+            appearance: "none",
+            padding: 0,
+            font: "inherit",
+            boxSizing: "border-box",
           }}
         >
           <span
@@ -275,7 +272,7 @@ export function TransportBar() {
               boxShadow: "0 0 9px rgba(120,160,255,0.7)",
             }}
           />
-        </div>
+        </button>
         <Wordmark product="Studio" color="var(--spectrum-cyan)" size={18} />
       </div>
 
@@ -366,17 +363,9 @@ export function TransportBar() {
           <PositionReadout />
         </div>
         <div
-          role="button"
-          tabIndex={0}
           style={{ ...readoutPill, cursor: "text" }}
           title="Double-click to set tempo"
           onDoubleClick={() => setTempoEdit(String(bpm))}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              setTempoEdit(String(bpm));
-            }
-          }}
         >
           <span style={readoutCap}>TEMPO</span>
           {tempoEdit === null ? (
