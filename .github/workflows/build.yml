@@ -152,6 +152,19 @@ jobs:
           cmake -B build "-DJUCE_WEBVIEW2_PACKAGE_LOCATION=${{ github.workspace }}\nuget" juce-host
           cmake --build build --config Release --parallel
 
+      - name: Bundle WebView2Loader.dll (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # The WebView2 backend needs WebView2Loader.dll next to the .exe; JUCE doesn't
+          # copy it into the artefacts folder, so grab it from the restored NuGet package.
+          $dll = Get-ChildItem -Path "${{ github.workspace }}\nuget\Microsoft.Web.WebView2" `
+                   -Recurse -Filter WebView2Loader.dll |
+                 Where-Object { $_.FullName -match '\\(x64|win-x64)\\' } | Select-Object -First 1
+          if (-not $dll) { throw "WebView2Loader.dll (x64) not found in the NuGet package" }
+          Copy-Item $dll.FullName "build/ZandersDAW_artefacts/Release/" -Force
+          Write-Host "Bundled $($dll.FullName)"
+
       - name: List build artefacts
         shell: bash
         run: |
