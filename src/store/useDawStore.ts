@@ -116,6 +116,8 @@ export interface DawState {
   // ---- selection ----
   selTrack: string; // track id or "master"
   selClip: string;
+  /** Multi-clip selection set (marquee / shift-click); `selClip` is the primary. */
+  selClips: string[];
 
   // ---- session ----
   /** Name of the currently open named session, or null when untitled. */
@@ -162,6 +164,7 @@ export interface DawState {
 
   // ---- clip clipboard ----
   clipboard: Clip | null;
+  noteClipboard: Note[] | null;
 
   // ---- settings ----
   settingsOpen: boolean;
@@ -254,11 +257,29 @@ export interface DawState {
   resizeNote: (trackId: string, clipId: string, noteId: string, len: number) => void;
   removeNote: (trackId: string, clipId: string, noteId: string) => void;
   setNoteVelocity: (trackId: string, clipId: string, noteId: string, vel: number) => void;
+  /** Batch-set note start+pitch (clamped); used by multi-note drag. */
+  setNotePositions: (trackId: string, clipId: string, updates: { id: string; start: number; pitch: number }[]) => void;
+  removeNotes: (trackId: string, clipId: string, noteIds: string[]) => void;
+  /** Copy notes (starts normalized so the earliest = 0) into the note clipboard. */
+  copyNotes: (trackId: string, clipId: string, noteIds: string[]) => void;
+  /** Paste the note clipboard at `anchorBeat`; returns the new note ids. */
+  pasteNotes: (trackId: string, clipId: string, anchorBeat: number) => string[];
   addGroup: (name: string, color?: string) => string;
   removeGroup: (id: string) => void;
 
   selectTrack: (id: string) => void;
   selectClip: (clipId: string, trackId: string) => void;
+  /** Toggle a clip in the multi-selection (shift-click). */
+  toggleClipSelected: (clipId: string, trackId: string) => void;
+  /** Replace the multi-selection (marquee). */
+  setClipSelection: (clipIds: string[]) => void;
+  clearClipSelection: () => void;
+  /** Delete every clip in the multi-selection (across tracks). */
+  removeSelectedClips: () => void;
+  /** Duplicate every selected clip after itself; selects the copies. */
+  duplicateSelectedClips: () => void;
+  /** Batch-set clip bars (clamped); used by multi-clip drag. */
+  setClipBars: (updates: { trackId: string; clipId: string; bar: number }[]) => void;
   toggleMute: (id: string) => void;
   toggleSolo: (id: string) => void;
   toggleArm: (id: string) => void;
@@ -364,6 +385,7 @@ export const useDawStore = create<DawState>((set, get) => ({
 
   selTrack: "lead",
   selClip: "lead-drop",
+  selClips: ["lead-drop"],
 
   currentSessionName: null,
 
@@ -399,6 +421,7 @@ export const useDawStore = create<DawState>((set, get) => ({
   editorClip: "",
   editorTrack: "",
   clipboard: null,
+  noteClipboard: null,
 
   settingsOpen: false,
   sessionsOpen: false,
@@ -564,6 +587,7 @@ export const useDawStore = create<DawState>((set, get) => ({
         t.id === trackId ? { ...t, clips: t.clips.filter((c) => c.id !== clipId) } : t,
       ),
       selClip: s.selClip === clipId ? "" : s.selClip,
+      selClips: s.selClips.filter((c) => c !== clipId),
     })),
   duplicateClip: (trackId, clipId) => {
     const src = get().tracks.find((t) => t.id === trackId)?.clips.find((c) => c.id === clipId);
@@ -575,6 +599,7 @@ export const useDawStore = create<DawState>((set, get) => ({
         t.id === trackId ? { ...t, clips: [...t.clips, { ...src, id, bar }] } : t,
       ),
       selClip: id,
+      selClips: [id],
     }));
   },
   moveClipToTrack: (srcTrackId, clipId, destTrackId, bar) => {
@@ -592,6 +617,7 @@ export const useDawStore = create<DawState>((set, get) => ({
         return t;
       }),
       selClip: clipId,
+      selClips: [clipId],
       selTrack: destTrackId,
     }));
   },
@@ -618,6 +644,7 @@ export const useDawStore = create<DawState>((set, get) => ({
     set((s) => ({
       tracks: s.tracks.map((t) => (t.id === trackId ? { ...t, clips: [...t.clips, clip] } : t)),
       selClip: id,
+      selClips: [id],
       selTrack: trackId,
     }));
     return id;
@@ -692,6 +719,64 @@ export const useDawStore = create<DawState>((set, get) => ({
         ),
       })),
     })),
+  setNotePositions: (trackId, clipId, updates) =>
+    set((s) => ({
+      tracks: mapClip(s.tracks, trackId, clipId, (c) => {
+        const beats = c.len * BEATS_PER_BAR;
+        return {
+          ...c,
+          notes: (c.notes ?? []).map((n) => {
+            const u = updates.find((x) => x.id === n.id);
+            return u
+              ? {
+                  ...n,
+                  start: Math.max(0, Math.min(beats - n.len, u.start)),
+                  pitch: Math.max(PITCH_MIN, Math.min(PITCH_MAX, Math.round(u.pitch))),
+                }
+              : n;
+          }),
+        };
+      }),
+    })),
+  removeNotes: (trackId, clipId, noteIds) => {
+    const ids = new Set(noteIds);
+    set((s) => ({
+      tracks: mapClip(s.tracks, trackId, clipId, (c) => ({
+        ...c,
+        notes: (c.notes ?? []).filter((n) => !ids.has(n.id)),
+      })),
+    }));
+  },
+  copyNotes: (trackId, clipId, noteIds) => {
+    const ids = new Set(noteIds);
+    const c = get().tracks.find((t) => t.id === trackId)?.clips.find((cc) => cc.id === clipId);
+    const picked = (c?.notes ?? []).filter((n) => ids.has(n.id));
+    if (picked.length === 0) return;
+    const base = Math.min(...picked.map((n) => n.start));
+    set({ noteClipboard: picked.map((n) => ({ ...n, start: n.start - base })) });
+  },
+  pasteNotes: (trackId, clipId, anchorBeat) => {
+    const cb = get().noteClipboard;
+    if (!cb || cb.length === 0) return [];
+    const created: string[] = [];
+    const toAdd = cb.map((n) => {
+      const id = newNoteId();
+      created.push(id);
+      return { ...n, id, start: anchorBeat + n.start };
+    });
+    set((s) => ({
+      tracks: mapClip(s.tracks, trackId, clipId, (c) => {
+        const beats = c.len * BEATS_PER_BAR;
+        const clamped = toAdd.map((n) => ({
+          ...n,
+          len: Math.max(NOTE_STEP, Math.min(beats, n.len)),
+          start: Math.max(0, Math.min(beats - Math.max(NOTE_STEP, n.len), n.start)),
+        }));
+        return { ...c, notes: [...(c.notes ?? []), ...clamped] };
+      }),
+    }));
+    return created;
+  },
 
   addGroup: (name, color) => {
     const id = newGroupId();
@@ -717,7 +802,58 @@ export const useDawStore = create<DawState>((set, get) => ({
   },
 
   selectTrack: (id) => set({ selTrack: id }),
-  selectClip: (clipId, trackId) => set({ selClip: clipId, selTrack: trackId }),
+  selectClip: (clipId, trackId) => set({ selClip: clipId, selTrack: trackId, selClips: [clipId] }),
+  toggleClipSelected: (clipId, trackId) =>
+    set((s) => {
+      const has = s.selClips.includes(clipId);
+      const selClips = has ? s.selClips.filter((c) => c !== clipId) : [...s.selClips, clipId];
+      return { selClips, selClip: has ? (selClips[selClips.length - 1] ?? "") : clipId, selTrack: trackId };
+    }),
+  setClipSelection: (clipIds) =>
+    set({ selClips: clipIds, selClip: clipIds[clipIds.length - 1] ?? "" }),
+  clearClipSelection: () => set({ selClips: [], selClip: "" }),
+  removeSelectedClips: () => {
+    const ids = new Set(get().selClips);
+    if (ids.size === 0) return;
+    set((s) => ({
+      tracks: s.tracks.map((t) => ({ ...t, clips: t.clips.filter((c) => !ids.has(c.id)) })),
+      selClips: [],
+      selClip: "",
+    }));
+  },
+  duplicateSelectedClips: () => {
+    const ids = new Set(get().selClips);
+    if (ids.size === 0) return;
+    const created: string[] = [];
+    set((s) => ({
+      tracks: s.tracks.map((t) => {
+        const dupes = t.clips
+          .filter((c) => ids.has(c.id))
+          .map((c) => {
+            const id = newClipId();
+            created.push(id);
+            return {
+              ...structuredClone(c),
+              id,
+              bar: Math.max(0, Math.min(TOTAL_BARS - c.len, c.bar + c.len)),
+              notes: c.notes?.map((n) => ({ ...n, id: newNoteId() })),
+            };
+          });
+        return dupes.length ? { ...t, clips: [...t.clips, ...dupes] } : t;
+      }),
+    }));
+    set({ selClips: created, selClip: created[created.length - 1] ?? "" });
+  },
+  setClipBars: (updates) =>
+    set((s) => ({
+      tracks: s.tracks.map((t) => ({
+        ...t,
+        clips: t.clips.map((c) => {
+          const u = updates.find((x) => x.trackId === t.id && x.clipId === c.id);
+          return u ? { ...c, bar: Math.max(0, Math.min(TOTAL_BARS - c.len, u.bar)) } : c;
+        }),
+      })),
+    })),
   toggleMute: (id) => {
     const v = !get().mutes[id];
     if (engineActive()) engine.mixer.setTrackMute(id, v);

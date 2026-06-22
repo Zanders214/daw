@@ -14,25 +14,33 @@ const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
 const gridStep = (alt: boolean) => (alt ? 0 : NOTE_STEP);
 
 export function PianoRoll() {
-  const { editorOpen, editorClip, editorTrack, tracks, closeEditor, addNote, moveNote, resizeNote, removeNote, setNoteVelocity, renameClip } =
-    useDawStore(
-      useShallow((s) => ({
-        editorOpen: s.editorOpen,
-        editorClip: s.editorClip,
-        editorTrack: s.editorTrack,
-        tracks: s.tracks,
-        closeEditor: s.closeEditor,
-        addNote: s.addNote,
-        moveNote: s.moveNote,
-        resizeNote: s.resizeNote,
-        removeNote: s.removeNote,
-        setNoteVelocity: s.setNoteVelocity,
-        renameClip: s.renameClip,
-      })),
-    );
+  const {
+    editorOpen, editorClip, editorTrack, tracks, playhead, closeEditor,
+    addNote, resizeNote, removeNote, removeNotes, setNotePositions, setNoteVelocity,
+    copyNotes, pasteNotes, renameClip,
+  } = useDawStore(
+    useShallow((s) => ({
+      editorOpen: s.editorOpen,
+      editorClip: s.editorClip,
+      editorTrack: s.editorTrack,
+      tracks: s.tracks,
+      playhead: s.playhead,
+      closeEditor: s.closeEditor,
+      addNote: s.addNote,
+      resizeNote: s.resizeNote,
+      removeNote: s.removeNote,
+      removeNotes: s.removeNotes,
+      setNotePositions: s.setNotePositions,
+      setNoteVelocity: s.setNoteVelocity,
+      copyNotes: s.copyNotes,
+      pasteNotes: s.pasteNotes,
+      renameClip: s.renameClip,
+    })),
+  );
   const gridRef = useRef<HTMLDivElement>(null);
   const velRef = useRef<HTMLDivElement>(null);
-  const [selNote, setSelNote] = useState("");
+  const [selNotes, setSelNotes] = useState<string[]>([]);
+  const [marquee, setMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
 
   const track = tracks.find((t) => t.id === editorTrack);
   const clip = track?.clips.find((c) => c.id === editorClip);
@@ -51,30 +59,68 @@ export function PianoRoll() {
   const xPct = (beats: number) => (beats / clipBeats) * 100 + "%";
   const topPx = (pitch: number) => (PITCH_MAX - pitch) * ROW_H;
 
-  const addAt = (e: React.PointerEvent) => {
+  // Empty-grid pointerdown: a click adds a note; a drag rubber-bands a selection.
+  const onGridDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
     const r = rect();
     if (!r) return;
-    const id = newNoteId();
-    const start = snap(beatAtX(e.clientX, r), gridStep(e.altKey));
-    addNote(track.id, clip.id, { id, start, len: 1, pitch: pitchAtY(e.clientY, r) });
-    setSelNote(id);
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    const alt = e.altKey;
+    const base = e.shiftKey ? selNotes : [];
+    let dragged = false;
+    startDrag((ev) => {
+      if (!dragged && Math.abs(ev.clientX - x0) < 3 && Math.abs(ev.clientY - y0) < 3) return;
+      dragged = true;
+      const left = Math.min(x0, ev.clientX), top = Math.min(y0, ev.clientY);
+      const right = Math.max(x0, ev.clientX), bottom = Math.max(y0, ev.clientY);
+      setMarquee({ x: left - r.left, y: top - r.top, w: right - left, h: bottom - top });
+      const hits = new Set(base);
+      for (const n of notes) {
+        const nx = r.left + (n.start / clipBeats) * r.width;
+        const nw = (n.len / clipBeats) * r.width;
+        const ny = r.top + topPx(n.pitch);
+        if (nx < right && nx + nw > left && ny < bottom && ny + ROW_H > top) hits.add(n.id);
+      }
+      setSelNotes([...hits]);
+    });
+    const end = () => {
+      if (!dragged) {
+        const id = newNoteId();
+        addNote(track.id, clip.id, { id, start: snap(beatAtX(x0, r), gridStep(alt)), len: 1, pitch: pitchAtY(y0, r) });
+        setSelNotes([id]);
+      }
+      setMarquee(null);
+      globalThis.removeEventListener("pointerup", end);
+    };
+    globalThis.addEventListener("pointerup", end);
   };
 
-  const moveNoteDrag = (n: Note) => (e: React.PointerEvent) => {
+  const onNoteDown = (n: Note) => (e: React.PointerEvent) => {
     e.stopPropagation();
-    setSelNote(n.id);
+    if (e.button !== 0) return;
+    if (e.shiftKey) {
+      setSelNotes((sel) => (sel.includes(n.id) ? sel.filter((x) => x !== n.id) : [...sel, n.id]));
+      return;
+    }
+    const multi = selNotes.length > 1 && selNotes.includes(n.id);
+    if (!multi) setSelNotes([n.id]);
     const r = rect();
-    if (!r || e.button !== 0) return;
-    const grab = beatAtX(e.clientX, r) - n.start;
+    if (!r) return;
+    const grabBeat = beatAtX(e.clientX, r);
+    const grabPitch = pitchAtY(e.clientY, r);
+    const ids = multi ? selNotes : [n.id];
+    const snapshot = notes.filter((x) => ids.includes(x.id)).map((x) => ({ id: x.id, start: x.start, pitch: x.pitch }));
     startDrag((ev) => {
-      moveNote(track.id, clip.id, n.id, snap(beatAtX(ev.clientX, r) - grab, gridStep(ev.altKey)), pitchAtY(ev.clientY, r));
+      const dBeat = snap(beatAtX(ev.clientX, r) - grabBeat, gridStep(ev.altKey));
+      const dPitch = pitchAtY(ev.clientY, r) - grabPitch;
+      setNotePositions(track.id, clip.id, snapshot.map((s) => ({ id: s.id, start: s.start + dBeat, pitch: s.pitch + dPitch })));
     });
   };
 
   const resizeNoteDrag = (n: Note) => (e: React.PointerEvent) => {
     e.stopPropagation();
-    setSelNote(n.id);
+    setSelNotes([n.id]);
     const r = rect();
     if (!r || e.button !== 0) return;
     startDrag((ev) => resizeNote(track.id, clip.id, n.id, snap(beatAtX(ev.clientX, r) - n.start, gridStep(ev.altKey))));
@@ -82,7 +128,7 @@ export function PianoRoll() {
 
   const velDrag = (n: Note) => (e: React.PointerEvent) => {
     e.stopPropagation();
-    setSelNote(n.id);
+    setSelNotes([n.id]);
     const r = velRef.current?.getBoundingClientRect();
     if (!r || e.button !== 0) return;
     const set = (ev: PointerEvent) => setNoteVelocity(track.id, clip.id, n.id, 1 - clamp01((ev.clientY - r.top) / r.height));
@@ -90,9 +136,10 @@ export function PianoRoll() {
     startDrag(set);
   };
 
-  const del = (id: string) => {
-    removeNote(track.id, clip.id, id);
-    if (selNote === id) setSelNote("");
+  const delSelection = () => {
+    if (selNotes.length === 0) return;
+    removeNotes(track.id, clip.id, selNotes);
+    setSelNotes([]);
   };
 
   return (
@@ -101,8 +148,16 @@ export function PianoRoll() {
       role="button"
       tabIndex={0}
       onKeyDown={(e) => {
+        const mod = e.metaKey || e.ctrlKey;
         if (e.key === "Escape") closeEditor();
-        else if ((e.key === "Delete" || e.key === "Backspace") && selNote) { e.preventDefault(); del(selNote); }
+        else if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); delSelection(); }
+        else if (mod && (e.key === "a" || e.key === "A")) { e.preventDefault(); setSelNotes(notes.map((n) => n.id)); }
+        else if (mod && (e.key === "c" || e.key === "C")) { e.preventDefault(); copyNotes(track.id, clip.id, selNotes); }
+        else if (mod && (e.key === "v" || e.key === "V")) {
+          e.preventDefault();
+          const anchor = Math.max(0, Math.min(clipBeats, playhead - clip.bar * BEATS_PER_BAR));
+          setSelNotes(pasteNotes(track.id, clip.id, anchor));
+        }
       }}
       style={{
         position: "absolute",
@@ -197,7 +252,7 @@ export function PianoRoll() {
 
           <div
             ref={gridRef}
-            onPointerDown={addAt}
+            onPointerDown={onGridDown}
             style={{
               flex: 1,
               position: "relative",
@@ -210,12 +265,12 @@ export function PianoRoll() {
             }}
           >
             {notes.map((n) => {
-              const sel = n.id === selNote;
+              const sel = selNotes.includes(n.id);
               return (
                 <div
                   key={n.id}
-                  onPointerDown={moveNoteDrag(n)}
-                  onContextMenu={(e) => { e.preventDefault(); del(n.id); }}
+                  onPointerDown={onNoteDown(n)}
+                  onContextMenu={(e) => { e.preventDefault(); removeNote(track.id, clip.id, n.id); }}
                   style={{
                     position: "absolute",
                     left: xPct(n.start),
@@ -239,6 +294,20 @@ export function PianoRoll() {
                 </div>
               );
             })}
+            {marquee && (
+              <div
+                style={{
+                  position: "absolute",
+                  left: marquee.x,
+                  top: marquee.y,
+                  width: marquee.w,
+                  height: marquee.h,
+                  background: "var(--accent-soft)",
+                  border: "1px solid var(--accent)",
+                  pointerEvents: "none",
+                }}
+              />
+            )}
           </div>
         </div>
 
@@ -262,7 +331,7 @@ export function PianoRoll() {
                     minWidth: 2,
                     bottom: 0,
                     height: `${v * 100}%`,
-                    background: n.id === selNote ? "#fff" : color,
+                    background: selNotes.includes(n.id) ? "#fff" : color,
                     opacity: 0.85,
                     cursor: "ns-resize",
                     touchAction: "none",
