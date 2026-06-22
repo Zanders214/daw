@@ -158,7 +158,7 @@ describe("Sessions", () => {
       expect(screen.getByText("Enter a name to save")).toBeInTheDocument(),
     );
     // Nothing was written.
-    expect(localStorage.length).toBe(0);
+    expect(localStorage).toHaveLength(0);
   });
 
   it("pressing Enter in the name field saves-as that name", async () => {
@@ -199,7 +199,7 @@ describe("Sessions", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "NEW" }));
 
-    expect(useDawStore.getState().currentSessionName).toBe(null);
+    expect(useDawStore.getState().currentSessionName).toBeNull();
     expect(useDawStore.getState().bpm).toBe(124); // newSession defaults
     await waitFor(() => expect(screen.getByText("New session")).toBeInTheDocument());
   });
@@ -289,7 +289,7 @@ describe("Sessions", () => {
     );
     // Modal stays open; current unchanged.
     expect(useDawStore.getState().sessionsOpen).toBe(true);
-    expect(useDawStore.getState().currentSessionName).toBe(null);
+    expect(useDawStore.getState().currentSessionName).toBeNull();
   });
 
   it("deleting a session removes it from storage, shows a status and clears current if it was current", async () => {
@@ -307,7 +307,7 @@ describe("Sessions", () => {
     fireEvent.click(delBtn);
 
     await waitFor(() => expect(localStorage.getItem(SKEY("Trash Me"))).toBeNull());
-    expect(useDawStore.getState().currentSessionName).toBe(null);
+    expect(useDawStore.getState().currentSessionName).toBeNull();
     await waitFor(() =>
       expect(screen.getByText(/Deleted .*Trash Me/)).toBeInTheDocument(),
     );

@@ -221,6 +221,7 @@ export function TrackLane({ track }: Readonly<{ track: Track }>) {
           <div
             key={c.id}
             data-clip-id={c.id}
+            role="button"
             onPointerDown={startMove(c)}
             onDoubleClick={(e) => { e.stopPropagation(); openEditor(id, c.id); }}
             onContextMenu={(e) => { e.preventDefault(); removeClip(id, c.id); }}

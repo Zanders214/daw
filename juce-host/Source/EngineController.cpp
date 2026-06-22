@@ -41,7 +41,7 @@ void EngineController::timerCallback()
 
 var EngineController::buildState()
 {
-    auto* obj = new DynamicObject();
+    DynamicObject::Ptr obj = new DynamicObject();
     obj->setProperty ("playhead", audioEngine.getPlayheadBeats());
     obj->setProperty ("playing", audioEngine.isPlaying());
     obj->setProperty ("master", (double) audioEngine.getMasterLevel());
@@ -53,7 +53,7 @@ var EngineController::buildState()
     obj->setProperty ("loopEnd", audioEngine.getLoopEnd());
     obj->setProperty ("tempo", audioEngine.getTempo());
     obj->setProperty ("masterVolume", (double) audioEngine.getMasterVolume());
-    return var (obj);
+    return var (obj.get());
 }
 
 void EngineController::emit (const Identifier& id, const var& payload)
@@ -64,16 +64,16 @@ void EngineController::emit (const Identifier& id, const var& payload)
 
 void EngineController::emitPluginStatuses()
 {
-    auto* obj = new DynamicObject();
+    DynamicObject::Ptr obj = new DynamicObject();
     for (int slot = 0; slot < PluginHost::numSlots; ++slot)
     {
-        auto* s = new DynamicObject();
+        DynamicObject::Ptr s = new DynamicObject();
         s->setProperty ("loaded", audioEngine.hasPlugin (slot));
         s->setProperty ("name", audioEngine.getPluginName (slot));
         s->setProperty ("path", pluginHost.getSlotPath (slot));
-        obj->setProperty (PluginHost::slotKey (slot), var (s));
+        obj->setProperty (PluginHost::slotKey (slot), var (s.get()));
     }
-    emit ("enginePlugins", var (obj));
+    emit ("enginePlugins", var (obj.get()));
 }
 
 void EngineController::emitTrackInfo()
@@ -221,26 +221,26 @@ void EngineController::pickTrackFile (const String& trackId)
 
 var EngineController::buildEnginePayload()
 {
-    auto* plugins = new DynamicObject();
+    DynamicObject::Ptr plugins = new DynamicObject();
     for (int slot = 0; slot < PluginHost::numSlots; ++slot)
         plugins->setProperty (PluginHost::slotKey (slot), audioEngine.getPluginState (slot));
 
-    auto* engineObj = new DynamicObject();
-    engineObj->setProperty ("plugins", var (plugins));
+    DynamicObject::Ptr engineObj = new DynamicObject();
+    engineObj->setProperty ("plugins", var (plugins.get()));
     engineObj->setProperty ("tracks", audioEngine.buildTrackList());
     engineObj->setProperty ("nodes", audioEngine.buildNodeRackStates());
-    return var (engineObj);
+    return var (engineObj.get());
 }
 
 var EngineController::buildSession (const String& name, const var& uiPayload)
 {
-    auto* obj = new DynamicObject();
+    DynamicObject::Ptr obj = new DynamicObject();
     obj->setProperty ("version", 3); // keep in lockstep with SESSION_VERSION (session.ts)
     obj->setProperty ("name", name);
     obj->setProperty ("savedAt", Time::getCurrentTime().toISO8601 (true));
     obj->setProperty ("ui", uiPayload);
     obj->setProperty ("engine", buildEnginePayload());
-    return var (obj);
+    return var (obj.get());
 }
 
 void EngineController::applyEnginePayload (const var& enginePayload)
@@ -345,10 +345,10 @@ void EngineController::sessionImport()
 
             // Hand the UI payload back to the web to hydrate the store. Send just
             // { name, ui } so the (potentially large) plugin blobs aren't re-sent.
-            auto* payload = new DynamicObject();
+            DynamicObject::Ptr payload = new DynamicObject();
             payload->setProperty ("name", obj->getProperty ("name"));
             payload->setProperty ("ui", obj->getProperty ("ui"));
-            emit ("engineSessionImported", var (payload));
+            emit ("engineSessionImported", var (payload.get()));
         });
 }
 
@@ -520,7 +520,7 @@ std::optional<var> EngineController::handleSession (const String& name, const Ar
     {
         const auto sname = arg (0).toString();
         const bool ok = sessionStore.writeSession (sname, buildSession (sname, arg (1)));
-        auto* r = new DynamicObject(); r->setProperty ("ok", ok); return var (r);
+        DynamicObject::Ptr r = new DynamicObject(); r->setProperty ("ok", ok); return var (r.get());
     }
     if (name == "sessionLoad")
     {
@@ -533,9 +533,9 @@ std::optional<var> EngineController::handleSession (const String& name, const Ar
     if (name == "sessionList")   { return sessionStore.listSessions(); }
     if (name == "sessionDelete")
     {
-        auto* r = new DynamicObject();
+        DynamicObject::Ptr r = new DynamicObject();
         r->setProperty ("ok", sessionStore.deleteSession (arg (0).toString()));
-        return var (r);
+        return var (r.get());
     }
     if (name == "sessionExport") { sessionExport (arg (0).toString(), arg (1)); return var(); }
     if (name == "sessionImport") { sessionImport(); return var(); }
@@ -556,10 +556,10 @@ var EngineController::nodeDeviceListParams (const String& nodeId, const String& 
         const auto& params = inst->getParameters();
         for (int i = 0; i < params.size(); ++i)
         {
-            auto* obj = new DynamicObject();
+            DynamicObject::Ptr obj = new DynamicObject();
             obj->setProperty ("id", "dev:" + instanceId + ":" + String (i));
             obj->setProperty ("name", params[i]->getName (64));
-            out.add (var (obj));
+            out.add (var (obj.get()));
         }
     }
     return var (out);

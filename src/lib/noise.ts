@@ -19,7 +19,7 @@ export function fillWhiteNoise(target: Float32Array): void {
     globalThis.crypto.getRandomValues(view);
     for (let j = 0; j < n; j++, i++) {
       // u32 / 2^31 - 1 maps [0, 2^32) onto [-1, 1) symmetrically.
-      target[i] = view[j] / 0x8000_0000 - 1;
+      target[i] = view[j] / 2 ** 31 - 1;
     }
   }
 }

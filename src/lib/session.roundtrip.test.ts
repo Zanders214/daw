@@ -240,8 +240,8 @@ describe("buildSession + applySession — round-trip", () => {
     expect(s.bpm).toBe(95);
     expect(s.countIn).toBe(3);
     // Structure untouched: still the seeded arrangement.
-    expect(s.tracks.length).toBe(seedTrackCount);
-    expect(s.groups.length).toBe(seedGroupCount);
+    expect(s.tracks).toHaveLength(seedTrackCount);
+    expect(s.groups).toHaveLength(seedGroupCount);
   });
 
   it("applySession is a no-op when ui is missing", () => {

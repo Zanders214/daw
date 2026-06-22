@@ -56,7 +56,7 @@ function SendRow({ id }: Readonly<{ id: string }>) {
     >
       <span style={{ fontSize: 9, letterSpacing: "0.12em", color: "var(--text-label)" }}>SENDS</span>
       {["A", "B"].map((lbl, i) => (
-        <div key={lbl} onClick={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", gap: 7 }}>
+        <div key={lbl} role="button" tabIndex={0} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", gap: 7 }}>
           <div
             onDoubleClick={() => setSend(id, i, 0)}
             title={`Send ${lbl} (double-click to zero)`}
@@ -135,8 +135,11 @@ export function TrackHeader({ track }: Readonly<{ track: Track }>) {
   return (
     <>
       <div
+        role="button"
+        tabIndex={0}
         onClick={() => selectTrack(id)}
         onDoubleClick={() => openTrackChain(id)}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectTrack(id); } }}
         style={{
           height: 108,
           padding: "10px 16px",
@@ -288,8 +291,11 @@ export function TrackHeader({ track }: Readonly<{ track: Track }>) {
           <button type="button" onClick={(e) => { e.stopPropagation(); toggleArm(id); }} style={aStyle}>●</button>
           <button type="button" onClick={(e) => { e.stopPropagation(); toggleAuto(id); }} title="Automation lane" style={autoBtnStyle}>A</button>
           <div
+            role="button"
+            tabIndex={0}
             onClick={(e) => e.stopPropagation()}
             onDoubleClick={(e) => { e.stopPropagation(); setPan(id, 0.5); }}
+            onKeyDown={(e) => e.stopPropagation()}
             title={`Pan: ${panLabel} (double-click to center)`}
             style={{ flex: "none" }}
           >
@@ -300,7 +306,7 @@ export function TrackHeader({ track }: Readonly<{ track: Track }>) {
 
         <div style={{ display: "flex", alignItems: "center", gap: 9, marginTop: 9 }}>
           <span style={{ fontSize: 9, color: "var(--text-label)", letterSpacing: "0.1em", flex: "none" }}>VOL</span>
-          <div style={{ flex: 1 }} onClick={(e) => e.stopPropagation()}>
+          <div style={{ flex: 1 }} role="button" tabIndex={0} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
             <Slider value={vol} onChange={(v) => setVolume(id, v)} />
           </div>
           <span

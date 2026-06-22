@@ -318,7 +318,7 @@ describe("engine.ts — invoke/complete round-trip resolves the promise", () => 
     const completeSubs = made.backend.addEventListener.mock.calls.filter(
       (c) => c[0] === "__juce__complete",
     );
-    expect(completeSubs.length).toBe(1);
+    expect(completeSubs).toHaveLength(1);
   });
 
   it("tolerates a complete event with a null/empty payload", () => {
@@ -396,7 +396,7 @@ describe("engine.ts — subscribeEngine", () => {
     const unsub = subscribeEngine({ onState: vi.fn(), onTracks: vi.fn() });
     unsub();
     expect(backend.removeEventListener).toHaveBeenCalledTimes(2);
-    expect(removed.length).toBe(2);
+    expect(removed).toHaveLength(2);
   });
 
   it("unsubscribe is safe when the backend lacks removeEventListener", () => {

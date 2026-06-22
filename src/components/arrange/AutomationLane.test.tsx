@@ -115,7 +115,7 @@ describe("AutomationLane", () => {
 
     // One draggable handle per point (tabIndex=0 divs).
     const handles = container.querySelectorAll("div[tabindex='0']");
-    expect(handles.length).toBe(5);
+    expect(handles).toHaveLength(5);
   });
 
   it("pointer-down on the empty lane adds a breakpoint", () => {
@@ -191,6 +191,6 @@ describe("AutomationLane", () => {
     const pts = getAutoPts(useDawStore.getState().autoData, "kick", "vol");
     // After a move, an edited envelope is stored for kick:vol.
     expect(useDawStore.getState().autoData["kick:vol"]).toBeDefined();
-    expect(pts.length).toBe(5);
+    expect(pts).toHaveLength(5);
   });
 });

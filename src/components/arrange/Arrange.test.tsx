@@ -90,7 +90,7 @@ describe("Arrange composition", () => {
     const before = useDawStore.getState().tracks.length;
     render(<Arrange />);
     fireEvent.click(screen.getByTitle("Add a new track"));
-    expect(useDawStore.getState().tracks.length).toBe(before + 1);
+    expect(useDawStore.getState().tracks).toHaveLength(before + 1);
   });
 
   it("lays out the body row-reverse when tracksRight is true", () => {
@@ -201,7 +201,7 @@ describe("Arrange drop-to-create-track", () => {
     fireEvent.drop(dropZone, { dataTransfer: dt });
 
     const tracks = useDawStore.getState().tracks;
-    expect(tracks.length).toBe(before + 1);
+    expect(tracks).toHaveLength(before + 1);
     const added = tracks[tracks.length - 1];
     // trackDefaultsForItem uppercases the item name into the track name.
     expect(added.name).toBe("SUPERSAW ENGINE");
@@ -216,6 +216,6 @@ describe("Arrange drop-to-create-track", () => {
 
     const dt = dndStub({ kind: "fx", name: "Hall Reverb" });
     fireEvent.drop(dropZone, { dataTransfer: dt });
-    expect(useDawStore.getState().tracks.length).toBe(before);
+    expect(useDawStore.getState().tracks).toHaveLength(before);
   });
 });

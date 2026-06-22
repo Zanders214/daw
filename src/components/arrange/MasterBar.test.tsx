@@ -195,6 +195,6 @@ describe("MasterBar", () => {
   it("renders interactive dials for pan and both returns (ns-resize hit areas)", () => {
     const { container } = render(<MasterBar tracksRight={false} />);
     // One master-pan dial + two return dials = 3 interactive dials.
-    expect(getDialHitAreas(container).length).toBe(3);
+    expect(getDialHitAreas(container)).toHaveLength(3);
   });
 });

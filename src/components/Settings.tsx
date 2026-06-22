@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useDawStore } from "../store/useDawStore";
 import { OUTPUT_DEVICES, MIDI_INPUTS } from "../data/seed";
@@ -162,11 +162,30 @@ export function Settings() {
       toggleAutoSave: st.toggleAutoSave,
     })),
   );
+  const panelRef = useRef<HTMLDivElement>(null);
 
   // Pull the real device list from the engine whenever the panel opens.
   useEffect(() => {
     if (s.settingsOpen) s.refreshDevices();
   }, [s.settingsOpen, s.refreshDevices]);
+
+  // Dismiss on Escape or a click outside the panel (document-level so the overlay
+  // itself stays a plain, non-interactive element).
+  useEffect(() => {
+    if (!s.settingsOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") s.closeSettings();
+    };
+    const onClick = (e: MouseEvent) => {
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) s.closeSettings();
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("click", onClick);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("click", onClick);
+    };
+  }, [s.settingsOpen, s.closeSettings]);
 
   if (!s.settingsOpen) return null;
 
@@ -182,13 +201,6 @@ export function Settings() {
 
   return (
     <div
-      onClick={(e) => {
-        if (e.target === e.currentTarget) s.closeSettings();
-      }}
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === "Escape") s.closeSettings();
-      }}
       style={{
         position: "absolute",
         inset: 0,
@@ -202,6 +214,7 @@ export function Settings() {
       }}
     >
       <div
+        ref={panelRef}
         style={{
           width: 760,
           maxHeight: "86%",

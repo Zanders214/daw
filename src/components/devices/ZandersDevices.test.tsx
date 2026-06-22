@@ -72,7 +72,7 @@ describe("ZandersTapeStop", () => {
     // Two Reel components, each a 64x64 relative box; the spin overlay reads
     // the live reel angle from the store.
     const reels = container.querySelectorAll('div[style*="width: 64px"]');
-    expect(reels.length).toBe(2);
+    expect(reels).toHaveLength(2);
   });
 
   it("reel overlay reflects the store reel angle in its transform", () => {
@@ -127,7 +127,7 @@ describe("ZandersPreDrop", () => {
     // win(...) clamps to 0 below the floor, so REV/DLY/RIS show 0% — plus the
     // dial value also formats preAmount=0 as "0%", giving 4 occurrences.
     const zeros = screen.getAllByText("0%");
-    expect(zeros.length).toBe(4);
+    expect(zeros).toHaveLength(4);
 
     // HPF base frequency at a=0: round(20 * 40^(0^1.5)) = round(20*1) = 20 Hz.
     expect(screen.getByText("20 Hz")).toBeInTheDocument();
@@ -136,7 +136,7 @@ describe("ZandersPreDrop", () => {
     const dimmed = Array.from(container.querySelectorAll("span")).filter((el) =>
       (el.getAttribute("style") ?? "").includes("opacity: 0.3"),
     );
-    expect(dimmed.length).toBe(3);
+    expect(dimmed).toHaveLength(3);
   });
 
   it("at amount 1 every chip is fully on (HPF reaches 800 Hz, others 100%)", () => {
