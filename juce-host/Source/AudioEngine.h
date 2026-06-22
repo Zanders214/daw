@@ -35,7 +35,7 @@ public:
     // Audio device settings (real). `getDevicesInfo` returns the current setup
     // plus the available outputs / sample rates / buffer sizes; `applySettings`
     // applies { sampleRate(Hz), bufferSize, outputDevice } to the live device.
-    juce::var getDevicesInfo();
+    juce::var getDevicesInfo() const;
     void applySettings (const juce::var& opts);
 
     // Transport
@@ -68,7 +68,7 @@ public:
     void setTrackSolo (const juce::String& id, bool soloed);
     void setTrackArm  (const juce::String& id, bool armed);
     bool assignTrackFile (const juce::String& id, const juce::File& file);
-    void clearTrackFile  (const juce::String& id);
+    void clearTrackFile  (const juce::String& id) const;
 
     // Group sub-mix buses (created on demand, keyed by the UI's group ids).
     void setTrackGroup (const juce::String& trackId, const juce::String& groupId); // "" = master
@@ -77,7 +77,7 @@ public:
     void setGroupMute  (const juce::String& groupId, bool muted);
     void setGroupSolo  (const juce::String& groupId, bool soloed);
     /** Per-group meter levels { id: 0..1 } for the state event. */
-    juce::var buildGroupLevels();
+    juce::var buildGroupLevels() const;
 
     // Aux sends / returns (fixed count). Tracks tap post-fader into a send bus;
     // each return applies a gain and sums back into the master.
@@ -112,9 +112,9 @@ public:
     void clearAllAutomation();
 
     /** Per-track meter levels { id: 0..1 } for the state event. */
-    juce::var buildTrackLevels();
+    juce::var buildTrackLevels() const;
     /** Per-track source info { id: { loaded, name, path } } for the tracks event. */
-    juce::var buildTrackInfo();
+    juce::var buildTrackInfo() const;
 
     // Plugin chain (slot 0..2). Takes ownership of the instance.
     void installPlugin (int slot, std::unique_ptr<juce::AudioPluginInstance> instance);
@@ -123,13 +123,13 @@ public:
     juce::String getPluginName (int slot) const;
     void setBypassed (int slot, bool b);
     bool isBypassed (int slot) const { return (slot >= 0 && slot < 3) && bypassed[(size_t) slot].load(); }
-    void setParam (int slot, const juce::String& paramId, float value01);
-    juce::var listParams (int slot);
+    void setParam (int slot, const juce::String& paramId, float value01) const;
+    juce::var listParams (int slot) const;
 
     /** Full opaque plugin state as base64 (for session persistence). */
     juce::String getPluginState (int slot) const;
     /** Restore opaque plugin state from base64; false if the slot is empty/invalid. */
-    bool setPluginState (int slot, const juce::String& base64);
+    bool setPluginState (int slot, const juce::String& base64) const;
 
     void openEditor (int slot);
     void closeEditor (int slot);
@@ -145,7 +145,7 @@ public:
     void audioDeviceStopped() override;
 
 private:
-    void prepareSlot (int slot);
+    void prepareSlot (int slot) const;
     juce::AudioPluginInstance* getInstance (int slot) const;
     TrackChannel& ensureTrack (const juce::String& id);
     GroupBus& ensureGroup (const juce::String& id);

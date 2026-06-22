@@ -29,7 +29,7 @@ void AudioEngine::shutdown()
 
     {
         const ScopedLock sl (chainLock);
-        for (auto& p : chain)
+        for (const auto& p : chain)
             if (p != nullptr)
                 p->releaseResources();
     }
@@ -128,7 +128,7 @@ void AudioEngine::setInputMode (const String& mode)
 }
 
 // ---- audio device settings ----
-var AudioEngine::getDevicesInfo()
+var AudioEngine::getDevicesInfo() const
 {
     auto* obj = new DynamicObject();
 
@@ -247,7 +247,7 @@ void AudioEngine::setGroupPan  (const String& groupId, float pan)        { ensur
 void AudioEngine::setGroupMute (const String& groupId, bool muted)       { ensureGroup (groupId).mute.store (muted); }
 void AudioEngine::setGroupSolo (const String& groupId, bool soloed)      { ensureGroup (groupId).solo.store (soloed); recomputeAnyGroupSolo(); }
 
-var AudioEngine::buildGroupLevels()
+var AudioEngine::buildGroupLevels() const
 {
     auto* obj = new DynamicObject();
     const ScopedTryLock stl (tracksLock);
@@ -307,8 +307,7 @@ AutomationStore::Target AudioEngine::resolveAutoTarget (const String& nodeId, co
     // looked up under its lock at apply time, so a removed device just no-ops.
     if (paramId.startsWith ("dev:"))
     {
-        auto toks = StringArray::fromTokens (paramId, ":", "");
-        if (toks.size() == 3)
+        if (auto toks = StringArray::fromTokens (paramId, ":", ""); toks.size() == 3)
             if (auto* rack = rackForNode (nodeId))
             {
                 t.kind = AutomationStore::Kind::param;
@@ -327,8 +326,8 @@ AutomationStore::Target AudioEngine::resolveAutoTarget (const String& nodeId, co
     }
     if (nodeId.startsWith ("return-"))
     {
-        const int i = nodeId.fromFirstOccurrenceOf ("return-", false, false).getIntValue();
-        if (paramId == "rgain" && isPositiveAndBelow (i, numSends))
+        if (const int i = nodeId.fromFirstOccurrenceOf ("return-", false, false).getIntValue();
+            paramId == "rgain" && isPositiveAndBelow (i, numSends))
             return f32 (&returnGain[(size_t) i], 0.0f, 4.0f);
         return t;
     }
@@ -376,7 +375,7 @@ var AudioEngine::buildNodeRacks()
     auto* obj = new DynamicObject();
     const ScopedLock sl (tracksLock);
 
-    auto addRack = [obj] (const String& nodeId, DeviceRack& r)
+    auto addRack = [obj] (const String& nodeId, const DeviceRack& r)
     {
         Array<var> slots;
         for (int s = 0; s < DeviceRack::numSlots; ++s)
@@ -403,7 +402,7 @@ var AudioEngine::buildNodeRackStates()
     auto* obj = new DynamicObject();
     const ScopedLock sl (tracksLock);
 
-    auto addRack = [obj] (const String& nodeId, DeviceRack& r)
+    auto addRack = [obj] (const String& nodeId, const DeviceRack& r)
     {
         auto* no = new DynamicObject();
         const var noVar (no); // establish ownership immediately so `no` can't leak when unused
@@ -433,28 +432,28 @@ bool AudioEngine::assignTrackFile (const String& id, const File& file)
     return ok;
 }
 
-void AudioEngine::clearTrackFile (const String& id)
+void AudioEngine::clearTrackFile (const String& id) const
 {
     const ScopedLock sl (tracksLock);
     if (auto* t = trackById[id])
         t->clearFile();
 }
 
-var AudioEngine::buildTrackLevels()
+var AudioEngine::buildTrackLevels() const
 {
     auto* obj = new DynamicObject();
     const ScopedTryLock stl (tracksLock);
     if (stl.isLocked())
-        for (auto* t : tracks)
+        for (const auto* t : tracks)
             obj->setProperty (Identifier (t->getId()), (double) t->level.load());
     return var (obj);
 }
 
-var AudioEngine::buildTrackInfo()
+var AudioEngine::buildTrackInfo() const
 {
     auto* obj = new DynamicObject();
     const ScopedLock sl (tracksLock);
-    for (auto* t : tracks)
+    for (const auto* t : tracks)
     {
         auto* s = new DynamicObject();
         s->setProperty ("loaded", t->hasFile());
@@ -472,7 +471,7 @@ AudioPluginInstance* AudioEngine::getInstance (int slot) const
     return chain[(size_t) slot].get();
 }
 
-void AudioEngine::prepareSlot (int slot)
+void AudioEngine::prepareSlot (int slot) const
 {
     if (auto* inst = getInstance (slot))
     {
@@ -521,7 +520,7 @@ void AudioEngine::setBypassed (int slot, bool b)
         bypassed[(size_t) slot].store (b);
 }
 
-void AudioEngine::setParam (int slot, const String& paramId, float value01)
+void AudioEngine::setParam (int slot, const String& paramId, float value01) const
 {
     const auto* inst = getInstance (slot);
     if (inst == nullptr)
@@ -540,7 +539,7 @@ void AudioEngine::setParam (int slot, const String& paramId, float value01)
         params[index]->setValueNotifyingHost (jlimit (0.0f, 1.0f, value01));
 }
 
-var AudioEngine::listParams (int slot)
+var AudioEngine::listParams (int slot) const
 {
     Array<var> out;
     if (const auto* inst = getInstance (slot))
@@ -572,7 +571,7 @@ String AudioEngine::getPluginState (int slot) const
     return mb.toBase64Encoding();
 }
 
-bool AudioEngine::setPluginState (int slot, const String& base64)
+bool AudioEngine::setPluginState (int slot, const String& base64) const
 {
     auto* inst = getInstance (slot);
     if (inst == nullptr || base64.isEmpty())
@@ -663,7 +662,7 @@ void AudioEngine::audioDeviceStopped()
     transportSource.releaseResources();
     {
         const ScopedLock sl (chainLock);
-        for (auto& p : chain)
+        for (const auto& p : chain)
             if (p != nullptr)
                 p->releaseResources();
     }
@@ -671,7 +670,7 @@ void AudioEngine::audioDeviceStopped()
         const ScopedLock sl (tracksLock);
         for (auto* t : tracks)
             t->releaseResources();
-        for (auto* g : groups)
+        for (const auto* g : groups)
             g->inserts.release();
     }
     for (auto& r : returnRacks)
@@ -781,8 +780,7 @@ void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputCha
     scratch.applyGain (masterVolume.load());
 
     // 4b) Master pan (stereo balance; unity at center).
-    const float mpan = masterPan.load();
-    if (scratch.getNumChannels() >= 2 && ! approximatelyEqual (mpan, 0.5f))
+    if (const float mpan = masterPan.load(); scratch.getNumChannels() >= 2 && ! approximatelyEqual (mpan, 0.5f))
     {
         scratch.applyGain (0, 0, numSamples, mpan <= 0.5f ? 1.0f : (1.0f - mpan) * 2.0f);
         scratch.applyGain (1, 0, numSamples, mpan >= 0.5f ? 1.0f : mpan * 2.0f);

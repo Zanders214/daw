@@ -244,11 +244,15 @@ void EngineController::applyEnginePayload (const var& enginePayload)
 
     // Per-node insert racks: instantiate each saved device into its node (async)
     // and restore its state on completion.
+    auto restoreRack = [this] (const String& nodeId, const var& slotsVar)
+    {
+        if (auto* slots = slotsVar.getDynamicObject())
+            for (const auto& sp : slots->getProperties())
+                nodeDeviceAdd (nodeId, sp.name.toString(), sp.value.toString());
+    };
     if (auto* nodes = obj->getProperty ("nodes").getDynamicObject())
         for (const auto& np : nodes->getProperties())
-            if (auto* slots = np.value.getDynamicObject())
-                for (const auto& sp : slots->getProperties())
-                    nodeDeviceAdd (np.name.toString(), sp.name.toString(), sp.value.toString());
+            restoreRack (np.name.toString(), np.value);
 }
 
 void EngineController::sessionExport (const String& name, const var& uiPayload)
@@ -295,44 +299,74 @@ void EngineController::sessionImport()
 
 var EngineController::handle (const String& name, const Array<var>& args)
 {
+    if (auto r = handleTransport   (name, args)) return *r;
+    if (auto r = handleMixer       (name, args)) return *r;
+    if (auto r = handleGroupSends  (name, args)) return *r;
+    if (auto r = handleAutomation  (name, args)) return *r;
+    if (auto r = handleNodeDevice  (name, args)) return *r;
+    if (auto r = handleTrackSource (name, args)) return *r;
+    if (auto r = handleDeviceChain (name, args)) return *r;
+    if (auto r = handleAudioSource (name, args)) return *r;
+    if (auto r = handleSession     (name, args)) return *r;
+    return {};
+}
+
+// ---- transport ----
+std::optional<var> EngineController::handleTransport (const String& name, const Array<var>& args)
+{
     const auto arg = [&args] (int i) { return i < args.size() ? args[i] : var(); };
-    const auto slotOf = [&arg] { return PluginHost::slotIndex (arg (0).toString()); };
 
-    // ---- transport ----
-    if (name == "transportSetPlaying")  { audioEngine.setPlaying ((bool) arg (0)); return {}; }
-    if (name == "transportStop")        { audioEngine.stop(); return {}; }
-    if (name == "transportSetPosition") { audioEngine.setPosition ((double) arg (0)); return {}; }
-    if (name == "transportSetLooping")  { audioEngine.setLooping ((bool) arg (0)); return {}; }
-    if (name == "transportSetRecording"){ audioEngine.setRecording ((bool) arg (0)); return {}; }
-    if (name == "transportSetTempo")    { audioEngine.setTempo ((double) arg (0)); return {}; }
-    if (name == "transportSetLoopStart"){ audioEngine.setLoopRegion ((double) arg (0), audioEngine.getLoopEnd()); return {}; }
-    if (name == "transportSetLoopEnd")  { audioEngine.setLoopRegion (audioEngine.getLoopStart(), (double) arg (0)); return {}; }
+    if (name == "transportSetPlaying")   { audioEngine.setPlaying ((bool) arg (0)); return var(); }
+    if (name == "transportStop")         { audioEngine.stop(); return var(); }
+    if (name == "transportSetPosition")  { audioEngine.setPosition ((double) arg (0)); return var(); }
+    if (name == "transportSetLooping")   { audioEngine.setLooping ((bool) arg (0)); return var(); }
+    if (name == "transportSetRecording") { audioEngine.setRecording ((bool) arg (0)); return var(); }
+    if (name == "transportSetTempo")     { audioEngine.setTempo ((double) arg (0)); return var(); }
+    if (name == "transportSetLoopStart") { audioEngine.setLoopRegion ((double) arg (0), audioEngine.getLoopEnd()); return var(); }
+    if (name == "transportSetLoopEnd")   { audioEngine.setLoopRegion (audioEngine.getLoopStart(), (double) arg (0)); return var(); }
+    return std::nullopt;
+}
 
-    // ---- mixer ----
-    if (name == "mixerSetTrackVolume")  { audioEngine.setTrackGain (arg (0).toString(), (float) (double) arg (1)); return {}; }
-    if (name == "mixerSetTrackPan")     { audioEngine.setTrackPan  (arg (0).toString(), (float) (double) arg (1)); return {}; }
-    if (name == "mixerSetTrackMute")    { audioEngine.setTrackMute (arg (0).toString(), (bool) arg (1)); return {}; }
-    if (name == "mixerSetTrackSolo")    { audioEngine.setTrackSolo (arg (0).toString(), (bool) arg (1)); return {}; }
-    if (name == "mixerSetTrackArm")     { audioEngine.setTrackArm  (arg (0).toString(), (bool) arg (1)); return {}; }
-    if (name == "mixerSetTrackGroup")   { audioEngine.setTrackGroup (arg (0).toString(), arg (1).toString()); return {}; }
-    if (name == "mixerSetMasterVolume") { audioEngine.setMasterVolume ((float) (double) arg (0)); return {}; }
-    if (name == "mixerSetMasterPan")    { audioEngine.setMasterPan ((float) (double) arg (0)); return {}; }
+// ---- mixer ----
+std::optional<var> EngineController::handleMixer (const String& name, const Array<var>& args)
+{
+    const auto arg = [&args] (int i) { return i < args.size() ? args[i] : var(); };
 
-    // ---- group sub-mix buses ----
-    if (name == "groupSetGain") { audioEngine.setGroupGain (arg (0).toString(), (float) (double) arg (1)); return {}; }
-    if (name == "groupSetPan")  { audioEngine.setGroupPan  (arg (0).toString(), (float) (double) arg (1)); return {}; }
-    if (name == "groupSetMute") { audioEngine.setGroupMute (arg (0).toString(), (bool) arg (1)); return {}; }
-    if (name == "groupSetSolo") { audioEngine.setGroupSolo (arg (0).toString(), (bool) arg (1)); return {}; }
+    if (name == "mixerSetTrackVolume")  { audioEngine.setTrackGain (arg (0).toString(), (float) (double) arg (1)); return var(); }
+    if (name == "mixerSetTrackPan")     { audioEngine.setTrackPan  (arg (0).toString(), (float) (double) arg (1)); return var(); }
+    if (name == "mixerSetTrackMute")    { audioEngine.setTrackMute (arg (0).toString(), (bool) arg (1)); return var(); }
+    if (name == "mixerSetTrackSolo")    { audioEngine.setTrackSolo (arg (0).toString(), (bool) arg (1)); return var(); }
+    if (name == "mixerSetTrackArm")     { audioEngine.setTrackArm  (arg (0).toString(), (bool) arg (1)); return var(); }
+    if (name == "mixerSetTrackGroup")   { audioEngine.setTrackGroup (arg (0).toString(), arg (1).toString()); return var(); }
+    if (name == "mixerSetMasterVolume") { audioEngine.setMasterVolume ((float) (double) arg (0)); return var(); }
+    if (name == "mixerSetMasterPan")    { audioEngine.setMasterPan ((float) (double) arg (0)); return var(); }
+    return std::nullopt;
+}
 
-    // ---- aux sends / returns ----
-    if (name == "mixerSetTrackSend") { audioEngine.setTrackSend (arg (0).toString(), (int) arg (1), (float) (double) arg (2)); return {}; }
-    if (name == "returnSetGain")     { audioEngine.setReturnGain ((int) arg (0), (float) (double) arg (1)); return {}; }
+// ---- group sub-mix buses + aux sends / returns ----
+std::optional<var> EngineController::handleGroupSends (const String& name, const Array<var>& args)
+{
+    const auto arg = [&args] (int i) { return i < args.size() ? args[i] : var(); };
 
-    // ---- parameter automation ----
+    if (name == "groupSetGain") { audioEngine.setGroupGain (arg (0).toString(), (float) (double) arg (1)); return var(); }
+    if (name == "groupSetPan")  { audioEngine.setGroupPan  (arg (0).toString(), (float) (double) arg (1)); return var(); }
+    if (name == "groupSetMute") { audioEngine.setGroupMute (arg (0).toString(), (bool) arg (1)); return var(); }
+    if (name == "groupSetSolo") { audioEngine.setGroupSolo (arg (0).toString(), (bool) arg (1)); return var(); }
+
+    if (name == "mixerSetTrackSend") { audioEngine.setTrackSend (arg (0).toString(), (int) arg (1), (float) (double) arg (2)); return var(); }
+    if (name == "returnSetGain")     { audioEngine.setReturnGain ((int) arg (0), (float) (double) arg (1)); return var(); }
+    return std::nullopt;
+}
+
+// ---- parameter automation ----
+std::optional<var> EngineController::handleAutomation (const String& name, const Array<var>& args)
+{
+    const auto arg = [&args] (int i) { return i < args.size() ? args[i] : var(); };
+
     if (name == "automationSet")
     {
         std::vector<AutomationStore::Point> pts;
-        if (auto* arr = arg (2).getArray())
+        if (const auto* arr = arg (2).getArray())
         {
             pts.reserve ((size_t) arr->size());
             for (const auto& pv : *arr)
@@ -340,64 +374,81 @@ var EngineController::handle (const String& name, const Array<var>& args)
                                  (float) (double) pv.getProperty ("v", 0.0) });
         }
         audioEngine.setAutomation (arg (0).toString(), arg (1).toString(), std::move (pts));
-        return {};
+        return var();
     }
-    if (name == "automationClear")    { audioEngine.clearAutomation (arg (0).toString(), arg (1).toString()); return {}; }
-    if (name == "automationClearAll") { audioEngine.clearAllAutomation(); return {}; }
+    if (name == "automationClear")    { audioEngine.clearAutomation (arg (0).toString(), arg (1).toString()); return var(); }
+    if (name == "automationClearAll") { audioEngine.clearAllAutomation(); return var(); }
+    return std::nullopt;
+}
 
-    // ---- per-node insert FX ----
-    if (name == "nodeDeviceAdd")    { nodeDeviceAdd (arg (0).toString(), arg (1).toString()); return {}; }
-    if (name == "nodeDeviceRemove") { if (auto* r = audioEngine.rackForNode (arg (0).toString())) { r->remove (PluginHost::slotIndex (arg (1).toString())); } emitNodeRacks(); return {}; }
-    if (name == "nodeDeviceSetBypass") { if (auto* r = audioEngine.rackForNode (arg (0).toString())) { r->setBypass (PluginHost::slotIndex (arg (1).toString()), (bool) arg (2)); } emitNodeRacks(); return {}; }
-    if (name == "nodeDeviceOpenEditor")  { if (auto* r = audioEngine.rackForNode (arg (0).toString())) { r->openEditor (PluginHost::slotIndex (arg (1).toString())); } return {}; }
-    if (name == "nodeDeviceCloseEditor") { if (auto* r = audioEngine.rackForNode (arg (0).toString())) { r->closeEditor (PluginHost::slotIndex (arg (1).toString())); } return {}; }
-    if (name == "nodeDeviceListParams")
-    {
-        // { id: "dev:<slot>:<i>", name } for each param of a node's rack slot,
-        // so the automation picker can use `id` directly as the paramId.
-        Array<var> out;
-        const int slot = PluginHost::slotIndex (arg (1).toString());
-        if (auto* r = audioEngine.rackForNode (arg (0).toString()))
-            if (auto* inst = r->get (slot))
-            {
-                const auto& params = inst->getParameters();
-                for (int i = 0; i < params.size(); ++i)
-                {
-                    auto* obj = new DynamicObject();
-                    obj->setProperty ("id", "dev:" + String (slot) + ":" + String (i));
-                    obj->setProperty ("name", params[i]->getName (64));
-                    out.add (var (obj));
-                }
-            }
-        return var (out);
-    }
+// ---- per-node insert FX ----
+std::optional<var> EngineController::handleNodeDevice (const String& name, const Array<var>& args)
+{
+    if (! name.startsWith ("nodeDevice"))
+        return std::nullopt;
 
-    // ---- per-track audio source ----
-    if (name == "trackAssignFile") { audioEngine.assignTrackFile (arg (0).toString(), File (arg (1).toString())); emitTrackInfo(); return {}; }
-    if (name == "trackClearFile")  { audioEngine.clearTrackFile (arg (0).toString()); emitTrackInfo(); return {}; }
-    if (name == "trackPickFile")   { pickTrackFile (arg (0).toString()); return {}; }
+    const auto arg = [&args] (int i) { return i < args.size() ? args[i] : var(); };
 
-    // ---- device chain ----
-    if (name == "deviceSetBypass") { audioEngine.setBypassed (slotOf(), (bool) arg (1)); return {}; }
-    if (name == "deviceSetParam")  { audioEngine.setParam (slotOf(), arg (1).toString(), (float) (double) arg (2)); return {}; }
-    if (name == "deviceOpenEditor"){ audioEngine.openEditor (slotOf()); return {}; }
-    if (name == "deviceCloseEditor"){ audioEngine.closeEditor (slotOf()); return {}; }
-    if (name == "deviceListParams"){ return audioEngine.listParams (slotOf()); }
+    if (name == "nodeDeviceAdd")        { nodeDeviceAdd (arg (0).toString(), arg (1).toString()); return var(); }
+    if (name == "nodeDeviceListParams") { return nodeDeviceListParams (arg (0).toString(), arg (1).toString()); }
 
-    // ---- plugins ----
-    if (name == "pluginsScan")   { pluginHost.scanDefaultLocations ([this] (int slot, File f) { if (! audioEngine.hasPlugin (slot)) loadSlotFromPath (slot, f.getFullPathName()); }); return {}; }
-    if (name == "pluginsAssign") { loadSlotFromPath (slotOf(), arg (1).toString()); return {}; }
-    if (name == "pluginsPickFile"){ pickPluginFile (slotOf()); return {}; }
+    // remove / set-bypass / open / close editor all act on the same (rack, slot).
+    auto* r = audioEngine.rackForNode (arg (0).toString());
+    const int s = PluginHost::slotIndex (arg (1).toString());
+    if (name == "nodeDeviceRemove")      { if (r != nullptr) r->remove (s);                   emitNodeRacks(); return var(); }
+    if (name == "nodeDeviceSetBypass")   { if (r != nullptr) r->setBypass (s, (bool) arg (2)); emitNodeRacks(); return var(); }
+    if (name == "nodeDeviceOpenEditor")  { if (r != nullptr) r->openEditor (s);  return var(); }
+    if (name == "nodeDeviceCloseEditor") { if (r != nullptr) r->closeEditor (s); return var(); }
+    return std::nullopt;
+}
 
-    // ---- audio device settings ----
-    if (name == "audioGetDevices")  { return audioEngine.getDevicesInfo(); }
-    if (name == "audioSetSettings") { audioEngine.applySettings (arg (0)); return audioEngine.getDevicesInfo(); }
+// ---- per-track audio source ----
+std::optional<var> EngineController::handleTrackSource (const String& name, const Array<var>& args)
+{
+    const auto arg = [&args] (int i) { return i < args.size() ? args[i] : var(); };
 
-    // ---- legacy single source ----
-    if (name == "sourcePickFile")   { pickSourceFile(); return {}; }
-    if (name == "sourceSetInputMode"){ audioEngine.setInputMode (arg (0).toString()); return {}; }
+    if (name == "trackAssignFile") { audioEngine.assignTrackFile (arg (0).toString(), File (arg (1).toString())); emitTrackInfo(); return var(); }
+    if (name == "trackClearFile")  { audioEngine.clearTrackFile (arg (0).toString()); emitTrackInfo(); return var(); }
+    if (name == "trackPickFile")   { pickTrackFile (arg (0).toString()); return var(); }
+    return std::nullopt;
+}
 
-    // ---- session persistence ----
+// ---- device chain + plugins ----
+std::optional<var> EngineController::handleDeviceChain (const String& name, const Array<var>& args)
+{
+    const auto arg = [&args] (int i) { return i < args.size() ? args[i] : var(); };
+    const auto slotOf = [&arg] { return PluginHost::slotIndex (arg (0).toString()); };
+
+    if (name == "deviceSetBypass")  { audioEngine.setBypassed (slotOf(), (bool) arg (1)); return var(); }
+    if (name == "deviceSetParam")   { audioEngine.setParam (slotOf(), arg (1).toString(), (float) (double) arg (2)); return var(); }
+    if (name == "deviceOpenEditor") { audioEngine.openEditor (slotOf()); return var(); }
+    if (name == "deviceCloseEditor"){ audioEngine.closeEditor (slotOf()); return var(); }
+    if (name == "deviceListParams") { return audioEngine.listParams (slotOf()); }
+
+    if (name == "pluginsScan")    { pluginHost.scanDefaultLocations ([this] (int slot, File f) { if (! audioEngine.hasPlugin (slot)) loadSlotFromPath (slot, f.getFullPathName()); }); return var(); }
+    if (name == "pluginsAssign")  { loadSlotFromPath (slotOf(), arg (1).toString()); return var(); }
+    if (name == "pluginsPickFile"){ pickPluginFile (slotOf()); return var(); }
+    return std::nullopt;
+}
+
+// ---- audio device settings + legacy single source ----
+std::optional<var> EngineController::handleAudioSource (const String& name, const Array<var>& args)
+{
+    const auto arg = [&args] (int i) { return i < args.size() ? args[i] : var(); };
+
+    if (name == "audioGetDevices")   { return audioEngine.getDevicesInfo(); }
+    if (name == "audioSetSettings")  { audioEngine.applySettings (arg (0)); return audioEngine.getDevicesInfo(); }
+
+    if (name == "sourcePickFile")    { pickSourceFile(); return var(); }
+    if (name == "sourceSetInputMode"){ audioEngine.setInputMode (arg (0).toString()); return var(); }
+    return std::nullopt;
+}
+
+// ---- session persistence ----
+std::optional<var> EngineController::handleSession (const String& name, const Array<var>& args)
+{
+    const auto arg = [&args] (int i) { return i < args.size() ? args[i] : var(); };
+
     if (name == "sessionSave")
     {
         const auto sname = arg (0).toString();
@@ -406,9 +457,9 @@ var EngineController::handle (const String& name, const Array<var>& args)
     }
     if (name == "sessionLoad")
     {
-        auto* obj = sessionStore.readSession (arg (0).toString()).getDynamicObject();
+        const auto* obj = sessionStore.readSession (arg (0).toString()).getDynamicObject();
         if (obj == nullptr)
-            return {};                                  // not found
+            return var();                               // not found
         applyEnginePayload (obj->getProperty ("engine"));
         return obj->getProperty ("ui");                 // hand UI state to the web
     }
@@ -419,10 +470,31 @@ var EngineController::handle (const String& name, const Array<var>& args)
         r->setProperty ("ok", sessionStore.deleteSession (arg (0).toString()));
         return var (r);
     }
-    if (name == "sessionExport") { sessionExport (arg (0).toString(), arg (1)); return {}; }
-    if (name == "sessionImport") { sessionImport(); return {}; }
-    if (name == "prefsSave")     { sessionStore.writePrefs (arg (0)); return {}; }
+    if (name == "sessionExport") { sessionExport (arg (0).toString(), arg (1)); return var(); }
+    if (name == "sessionImport") { sessionImport(); return var(); }
+    if (name == "prefsSave")     { sessionStore.writePrefs (arg (0)); return var(); }
     if (name == "prefsLoad")     { return sessionStore.readPrefs(); }
+    return std::nullopt;
+}
 
-    return {};
+// { id: "dev:<slot>:<i>", name } for each param of a node's rack slot, so the
+// automation picker can use `id` directly as the paramId.
+var EngineController::nodeDeviceListParams (const String& nodeId, const String& slotKey)
+{
+    Array<var> out;
+    const int slot = PluginHost::slotIndex (slotKey);
+    const auto* r = audioEngine.rackForNode (nodeId);
+    const auto* inst = r != nullptr ? r->get (slot) : nullptr;
+    if (inst != nullptr)
+    {
+        const auto& params = inst->getParameters();
+        for (int i = 0; i < params.size(); ++i)
+        {
+            auto* obj = new DynamicObject();
+            obj->setProperty ("id", "dev:" + String (slot) + ":" + String (i));
+            obj->setProperty ("name", params[i]->getName (64));
+            out.add (var (obj));
+        }
+    }
+    return var (out);
 }

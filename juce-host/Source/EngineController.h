@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include <array>
+#include <optional>
 #include "AudioEngine.h"
 #include "PluginHost.h"
 #include "SessionStore.h"
@@ -32,6 +33,21 @@ private:
     void emitPluginStatuses();
     void emitTrackInfo();
     void emitNodeRacks();
+
+    // `handle` command dispatch, split by area to keep each function simple.
+    // Each returns the command's result (a possibly-void var) when it owns
+    // `name`, or nullopt to let the next group try.
+    std::optional<juce::var> handleTransport   (const juce::String& name, const juce::Array<juce::var>& args);
+    std::optional<juce::var> handleMixer       (const juce::String& name, const juce::Array<juce::var>& args);
+    std::optional<juce::var> handleGroupSends  (const juce::String& name, const juce::Array<juce::var>& args);
+    std::optional<juce::var> handleAutomation  (const juce::String& name, const juce::Array<juce::var>& args);
+    std::optional<juce::var> handleNodeDevice  (const juce::String& name, const juce::Array<juce::var>& args);
+    std::optional<juce::var> handleTrackSource (const juce::String& name, const juce::Array<juce::var>& args);
+    std::optional<juce::var> handleDeviceChain (const juce::String& name, const juce::Array<juce::var>& args);
+    std::optional<juce::var> handleAudioSource (const juce::String& name, const juce::Array<juce::var>& args);
+    std::optional<juce::var> handleSession     (const juce::String& name, const juce::Array<juce::var>& args);
+    /** { id, name } for each parameter of a node-rack slot (automation picker). */
+    juce::var nodeDeviceListParams (const juce::String& nodeId, const juce::String& slotKey);
     /** Instantiate a palette plugin (key) into a node's insert rack (async). */
     void nodeDeviceAdd (const juce::String& nodeId, const juce::String& key,
                         const juce::String& stateB64 = {});

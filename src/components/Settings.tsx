@@ -182,14 +182,13 @@ export function Settings() {
 
   return (
     <div
-      onClick={s.closeSettings}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) s.closeSettings();
+      }}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " " || e.key === "Escape") {
-          e.preventDefault();
-          s.closeSettings();
-        }
+        if (e.key === "Escape") s.closeSettings();
       }}
       style={{
         position: "absolute",
@@ -204,9 +203,6 @@ export function Settings() {
       }}
     >
       <div
-        role="group"
-        onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => e.stopPropagation()}
         style={{
           width: 760,
           maxHeight: "86%",
