@@ -189,6 +189,8 @@ export interface DawState {
   togglePlay: () => void;
   stop: () => void;
   rewind: () => void;
+  /** Seek the playhead to an absolute beat position (clamped to the timeline). */
+  setPlayhead: (beats: number) => void;
   toggleRecord: () => void;
   toggleLoop: () => void;
 
@@ -402,6 +404,11 @@ export const useDawStore = create<DawState>((set, get) => ({
   rewind: () => {
     if (engineActive()) engine.transport.setPosition(0);
     set({ playhead: 0 });
+  },
+  setPlayhead: (beats) => {
+    const ph = Math.max(0, Math.min(TOTAL_BEATS, beats));
+    if (engineActive()) engine.transport.setPosition(ph);
+    set({ playhead: ph });
   },
   toggleRecord: () => {
     const recording = !get().recording;

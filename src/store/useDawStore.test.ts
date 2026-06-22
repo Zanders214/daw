@@ -51,6 +51,15 @@ describe("useDawStore — transport", () => {
     expect(get().playing).toBe(true);
   });
 
+  it("setPlayhead seeks and clamps to the timeline", () => {
+    get().setPlayhead(42);
+    expect(get().playhead).toBe(42);
+    get().setPlayhead(-10);
+    expect(get().playhead).toBe(0);
+    get().setPlayhead(9999);
+    expect(get().playhead).toBe(128); // TOTAL_BEATS
+  });
+
   it("toggleRecord and toggleLoop flip their flags", () => {
     get().toggleRecord();
     expect(get().recording).toBe(true);

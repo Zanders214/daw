@@ -5,15 +5,13 @@ import { hexA } from "../../lib/color";
 import { genNotes } from "../../lib/notes";
 import { TOTAL_BARS } from "../../lib/constants";
 import { deviceDescriptorForItem, getDragItem, hasDragItem, trackTypeForItem } from "../../lib/dnd";
+import { barsAt, snap, startDrag } from "../../lib/timeline";
 import { AutomationLane } from "./AutomationLane";
 import { SEND_ROW_H } from "./TrackHeader";
 import type { Clip, Track } from "../../types";
 
-/** Snap a bar position to the grid (whole bars; quarter-bar when `fine`). */
-const snapBar = (bar: number, fine: boolean): number => {
-  const step = fine ? 0.25 : 1;
-  return Math.round(bar / step) * step;
-};
+/** Grid step in bars: whole bars, or quarter-bar when Alt (fine) is held. */
+const step = (fine: boolean) => (fine ? 0.25 : 1);
 
 export function TrackLane({ track }: Readonly<{ track: Track }>) {
   const id = track.id;
@@ -50,53 +48,40 @@ export function TrackLane({ track }: Readonly<{ track: Track }>) {
   const isMidi = track.type === "drum" || track.type === "midi";
   const clipAlpha = vibrant ? 0.3 : 0.17;
 
-  /** Pointer clientX → bar position within the lane (unsnapped). */
-  const barAt = (clientX: number, rect: DOMRect): number =>
-    rect.width > 0 ? ((clientX - rect.left) / rect.width) * TOTAL_BARS : 0;
-
-  /** Run `onMove` for the duration of a pointer drag (global listeners, like
-   *  AutomationLane). Returns the pointerdown handler. */
-  const dragWith = (onMove: (ev: PointerEvent, rect: DOMRect) => void) => (e: React.PointerEvent) => {
-    if (e.button !== 0) return;
-    const rect = laneRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const move = (ev: PointerEvent) => onMove(ev, rect);
-    const up = () => {
-      globalThis.removeEventListener("pointermove", move);
-      globalThis.removeEventListener("pointerup", up);
-    };
-    globalThis.addEventListener("pointermove", move);
-    globalThis.addEventListener("pointerup", up);
-  };
+  const laneRect = () => laneRef.current?.getBoundingClientRect() ?? null;
 
   const startMove = (c: Clip) => (e: React.PointerEvent) => {
     selectClip(c.id, id);
-    const rect = laneRef.current?.getBoundingClientRect();
+    const rect = laneRect();
     if (!rect || e.button !== 0) return;
-    const grabOffset = barAt(e.clientX, rect) - c.bar;
+    const grabOffset = barsAt(e.clientX, rect) - c.bar;
     const startX = e.clientX;
     let moved = false;
-    dragWith((ev, r) => {
+    startDrag((ev) => {
       if (!moved && Math.abs(ev.clientX - startX) < 3) return; // preserve plain click→select
       moved = true;
-      moveClip(id, c.id, snapBar(barAt(ev.clientX, r) - grabOffset, ev.altKey));
-    })(e);
+      moveClip(id, c.id, snap(barsAt(ev.clientX, rect) - grabOffset, step(ev.altKey)));
+    });
   };
 
   const startResizeRight = (c: Clip) => (e: React.PointerEvent) => {
     e.stopPropagation();
     selectClip(c.id, id);
-    dragWith((ev, r) => resizeClip(id, c.id, snapBar(barAt(ev.clientX, r) - c.bar, ev.altKey)))(e);
+    const rect = laneRect();
+    if (!rect || e.button !== 0) return;
+    startDrag((ev) => resizeClip(id, c.id, snap(barsAt(ev.clientX, rect) - c.bar, step(ev.altKey))));
   };
 
   const startResizeLeft = (c: Clip) => (e: React.PointerEvent) => {
     e.stopPropagation();
     selectClip(c.id, id);
+    const rect = laneRect();
+    if (!rect || e.button !== 0) return;
     const right = c.bar + c.len; // keep the right edge fixed
-    dragWith((ev, r) => {
-      const newBar = Math.min(right - 0.25, snapBar(barAt(ev.clientX, r), ev.altKey));
+    startDrag((ev) => {
+      const newBar = Math.min(right - 0.25, snap(barsAt(ev.clientX, rect), step(ev.altKey)));
       setClipRegion(id, c.id, newBar, right - newBar);
-    })(e);
+    });
   };
 
   const onClipKey = (c: Clip) => (e: React.KeyboardEvent) => {
