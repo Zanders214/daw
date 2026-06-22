@@ -42,6 +42,9 @@ export function genNotes(clip: Clip, td: Track): ClipNote[] {
 
 const PITCH_SPAN = PITCH_MAX - PITCH_MIN;
 
+/** Map a generated 0..7 display row to an absolute pitch in the editor range. */
+const rowToPitch = (row: number): number => PITCH_MAX - Math.round((row / 7) * PITCH_SPAN);
+
 /** Materialize the generated pattern as editable notes (beats + absolute pitch),
  *  so opening a never-edited clip in the piano roll starts from its display pattern. */
 export function notesFromPattern(clip: Clip, td: Track): Note[] {
@@ -50,7 +53,30 @@ export function notesFromPattern(clip: Clip, td: Track): Note[] {
     id: newNoteId(),
     start: n.x * beats,
     len: Math.max(0.25, n.w * beats),
-    pitch: PITCH_MAX - Math.round((n.row / 7) * PITCH_SPAN),
+    pitch: rowToPitch(n.row),
+    velocity: 0.8,
+  }));
+}
+
+/** A note ready for playback scheduling: timing in beats, absolute pitch, velocity. */
+export interface PlayNote {
+  start: number;
+  len: number;
+  pitch: number;
+  velocity: number;
+}
+
+/** Playable notes for a clip — the edited notes when present, else the generated
+ *  pattern mapped to pitches (so unedited clips are still audible). */
+export function playbackNotes(clip: Clip, td: Track): PlayNote[] {
+  if (clip.notes) {
+    return clip.notes.map((n) => ({ start: n.start, len: n.len, pitch: n.pitch, velocity: n.velocity ?? 0.8 }));
+  }
+  const beats = clip.len * BEATS_PER_BAR;
+  return genNotes(clip, td).map((n) => ({
+    start: n.x * beats,
+    len: Math.max(0.25, n.w * beats),
+    pitch: rowToPitch(n.row),
     velocity: 0.8,
   }));
 }
