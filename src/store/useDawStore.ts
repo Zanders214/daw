@@ -22,7 +22,7 @@ import {
   TOTAL_BARS,
   TOTAL_BEATS,
 } from "../lib/constants";
-import { newClipId, newGroupId, newInstanceId, newTrackId, TRACK_COLORS } from "../lib/dnd";
+import { newClipId, newGroupId, newInstanceId, newNoteId, newTrackId, TRACK_COLORS } from "../lib/dnd";
 import { notesFromPattern } from "../lib/notes";
 import { getAutoPts } from "../lib/automation";
 import { engine, engineActive } from "../lib/engine";
@@ -160,6 +160,9 @@ export interface DawState {
   editorClip: string;
   editorTrack: string;
 
+  // ---- clip clipboard ----
+  clipboard: Clip | null;
+
   // ---- settings ----
   settingsOpen: boolean;
   sessionsOpen: boolean;
@@ -233,6 +236,13 @@ export interface DawState {
   removeClip: (trackId: string, clipId: string) => void;
   /** Duplicate a clip immediately after itself and select the copy. */
   duplicateClip: (trackId: string, clipId: string) => void;
+  /** Move a clip to another track at `bar` (clamped); same id is kept. */
+  moveClipToTrack: (srcTrackId: string, clipId: string, destTrackId: string, bar: number) => void;
+  renameClip: (trackId: string, clipId: string, name: string) => void;
+  copyClip: (trackId: string, clipId: string) => void;
+  cutClip: (trackId: string, clipId: string) => void;
+  /** Paste the clipboard clip (fresh ids) onto a track at `bar`; returns new id. */
+  pasteClip: (trackId: string, bar: number) => string | null;
 
   // ---- piano-roll editor + MIDI notes ----
   openEditor: (trackId: string, clipId: string) => void;
@@ -243,6 +253,7 @@ export interface DawState {
   moveNote: (trackId: string, clipId: string, noteId: string, start: number, pitch: number) => void;
   resizeNote: (trackId: string, clipId: string, noteId: string, len: number) => void;
   removeNote: (trackId: string, clipId: string, noteId: string) => void;
+  setNoteVelocity: (trackId: string, clipId: string, noteId: string, vel: number) => void;
   addGroup: (name: string, color?: string) => string;
   removeGroup: (id: string) => void;
 
@@ -387,6 +398,7 @@ export const useDawStore = create<DawState>((set, get) => ({
   editorOpen: false,
   editorClip: "",
   editorTrack: "",
+  clipboard: null,
 
   settingsOpen: false,
   sessionsOpen: false,
@@ -565,6 +577,51 @@ export const useDawStore = create<DawState>((set, get) => ({
       selClip: id,
     }));
   },
+  moveClipToTrack: (srcTrackId, clipId, destTrackId, bar) => {
+    if (srcTrackId === destTrackId) {
+      get().moveClip(srcTrackId, clipId, bar);
+      return;
+    }
+    const src = get().tracks.find((t) => t.id === srcTrackId)?.clips.find((c) => c.id === clipId);
+    if (!src) return;
+    const clamped = Math.max(0, Math.min(TOTAL_BARS - src.len, bar));
+    set((s) => ({
+      tracks: s.tracks.map((t) => {
+        if (t.id === srcTrackId) return { ...t, clips: t.clips.filter((c) => c.id !== clipId) };
+        if (t.id === destTrackId) return { ...t, clips: [...t.clips, { ...src, bar: clamped }] };
+        return t;
+      }),
+      selClip: clipId,
+      selTrack: destTrackId,
+    }));
+  },
+  renameClip: (trackId, clipId, name) =>
+    set((s) => ({ tracks: mapClip(s.tracks, trackId, clipId, (c) => ({ ...c, name })) })),
+  copyClip: (trackId, clipId) => {
+    const src = get().tracks.find((t) => t.id === trackId)?.clips.find((c) => c.id === clipId);
+    if (src) set({ clipboard: structuredClone(src) });
+  },
+  cutClip: (trackId, clipId) => {
+    get().copyClip(trackId, clipId);
+    get().removeClip(trackId, clipId);
+  },
+  pasteClip: (trackId, bar) => {
+    const cb = get().clipboard;
+    if (!cb) return null;
+    const id = newClipId();
+    const clip: Clip = {
+      ...structuredClone(cb),
+      id,
+      bar: Math.max(0, Math.min(TOTAL_BARS - cb.len, bar)),
+      notes: cb.notes?.map((n) => ({ ...n, id: newNoteId() })),
+    };
+    set((s) => ({
+      tracks: s.tracks.map((t) => (t.id === trackId ? { ...t, clips: [...t.clips, clip] } : t)),
+      selClip: id,
+      selTrack: trackId,
+    }));
+    return id;
+  },
 
   openEditor: (trackId, clipId) => {
     get().ensureClipNotes(trackId, clipId);
@@ -585,7 +642,8 @@ export const useDawStore = create<DawState>((set, get) => ({
         const len = Math.max(NOTE_STEP, Math.min(beats, note.len));
         const start = Math.max(0, Math.min(beats - len, note.start));
         const pitch = Math.max(PITCH_MIN, Math.min(PITCH_MAX, Math.round(note.pitch)));
-        return { ...c, notes: [...(c.notes ?? []), { ...note, start, len, pitch }] };
+        const velocity = note.velocity ?? 0.8;
+        return { ...c, notes: [...(c.notes ?? []), { ...note, start, len, pitch, velocity }] };
       }),
     })),
   moveNote: (trackId, clipId, noteId, start, pitch) =>
@@ -623,6 +681,15 @@ export const useDawStore = create<DawState>((set, get) => ({
       tracks: mapClip(s.tracks, trackId, clipId, (c) => ({
         ...c,
         notes: (c.notes ?? []).filter((n) => n.id !== noteId),
+      })),
+    })),
+  setNoteVelocity: (trackId, clipId, noteId, vel) =>
+    set((s) => ({
+      tracks: mapClip(s.tracks, trackId, clipId, (c) => ({
+        ...c,
+        notes: (c.notes ?? []).map((n) =>
+          n.id === noteId ? { ...n, velocity: Math.max(0, Math.min(1, vel)) } : n,
+        ),
       })),
     })),
 

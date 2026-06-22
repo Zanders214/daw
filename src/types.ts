@@ -22,6 +22,8 @@ export interface Note {
   len: number;
   /** Absolute pitch (semitone / MIDI note number). */
   pitch: number;
+  /** Velocity 0..1 (defaults to 0.8 when absent). */
+  velocity?: number;
 }
 
 export interface Track {

@@ -14,7 +14,7 @@ const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
 const gridStep = (alt: boolean) => (alt ? 0 : NOTE_STEP);
 
 export function PianoRoll() {
-  const { editorOpen, editorClip, editorTrack, tracks, closeEditor, addNote, moveNote, resizeNote, removeNote } =
+  const { editorOpen, editorClip, editorTrack, tracks, closeEditor, addNote, moveNote, resizeNote, removeNote, setNoteVelocity, renameClip } =
     useDawStore(
       useShallow((s) => ({
         editorOpen: s.editorOpen,
@@ -26,9 +26,12 @@ export function PianoRoll() {
         moveNote: s.moveNote,
         resizeNote: s.resizeNote,
         removeNote: s.removeNote,
+        setNoteVelocity: s.setNoteVelocity,
+        renameClip: s.renameClip,
       })),
     );
   const gridRef = useRef<HTMLDivElement>(null);
+  const velRef = useRef<HTMLDivElement>(null);
   const [selNote, setSelNote] = useState("");
 
   const track = tracks.find((t) => t.id === editorTrack);
@@ -77,6 +80,16 @@ export function PianoRoll() {
     startDrag((ev) => resizeNote(track.id, clip.id, n.id, snap(beatAtX(ev.clientX, r) - n.start, gridStep(ev.altKey))));
   };
 
+  const velDrag = (n: Note) => (e: React.PointerEvent) => {
+    e.stopPropagation();
+    setSelNote(n.id);
+    const r = velRef.current?.getBoundingClientRect();
+    if (!r || e.button !== 0) return;
+    const set = (ev: PointerEvent) => setNoteVelocity(track.id, clip.id, n.id, 1 - clamp01((ev.clientY - r.top) / r.height));
+    set(e.nativeEvent);
+    startDrag(set);
+  };
+
   const del = (id: string) => {
     removeNote(track.id, clip.id, id);
     if (selNote === id) setSelNote("");
@@ -119,7 +132,26 @@ export function PianoRoll() {
         {/* header */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 18px", borderBottom: "1px solid var(--layer-2)" }}>
           <span style={{ width: 10, height: 10, borderRadius: 3, background: color, boxShadow: `0 0 8px ${color}`, flex: "none" }} />
-          <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: "0.04em", color: "var(--text-1)" }}>{clip.name}</span>
+          <input
+            value={clip.name}
+            onChange={(e) => renameClip(track.id, clip.id, e.target.value)}
+            title="Rename clip"
+            style={{
+              fontSize: 13,
+              fontWeight: 700,
+              letterSpacing: "0.04em",
+              color: "var(--text-1)",
+              background: "transparent",
+              border: "1px solid transparent",
+              borderRadius: 6,
+              padding: "2px 6px",
+              fontFamily: "var(--font-display)",
+              outline: "none",
+              width: 200,
+            }}
+            onFocus={(e) => { e.currentTarget.style.borderColor = "var(--layer-5)"; e.currentTarget.style.background = "var(--well)"; }}
+            onBlur={(e) => { e.currentTarget.style.borderColor = "transparent"; e.currentTarget.style.background = "transparent"; }}
+          />
           <span style={{ fontSize: 9, fontFamily: "var(--font-mono)", color: "var(--text-faint)" }}>
             PIANO ROLL · click to add · drag to move · edge to resize · Del to remove
           </span>
@@ -194,6 +226,7 @@ export function PianoRoll() {
                     border: `1px solid ${hexA(color, 0.7)}`,
                     borderRadius: 3,
                     boxShadow: sel ? `0 0 0 1px #fff, 0 0 10px ${hexA(color, 0.8)}` : `0 0 4px ${hexA(color, 0.5)}`,
+                    opacity: 0.45 + 0.55 * (n.velocity ?? 0.8),
                     cursor: "grab",
                     touchAction: "none",
                     boxSizing: "border-box",
@@ -204,6 +237,37 @@ export function PianoRoll() {
                     style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: 6, cursor: "ew-resize", touchAction: "none" }}
                   />
                 </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* velocity lane */}
+        <div style={{ display: "flex", height: 56, flex: "none", borderTop: "1px solid var(--layer-2)" }}>
+          <div style={{ width: 46, flex: "none", borderRight: "1px solid var(--layer-2)", display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: 6, fontSize: 8, letterSpacing: "0.1em", color: "var(--text-faint)", fontFamily: "var(--font-mono)" }}>
+            VEL
+          </div>
+          <div ref={velRef} style={{ flex: 1, position: "relative", background: "var(--layer-1)" }}>
+            {notes.map((n) => {
+              const v = n.velocity ?? 0.8;
+              return (
+                <div
+                  key={n.id}
+                  onPointerDown={velDrag(n)}
+                  title={`Velocity ${Math.round(v * 127)}`}
+                  style={{
+                    position: "absolute",
+                    left: xPct(n.start),
+                    width: `calc(${(n.len / clipBeats) * 100}% - 1px)`,
+                    minWidth: 2,
+                    bottom: 0,
+                    height: `${v * 100}%`,
+                    background: n.id === selNote ? "#fff" : color,
+                    opacity: 0.85,
+                    cursor: "ns-resize",
+                    touchAction: "none",
+                  }}
+                />
               );
             })}
           </div>
