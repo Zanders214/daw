@@ -5,7 +5,7 @@
  */
 let ac: AudioContext | null | undefined;
 
-function ensureAudio(): AudioContext | null {
+export function ensureAudio(): AudioContext | null {
   if (ac === undefined) {
     try {
       const Ctor =
@@ -48,17 +48,19 @@ const voices = new Set<AudioScheduledSourceNode>();
 interface TriggerOpts {
   pitch: number;
   durationSec: number;
-  /** Linear output gain (velocity × track vol × master vol), 0..~1. */
+  /** Output gain (velocity); track/group/master gain + pan live in the mixer graph. */
   gain: number;
-  /** Stereo position, -1 (L) .. 1 (R). */
-  pan: number;
   /** Percussive noise voice (drum tracks) vs a pitched oscillator. */
   drum: boolean;
+  /** Where the voice connects — a track input node from the mixer graph, or the
+   *  context destination as a fallback. */
+  destination?: AudioNode;
 }
 
 /** Play one note on the shared AudioContext: a noise burst for drums, else a
- *  lowpassed sawtooth, through an attack/decay envelope and a stereo panner. */
-export function triggerNote({ pitch, durationSec, gain, pan, drum }: TriggerOpts): void {
+ *  lowpassed sawtooth, through an attack/decay envelope, into `destination`
+ *  (a mixer-graph track input, or the output as a fallback). */
+export function triggerNote({ pitch, durationSec, gain, drum, destination }: TriggerOpts): void {
   const ctx = ensureAudio();
   if (!ctx || gain <= 0) return;
   const t = ctx.currentTime;
@@ -66,10 +68,7 @@ export function triggerNote({ pitch, durationSec, gain, pan, drum }: TriggerOpts
   const peak = Math.min(1, gain) * (drum ? 0.5 : 0.22);
 
   const env = ctx.createGain();
-  const panner = ctx.createStereoPanner();
-  panner.pan.value = Math.max(-1, Math.min(1, pan));
-  env.connect(panner);
-  panner.connect(ctx.destination);
+  env.connect(destination ?? ctx.destination);
 
   // Attack then exponential decay to the note end (+ short release tail).
   env.gain.setValueAtTime(0.0001, t);
