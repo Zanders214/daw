@@ -54,7 +54,7 @@ export function Arrange() {
       host.querySelectorAll<HTMLElement>("[data-clip-id]").forEach((el) => {
         const r = el.getBoundingClientRect();
         if (r.left < right && r.right > left && r.top < bottom && r.bottom > top) {
-          const cid = el.getAttribute("data-clip-id");
+          const cid = el.dataset.clipId;
           if (cid) hits.add(cid);
         }
       });

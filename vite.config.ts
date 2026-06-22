@@ -28,6 +28,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    setupFiles: ["./src/test/setup.ts"],
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],
@@ -39,6 +40,7 @@ export default defineConfig({
         "src/**/*.d.ts",
         "src/data/**",
         "src/styles/**",
+        "src/test/**",
       ],
     },
   },

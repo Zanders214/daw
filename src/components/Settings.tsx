@@ -185,7 +185,6 @@ export function Settings() {
       onClick={(e) => {
         if (e.target === e.currentTarget) s.closeSettings();
       }}
-      role="button"
       tabIndex={0}
       onKeyDown={(e) => {
         if (e.key === "Escape") s.closeSettings();

@@ -277,7 +277,7 @@ describe("useDawStore — chain openers & modals", () => {
     get().setVolume(id, 0.5);
     get().addNodeDevice(id, { kind: "eq", name: "EQ" });
     get().removeTrack(id);
-    expect(get().tracks.length).toBe(before);
+    expect(get().tracks).toHaveLength(before);
     expect(get().volumes[id]).toBeUndefined();
     expect(get().nodeRacks[id]).toBeUndefined();
     expect(get().groups.find((g) => g.id === "g-drums")?.tracks).not.toContain(id);

@@ -3,6 +3,8 @@
  * short click per beat: a brighter accent on the downbeat. This stands in for
  * the real audio engine until native audio / VST3 hosting lands.
  */
+import { whiteNoise } from "./noise";
+
 let ac: AudioContext | null | undefined;
 
 export function ensureAudio(): AudioContext | null {
@@ -80,7 +82,8 @@ export function triggerNote({ pitch, durationSec, gain, drum, destination }: Tri
     const len = Math.max(1, Math.floor(ctx.sampleRate * Math.min(0.25, dur)));
     const buf = ctx.createBuffer(1, len, ctx.sampleRate);
     const data = buf.getChannelData(0);
-    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+    const samples = whiteNoise(data.length);
+    for (let i = 0; i < data.length; i++) data[i] = samples[i] * (1 - i / data.length);
     const noise = ctx.createBufferSource();
     noise.buffer = buf;
     const bp = ctx.createBiquadFilter();

@@ -75,15 +75,7 @@ function MasterPan() {
         <span style={{ fontFamily: "var(--font-mono)", color: "var(--text-2)" }}>{label}</span>
       </div>
       <div
-        role="button"
-        tabIndex={0}
         onDoubleClick={() => setMasterPan(0.5)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            setMasterPan(0.5);
-          }
-        }}
         title="Master pan (double-click to center)"
       >
         <Dial value={masterPan} onChange={setMasterPan} label={null} size={30} color="var(--accent)" />
@@ -129,15 +121,7 @@ function ReturnsStrip() {
               RET {lbl}
             </button>
             <div
-              role="button"
-              tabIndex={0}
               onDoubleClick={() => setReturnGain(i, 1)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  setReturnGain(i, 1);
-                }
-              }}
               title={`Return ${lbl} level`}
             >
               <Dial value={Math.min(1, returnGains[i] ?? 1)} onChange={(v) => setReturnGain(i, v)} label={null} size={26} color="var(--spectrum-violet)" />
@@ -199,14 +183,6 @@ export function MasterBar({ tracksRight }: Readonly<{ tracksRight: boolean }>) {
     >
       <div
         onClick={openMasterChain}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            openMasterChain();
-          }
-        }}
         title="Open master chain"
         style={{
           width: HEADER_W,

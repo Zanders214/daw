@@ -104,6 +104,121 @@ function reassertNodeManual(s: DawState, nodeId: string) {
   }
 }
 
+// ---- pure arrangement transforms (top-level so nested store callbacks stay shallow) ----
+
+/** Drop a track id from every group's member list. */
+function dropTrackFromGroups(groups: Group[], id: string): Group[] {
+  return groups.map((g) => ({ ...g, tracks: g.tracks.filter((t) => t !== id) }));
+}
+/** Remove one clip from its track (others untouched), clearing nothing else. */
+function dropClipFromTracks(tracks: Track[], trackId: string, clipId: string): Track[] {
+  return tracks.map((t) =>
+    t.id === trackId ? { ...t, clips: t.clips.filter((c) => c.id !== clipId) } : t,
+  );
+}
+/** Move `src` (with its clamped bar) from `srcTrackId` to `destTrackId`, keeping the id. */
+function relocateClip(
+  tracks: Track[],
+  srcTrackId: string,
+  destTrackId: string,
+  clipId: string,
+  src: Clip,
+  bar: number,
+): Track[] {
+  return tracks.map((t) => {
+    if (t.id === srcTrackId) return { ...t, clips: t.clips.filter((c) => c.id !== clipId) };
+    if (t.id === destTrackId) return { ...t, clips: [...t.clips, { ...src, bar }] };
+    return t;
+  });
+}
+/** Drop every clip whose id is in `ids`, across all tracks. */
+function dropClipsByIds(tracks: Track[], ids: Set<string>): Track[] {
+  return tracks.map((t) => ({ ...t, clips: t.clips.filter((c) => !ids.has(c.id)) }));
+}
+/** Build duplicate clips for one track's selected ids; pushes the new ids into `created`. */
+function dupTrackClips(t: Track, ids: Set<string>, created: string[]): Clip[] {
+  return t.clips
+    .filter((c) => ids.has(c.id))
+    .map((c) => {
+      const id = newClipId();
+      created.push(id);
+      return {
+        ...structuredClone(c),
+        id,
+        bar: Math.max(0, Math.min(TOTAL_BARS - c.len, c.bar + c.len)),
+        notes: c.notes?.map((n) => ({ ...n, id: newNoteId() })),
+      };
+    });
+}
+/** Apply a batch of clip-bar updates (clamped) to one track's clips. */
+function applyClipBars(t: Track, updates: { trackId: string; clipId: string; bar: number }[]): Clip[] {
+  return t.clips.map((c) => {
+    const u = updates.find((x) => x.trackId === t.id && x.clipId === c.id);
+    return u ? { ...c, bar: Math.max(0, Math.min(TOTAL_BARS - c.len, u.bar)) } : c;
+  });
+}
+
+// ---- pure note transforms (operate on a clip; keep store .map callbacks shallow) ----
+
+/** Move one note's start/pitch within a clip of `beats` beats (clamped). */
+function applyMoveNote(c: Clip, beats: number, noteId: string, start: number, pitch: number): Note[] {
+  return (c.notes ?? []).map((n) =>
+    n.id === noteId
+      ? {
+          ...n,
+          start: Math.max(0, Math.min(beats - n.len, start)),
+          pitch: Math.max(PITCH_MIN, Math.min(PITCH_MAX, Math.round(pitch))),
+        }
+      : n,
+  );
+}
+/** Resize one note within a clip of `beats` beats (clamped). */
+function applyResizeNote(c: Clip, beats: number, noteId: string, len: number): Note[] {
+  return (c.notes ?? []).map((n) =>
+    n.id === noteId ? { ...n, len: Math.max(NOTE_STEP, Math.min(beats - n.start, len)) } : n,
+  );
+}
+/** Remove one note from a clip. */
+function dropNote(c: Clip, noteId: string): Note[] {
+  return (c.notes ?? []).filter((n) => n.id !== noteId);
+}
+/** Remove every note whose id is in `ids` from a clip. */
+function dropNotes(c: Clip, ids: Set<string>): Note[] {
+  return (c.notes ?? []).filter((n) => !ids.has(n.id));
+}
+/** Set one note's velocity (clamped to 0..1). */
+function applyNoteVelocity(c: Clip, noteId: string, vel: number): Note[] {
+  return (c.notes ?? []).map((n) =>
+    n.id === noteId ? { ...n, velocity: Math.max(0, Math.min(1, vel)) } : n,
+  );
+}
+/** Batch-set note start/pitch from `updates` within a clip of `beats` beats (clamped). */
+function applyNotePositions(
+  c: Clip,
+  beats: number,
+  updates: { id: string; start: number; pitch: number }[],
+): Note[] {
+  return (c.notes ?? []).map((n) => {
+    const u = updates.find((x) => x.id === n.id);
+    return u
+      ? {
+          ...n,
+          start: Math.max(0, Math.min(beats - n.len, u.start)),
+          pitch: Math.max(PITCH_MIN, Math.min(PITCH_MAX, Math.round(u.pitch))),
+        }
+      : n;
+  });
+}
+/** Append `toAdd` notes to a clip of `beats` beats, clamping each into range. */
+function applyPasteNotes(c: Clip, beats: number, toAdd: Note[]): Note[] {
+  const clamped = toAdd.map((n) => ({
+    ...n,
+    len: Math.max(NOTE_STEP, Math.min(beats, n.len)),
+    start: Math.max(0, Math.min(beats - Math.max(NOTE_STEP, n.len), n.start)),
+  }));
+  return [...(c.notes ?? []), ...clamped];
+}
+
 export interface DawState {
   // ---- transport ----
   playing: boolean;
@@ -530,7 +645,7 @@ export const useDawStore = create<DawState>((set, get) => ({
       );
       return {
         tracks: s.tracks.filter((t) => t.id !== id),
-        groups: s.groups.map((g) => ({ ...g, tracks: g.tracks.filter((t) => t !== id) })),
+        groups: dropTrackFromGroups(s.groups, id),
         volumes: omit(s.volumes, id),
         pans: omit(s.pans, id),
         mutes: omit(s.mutes, id),
@@ -585,9 +700,7 @@ export const useDawStore = create<DawState>((set, get) => ({
     })),
   removeClip: (trackId, clipId) =>
     set((s) => ({
-      tracks: s.tracks.map((t) =>
-        t.id === trackId ? { ...t, clips: t.clips.filter((c) => c.id !== clipId) } : t,
-      ),
+      tracks: dropClipFromTracks(s.tracks, trackId, clipId),
       selClip: s.selClip === clipId ? "" : s.selClip,
       selClips: s.selClips.filter((c) => c !== clipId),
     })),
@@ -613,11 +726,7 @@ export const useDawStore = create<DawState>((set, get) => ({
     if (!src) return;
     const clamped = Math.max(0, Math.min(TOTAL_BARS - src.len, bar));
     set((s) => ({
-      tracks: s.tracks.map((t) => {
-        if (t.id === srcTrackId) return { ...t, clips: t.clips.filter((c) => c.id !== clipId) };
-        if (t.id === destTrackId) return { ...t, clips: [...t.clips, { ...src, bar: clamped }] };
-        return t;
-      }),
+      tracks: relocateClip(s.tracks, srcTrackId, destTrackId, clipId, src, clamped),
       selClip: clipId,
       selClips: [clipId],
       selTrack: destTrackId,
@@ -677,75 +786,45 @@ export const useDawStore = create<DawState>((set, get) => ({
     })),
   moveNote: (trackId, clipId, noteId, start, pitch) =>
     set((s) => ({
-      tracks: mapClip(s.tracks, trackId, clipId, (c) => {
-        const beats = c.len * BEATS_PER_BAR;
-        return {
-          ...c,
-          notes: (c.notes ?? []).map((n) =>
-            n.id === noteId
-              ? {
-                  ...n,
-                  start: Math.max(0, Math.min(beats - n.len, start)),
-                  pitch: Math.max(PITCH_MIN, Math.min(PITCH_MAX, Math.round(pitch))),
-                }
-              : n,
-          ),
-        };
-      }),
+      tracks: mapClip(s.tracks, trackId, clipId, (c) => ({
+        ...c,
+        notes: applyMoveNote(c, c.len * BEATS_PER_BAR, noteId, start, pitch),
+      })),
     })),
   resizeNote: (trackId, clipId, noteId, len) =>
     set((s) => ({
-      tracks: mapClip(s.tracks, trackId, clipId, (c) => {
-        const beats = c.len * BEATS_PER_BAR;
-        return {
-          ...c,
-          notes: (c.notes ?? []).map((n) =>
-            n.id === noteId ? { ...n, len: Math.max(NOTE_STEP, Math.min(beats - n.start, len)) } : n,
-          ),
-        };
-      }),
+      tracks: mapClip(s.tracks, trackId, clipId, (c) => ({
+        ...c,
+        notes: applyResizeNote(c, c.len * BEATS_PER_BAR, noteId, len),
+      })),
     })),
   removeNote: (trackId, clipId, noteId) =>
     set((s) => ({
       tracks: mapClip(s.tracks, trackId, clipId, (c) => ({
         ...c,
-        notes: (c.notes ?? []).filter((n) => n.id !== noteId),
+        notes: dropNote(c, noteId),
       })),
     })),
   setNoteVelocity: (trackId, clipId, noteId, vel) =>
     set((s) => ({
       tracks: mapClip(s.tracks, trackId, clipId, (c) => ({
         ...c,
-        notes: (c.notes ?? []).map((n) =>
-          n.id === noteId ? { ...n, velocity: Math.max(0, Math.min(1, vel)) } : n,
-        ),
+        notes: applyNoteVelocity(c, noteId, vel),
       })),
     })),
   setNotePositions: (trackId, clipId, updates) =>
     set((s) => ({
-      tracks: mapClip(s.tracks, trackId, clipId, (c) => {
-        const beats = c.len * BEATS_PER_BAR;
-        return {
-          ...c,
-          notes: (c.notes ?? []).map((n) => {
-            const u = updates.find((x) => x.id === n.id);
-            return u
-              ? {
-                  ...n,
-                  start: Math.max(0, Math.min(beats - n.len, u.start)),
-                  pitch: Math.max(PITCH_MIN, Math.min(PITCH_MAX, Math.round(u.pitch))),
-                }
-              : n;
-          }),
-        };
-      }),
+      tracks: mapClip(s.tracks, trackId, clipId, (c) => ({
+        ...c,
+        notes: applyNotePositions(c, c.len * BEATS_PER_BAR, updates),
+      })),
     })),
   removeNotes: (trackId, clipId, noteIds) => {
     const ids = new Set(noteIds);
     set((s) => ({
       tracks: mapClip(s.tracks, trackId, clipId, (c) => ({
         ...c,
-        notes: (c.notes ?? []).filter((n) => !ids.has(n.id)),
+        notes: dropNotes(c, ids),
       })),
     }));
   },
@@ -767,15 +846,10 @@ export const useDawStore = create<DawState>((set, get) => ({
       return { ...n, id, start: anchorBeat + n.start };
     });
     set((s) => ({
-      tracks: mapClip(s.tracks, trackId, clipId, (c) => {
-        const beats = c.len * BEATS_PER_BAR;
-        const clamped = toAdd.map((n) => ({
-          ...n,
-          len: Math.max(NOTE_STEP, Math.min(beats, n.len)),
-          start: Math.max(0, Math.min(beats - Math.max(NOTE_STEP, n.len), n.start)),
-        }));
-        return { ...c, notes: [...(c.notes ?? []), ...clamped] };
-      }),
+      tracks: mapClip(s.tracks, trackId, clipId, (c) => ({
+        ...c,
+        notes: applyPasteNotes(c, c.len * BEATS_PER_BAR, toAdd),
+      })),
     }));
     return created;
   },
@@ -818,7 +892,7 @@ export const useDawStore = create<DawState>((set, get) => ({
     const ids = new Set(get().selClips);
     if (ids.size === 0) return;
     set((s) => ({
-      tracks: s.tracks.map((t) => ({ ...t, clips: t.clips.filter((c) => !ids.has(c.id)) })),
+      tracks: dropClipsByIds(s.tracks, ids),
       selClips: [],
       selClip: "",
     }));
@@ -829,18 +903,7 @@ export const useDawStore = create<DawState>((set, get) => ({
     const created: string[] = [];
     set((s) => ({
       tracks: s.tracks.map((t) => {
-        const dupes = t.clips
-          .filter((c) => ids.has(c.id))
-          .map((c) => {
-            const id = newClipId();
-            created.push(id);
-            return {
-              ...structuredClone(c),
-              id,
-              bar: Math.max(0, Math.min(TOTAL_BARS - c.len, c.bar + c.len)),
-              notes: c.notes?.map((n) => ({ ...n, id: newNoteId() })),
-            };
-          });
+        const dupes = dupTrackClips(t, ids, created);
         return dupes.length ? { ...t, clips: [...t.clips, ...dupes] } : t;
       }),
     }));
@@ -850,10 +913,7 @@ export const useDawStore = create<DawState>((set, get) => ({
     set((s) => ({
       tracks: s.tracks.map((t) => ({
         ...t,
-        clips: t.clips.map((c) => {
-          const u = updates.find((x) => x.trackId === t.id && x.clipId === c.id);
-          return u ? { ...c, bar: Math.max(0, Math.min(TOTAL_BARS - c.len, u.bar)) } : c;
-        }),
+        clips: applyClipBars(t, updates),
       })),
     })),
   toggleMute: (id) => {

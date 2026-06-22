@@ -56,17 +56,9 @@ function SendRow({ id }: Readonly<{ id: string }>) {
     >
       <span style={{ fontSize: 9, letterSpacing: "0.12em", color: "var(--text-label)" }}>SENDS</span>
       {["A", "B"].map((lbl, i) => (
-        <div key={lbl} role="group" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", gap: 7 }}>
+        <div key={lbl} onClick={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", gap: 7 }}>
           <div
-            role="button"
-            tabIndex={0}
             onDoubleClick={() => setSend(id, i, 0)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                setSend(id, i, 0);
-              }
-            }}
             title={`Send ${lbl} (double-click to zero)`}
           >
             <Dial value={sends[i] ?? 0} onChange={(v) => setSend(id, i, v)} label={null} size={26} color="var(--spectrum-violet)" />
@@ -145,14 +137,6 @@ export function TrackHeader({ track }: Readonly<{ track: Track }>) {
       <div
         onClick={() => selectTrack(id)}
         onDoubleClick={() => openTrackChain(id)}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            selectTrack(id);
-          }
-        }}
         style={{
           height: 108,
           padding: "10px 16px",
@@ -164,21 +148,19 @@ export function TrackHeader({ track }: Readonly<{ track: Track }>) {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span
-            role="button"
-            tabIndex={0}
+          <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation();
               toggleMute(id);
             }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                toggleMute(id);
-              }
-            }}
             title="Mute / unmute"
             style={{
+              appearance: "none",
+              padding: 0,
+              font: "inherit",
+              boxSizing: "border-box",
+              border: "none",
               width: 11,
               height: 11,
               borderRadius: 3,
@@ -306,17 +288,8 @@ export function TrackHeader({ track }: Readonly<{ track: Track }>) {
           <button type="button" onClick={(e) => { e.stopPropagation(); toggleArm(id); }} style={aStyle}>●</button>
           <button type="button" onClick={(e) => { e.stopPropagation(); toggleAuto(id); }} title="Automation lane" style={autoBtnStyle}>A</button>
           <div
-            role="button"
-            tabIndex={0}
             onClick={(e) => e.stopPropagation()}
             onDoubleClick={(e) => { e.stopPropagation(); setPan(id, 0.5); }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                e.stopPropagation();
-                setPan(id, 0.5);
-              }
-            }}
             title={`Pan: ${panLabel} (double-click to center)`}
             style={{ flex: "none" }}
           >
@@ -327,7 +300,7 @@ export function TrackHeader({ track }: Readonly<{ track: Track }>) {
 
         <div style={{ display: "flex", alignItems: "center", gap: 9, marginTop: 9 }}>
           <span style={{ fontSize: 9, color: "var(--text-label)", letterSpacing: "0.1em", flex: "none" }}>VOL</span>
-          <div role="group" style={{ flex: 1 }} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+          <div style={{ flex: 1 }} onClick={(e) => e.stopPropagation()}>
             <Slider value={vol} onChange={(v) => setVolume(id, v)} />
           </div>
           <span

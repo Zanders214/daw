@@ -54,18 +54,15 @@ export function Browser() {
 
   if (!browserOpen) {
     return (
-      <div
+      <button
+        type="button"
         onClick={toggleBrowser}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            toggleBrowser();
-          }
-        }}
         title="Show browser"
         style={{
+          appearance: "none",
+          padding: 0,
+          font: "inherit",
+          boxSizing: "border-box",
           width: 36,
           flex: "none",
           display: "flex",
@@ -74,6 +71,7 @@ export function Browser() {
           gap: 14,
           paddingTop: 16,
           cursor: "pointer",
+          border: "none",
           borderRight: "1px solid var(--layer-3)",
           background: "var(--app-surface)",
         }}
@@ -90,7 +88,7 @@ export function Browser() {
         >
           BROWSER
         </span>
-      </div>
+      </button>
     );
   }
 

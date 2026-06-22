@@ -127,7 +127,6 @@ export function Sessions() {
       onClick={(e) => {
         if (e.target === e.currentTarget) close();
       }}
-      role="button"
       tabIndex={0}
       onKeyDown={(e) => {
         if (e.key === "Escape") close();

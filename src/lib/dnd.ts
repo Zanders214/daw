@@ -22,10 +22,11 @@ let clipSeq = 0;
 
 /** A stable unique id with a readable prefix (uuid when available). */
 function uid(prefix: string, seq: number): string {
+  const c = globalThis.crypto;
   const rnd =
-    typeof globalThis.crypto?.randomUUID === "function"
-      ? globalThis.crypto.randomUUID().slice(0, 8)
-      : Math.random().toString(36).slice(2, 10);
+    typeof c?.randomUUID === "function"
+      ? c.randomUUID().slice(0, 8)
+      : Array.from(c.getRandomValues(new Uint8Array(4)), (b) => b.toString(16).padStart(2, "0")).join("");
   return `${prefix}-${seq}-${rnd}`;
 }
 

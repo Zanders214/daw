@@ -13,6 +13,15 @@ const noteName = (p: number) => NAMES[((p % 12) + 12) % 12] + (Math.floor(p / 12
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
 const gridStep = (alt: boolean) => (alt ? 0 : NOTE_STEP);
 
+const toggleId = (sel: string[], id: string) =>
+  sel.includes(id) ? sel.filter((x) => x !== id) : [...sel, id];
+
+const shiftSnapshot = (
+  snapshot: { id: string; start: number; pitch: number }[],
+  dBeat: number,
+  dPitch: number,
+) => snapshot.map((s) => ({ id: s.id, start: s.start + dBeat, pitch: s.pitch + dPitch }));
+
 export function PianoRoll() {
   const {
     editorOpen, editorClip, editorTrack, tracks, playhead, closeEditor,
@@ -100,7 +109,7 @@ export function PianoRoll() {
     e.stopPropagation();
     if (e.button !== 0) return;
     if (e.shiftKey) {
-      setSelNotes((sel) => (sel.includes(n.id) ? sel.filter((x) => x !== n.id) : [...sel, n.id]));
+      setSelNotes((sel) => toggleId(sel, n.id));
       return;
     }
     const multi = selNotes.length > 1 && selNotes.includes(n.id);
@@ -114,7 +123,7 @@ export function PianoRoll() {
     startDrag((ev) => {
       const dBeat = snap(beatAtX(ev.clientX, r) - grabBeat, gridStep(ev.altKey));
       const dPitch = pitchAtY(ev.clientY, r) - grabPitch;
-      setNotePositions(track.id, clip.id, snapshot.map((s) => ({ id: s.id, start: s.start + dBeat, pitch: s.pitch + dPitch })));
+      setNotePositions(track.id, clip.id, shiftSnapshot(snapshot, dBeat, dPitch));
     });
   };
 
@@ -145,7 +154,6 @@ export function PianoRoll() {
   return (
     <div
       onClick={(e) => { if (e.target === e.currentTarget) closeEditor(); }}
-      role="button"
       tabIndex={0}
       onKeyDown={(e) => {
         const mod = e.metaKey || e.ctrlKey;
