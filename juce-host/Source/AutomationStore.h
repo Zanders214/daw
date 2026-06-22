@@ -35,7 +35,7 @@ public:
         float lo { 0.0f };
         float hi { 1.0f };
         DeviceRack* rack { nullptr };
-        int slot { 0 };
+        juce::String deviceId;   // rack device instance id (param targets)
         int paramIndex { 0 };
     };
 
@@ -60,6 +60,22 @@ public:
         lanes.clear();
     }
 
+    /** Drop every lane belonging to a node (keys are "<nodeId>|<paramId>"). Used
+        when a track is deleted so its (possibly device-param) envelopes — whose
+        targets point into the freed track's rack — are removed first. */
+    void clearForNode (const juce::String& nodeId)
+    {
+        const juce::String prefix = nodeId + "|";
+        const juce::ScopedLock sl (lock);
+        for (auto it = lanes.begin(); it != lanes.end(); )
+        {
+            if (it->first.startsWith (prefix))
+                it = lanes.erase (it);
+            else
+                ++it;
+        }
+    }
+
     // ---- audio thread ----
     /** Evaluate every lane at `beats` (block-start playhead) and write to its
         target. Lock-free on a missed try-lock (manual values persist). */
@@ -79,7 +95,7 @@ public:
             }
             else if (lane.target.kind == Kind::param && lane.target.rack != nullptr)
             {
-                lane.target.rack->setParamValue (lane.target.slot, lane.target.paramIndex, v);
+                lane.target.rack->setParamValue (lane.target.deviceId, lane.target.paramIndex, v);
             }
         }
     }

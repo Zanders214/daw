@@ -46,13 +46,16 @@ private:
     std::optional<juce::var> handleDeviceChain (const juce::String& name, const juce::Array<juce::var>& args);
     std::optional<juce::var> handleAudioSource (const juce::String& name, const juce::Array<juce::var>& args);
     std::optional<juce::var> handleSession     (const juce::String& name, const juce::Array<juce::var>& args);
-    /** { id, name } for each parameter of a node-rack slot (automation picker). */
-    juce::var nodeDeviceListParams (const juce::String& nodeId, const juce::String& slotKey);
-    /** Instantiate a palette plugin (key) into a node's insert rack (async). */
-    void nodeDeviceAdd (const juce::String& nodeId, const juce::String& key,
+    /** { id, name } for each parameter of a node-rack device (automation picker). */
+    juce::var nodeDeviceListParams (const juce::String& nodeId, const juce::String& instanceId);
+    /** Instantiate a device (built-in key or external "vst3" + path) into a node's
+        insert rack at instance id `id` (async; a placeholder reserves chain order). */
+    void nodeDeviceAdd (const juce::String& nodeId, const juce::String& id,
+                        const juce::String& kind, const juce::String& path,
                         const juce::String& stateB64 = {});
     void loadSlotFromPath (int slot, const juce::String& path);
     void pickPluginFile (int slot);
+    void pickNodeDeviceFile (const juce::String& nodeId, const juce::String& instanceId);
     void pickSourceFile();
     void pickTrackFile (const juce::String& trackId);
 

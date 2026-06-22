@@ -213,6 +213,60 @@ void AudioEngine::setTrackMute (const String& id, bool muted)       { ensureTrac
 void AudioEngine::setTrackSolo (const String& id, bool soloed)      { ensureTrack (id).solo.store (soloed); recomputeAnySolo(); }
 void AudioEngine::setTrackArm  (const String& id, bool armed)       { ensureTrack (id).arm.store (armed); }
 
+void AudioEngine::createTrack (const String& id, const String& name, const String& type,
+                               const String& color, const String& group)
+{
+    auto& t = ensureTrack (id);
+    t.setMeta (name, type, color);
+    t.group.store (group.isEmpty() ? nullptr : &ensureGroup (group));
+}
+
+void AudioEngine::destroyTrack (const String& id)
+{
+    // Remove this node's envelopes first, so no automation target keeps a pointer
+    // into the rack we are about to free (the keys are "<id>|<paramId>").
+    automation.clearForNode (id);
+
+    TrackChannel* doomed = nullptr;
+    {
+        const ScopedLock sl (tracksLock);
+        doomed = trackById[id];
+    }
+    if (doomed == nullptr)
+        return;
+
+    doomed->inserts.closeAllEditors(); // message thread, before the track is freed
+
+    {
+        const ScopedLock sl (tracksLock);
+        doomed->stop();
+        doomed->clearFile();
+        doomed->releaseResources();
+        trackById.remove (id);
+        tracks.removeObject (doomed); // OwnedArray deletes it
+    }
+    recomputeAnySolo();
+}
+
+var AudioEngine::buildTrackList() const
+{
+    Array<var> out;
+    const ScopedLock sl (tracksLock);
+    for (const auto* t : tracks)
+    {
+        auto* o = new DynamicObject();
+        o->setProperty ("id", t->getId());
+        o->setProperty ("name", t->displayName);
+        o->setProperty ("type", t->type);
+        o->setProperty ("color", t->color);
+        const auto* g = t->group.load();
+        o->setProperty ("group", g != nullptr ? g->getId() : String());
+        o->setProperty ("filePath", t->getFilePath());
+        out.add (var (o));
+    }
+    return var (out);
+}
+
 GroupBus& AudioEngine::ensureGroup (const String& id)
 {
     const ScopedLock sl (tracksLock);
@@ -302,9 +356,9 @@ AutomationStore::Target AudioEngine::resolveAutoTarget (const String& nodeId, co
         return t;
     };
 
-    // Device (plugin) param: "dev:<slot>:<index>" on any node with a rack
+    // Device (plugin) param: "dev:<instanceId>:<index>" on any node with a rack
     // (track / group / return). The rack pointer is stable; the instance is
-    // looked up under its lock at apply time, so a removed device just no-ops.
+    // looked up by id under its lock at apply time, so a removed device just no-ops.
     if (paramId.startsWith ("dev:"))
     {
         if (auto toks = StringArray::fromTokens (paramId, ":", ""); toks.size() == 3)
@@ -312,7 +366,7 @@ AutomationStore::Target AudioEngine::resolveAutoTarget (const String& nodeId, co
             {
                 t.kind = AutomationStore::Kind::param;
                 t.rack = rack;
-                t.slot = toks[1].getIntValue();
+                t.deviceId = toks[1];
                 t.paramIndex = toks[2].getIntValue();
             }
         return t;
@@ -377,18 +431,20 @@ var AudioEngine::buildNodeRacks()
 
     auto addRack = [obj] (const String& nodeId, const DeviceRack& r)
     {
-        Array<var> slots;
-        for (int s = 0; s < DeviceRack::numSlots; ++s)
-            if (r.has (s))
-            {
-                auto* o = new DynamicObject();
-                o->setProperty ("key", PluginHost::slotKey (s));
-                o->setProperty ("name", r.get (s)->getName());
-                o->setProperty ("bypassed", r.isBypassed (s));
-                slots.add (var (o));
-            }
-        if (! slots.isEmpty())
-            obj->setProperty (Identifier (nodeId), var (slots));
+        Array<var> list;
+        r.forEach ([&list] (const DeviceRack::Device& d)
+        {
+            auto* o = new DynamicObject();
+            o->setProperty ("id", d.id);
+            o->setProperty ("kind", d.kind);
+            o->setProperty ("name", d.name);
+            o->setProperty ("bypassed", d.bypassed.load());
+            if (d.path.isNotEmpty()) o->setProperty ("path", d.path);
+            if (d.missing)           o->setProperty ("missing", true);
+            list.add (var (o));
+        });
+        if (! list.isEmpty())
+            obj->setProperty (Identifier (nodeId), var (list));
     };
 
     for (auto* t : tracks) addRack (t->getId(), t->inserts);
@@ -404,13 +460,19 @@ var AudioEngine::buildNodeRackStates()
 
     auto addRack = [obj] (const String& nodeId, const DeviceRack& r)
     {
-        auto* no = new DynamicObject();
-        const var noVar (no); // establish ownership immediately so `no` can't leak when unused
-        bool any = false;
-        for (int s = 0; s < DeviceRack::numSlots; ++s)
-            if (r.has (s)) { no->setProperty (PluginHost::slotKey (s), r.getState (s)); any = true; }
-        if (any)
-            obj->setProperty (Identifier (nodeId), noVar);
+        Array<var> list;
+        r.forEach ([&list, &r] (const DeviceRack::Device& d)
+        {
+            auto* o = new DynamicObject();
+            o->setProperty ("id", d.id);
+            o->setProperty ("kind", d.kind);
+            if (d.path.isNotEmpty()) o->setProperty ("path", d.path);
+            o->setProperty ("bypassed", d.bypassed.load());
+            o->setProperty ("state", r.getState (d.id));
+            list.add (var (o));
+        });
+        if (! list.isEmpty())
+            obj->setProperty (Identifier (nodeId), var (list));
     };
 
     for (auto* t : tracks) addRack (t->getId(), t->inserts);
@@ -459,6 +521,11 @@ var AudioEngine::buildTrackInfo() const
         s->setProperty ("loaded", t->hasFile());
         s->setProperty ("name", t->getFileName());
         s->setProperty ("path", t->getFilePath());
+        s->setProperty ("displayName", t->displayName);
+        s->setProperty ("type", t->type);
+        s->setProperty ("color", t->color);
+        const auto* g = t->group.load();
+        s->setProperty ("group", g != nullptr ? g->getId() : String());
         obj->setProperty (Identifier (t->getId()), var (s));
     }
     return var (obj);

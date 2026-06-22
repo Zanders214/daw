@@ -70,6 +70,16 @@ public:
     bool assignTrackFile (const juce::String& id, const juce::File& file);
     void clearTrackFile  (const juce::String& id) const;
 
+    // Explicit track lifecycle (the UI is the authority; ensureTrack stays a
+    // safety net for stray commands). createTrack upserts metadata + group wiring.
+    void createTrack (const juce::String& id, const juce::String& name,
+                      const juce::String& type, const juce::String& color,
+                      const juce::String& group);
+    /** Destroy a track and all of its state (automation, inserts, solo bookkeeping). */
+    void destroyTrack (const juce::String& id);
+    /** [{ id, name, type, color, group, filePath }, ...] for session save. */
+    juce::var buildTrackList() const;
+
     // Group sub-mix buses (created on demand, keyed by the UI's group ids).
     void setTrackGroup (const juce::String& trackId, const juce::String& groupId); // "" = master
     void setGroupGain  (const juce::String& groupId, float gainLinear);

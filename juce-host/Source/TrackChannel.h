@@ -25,6 +25,15 @@ public:
 
     const juce::String& getId() const noexcept { return id; }
 
+    // ---- metadata (message thread only; for the arrange/mixer + session) ----
+    juce::String displayName, type, color;
+    void setMeta (const juce::String& n, const juce::String& t, const juce::String& c)
+    {
+        if (n.isNotEmpty()) displayName = n;
+        if (t.isNotEmpty()) type = t;
+        if (c.isNotEmpty()) color = c;
+    }
+
     // ---- message thread: source + lifecycle ----
     /** Load an audio file as this track's source. Returns false if unreadable. */
     bool loadFile (juce::AudioFormatManager& formatManager,
