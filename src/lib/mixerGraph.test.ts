@@ -7,6 +7,7 @@ import {
   preHpfHz,
   mixSignature,
   getTrackInput,
+  readLevels,
 } from "./mixerGraph";
 import type { DawState } from "../store/useDawStore";
 import type { Group, Track } from "../types";
@@ -64,7 +65,8 @@ describe("mixerGraph pure helpers", () => {
     expect(mixSignature(base)).not.toBe(mixSignature(st({ tracks: [track("a")], volumes: { a: 0.7 } })));
   });
 
-  it("getTrackInput returns null without an AudioContext (jsdom)", () => {
+  it("getTrackInput / readLevels return null without an AudioContext (jsdom)", () => {
     expect(getTrackInput("a")).toBeNull();
+    expect(readLevels()).toBeNull();
   });
 });
