@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useDawStore } from "../../store/useDawStore";
 import { hexA } from "../../lib/color";
@@ -7,11 +7,21 @@ import { TOTAL_BARS } from "../../lib/constants";
 import { deviceDescriptorForItem, getDragItem, hasDragItem, trackTypeForItem } from "../../lib/dnd";
 import { AutomationLane } from "./AutomationLane";
 import { SEND_ROW_H } from "./TrackHeader";
-import type { Track } from "../../types";
+import type { Clip, Track } from "../../types";
+
+/** Snap a bar position to the grid (whole bars; quarter-bar when `fine`). */
+const snapBar = (bar: number, fine: boolean): number => {
+  const step = fine ? 0.25 : 1;
+  return Math.round(bar / step) * step;
+};
 
 export function TrackLane({ track }: Readonly<{ track: Track }>) {
   const id = track.id;
-  const { selected, showGrid, vibrant, dimmed, selClip, autoOpen, sendsOpen, selectClip, addNodeDevice, setTrackInstrument } = useDawStore(
+  const {
+    selected, showGrid, vibrant, dimmed, selClip, autoOpen, sendsOpen,
+    selectClip, addNodeDevice, setTrackInstrument,
+    moveClip, resizeClip, setClipRegion, removeClip, duplicateClip,
+  } = useDawStore(
     useShallow((s) => {
       const soloActive = Object.values(s.solos).some(Boolean);
       const audible = !s.mutes[id] && (!soloActive || !!s.solos[id]);
@@ -26,13 +36,85 @@ export function TrackLane({ track }: Readonly<{ track: Track }>) {
         selectClip: s.selectClip,
         addNodeDevice: s.addNodeDevice,
         setTrackInstrument: s.setTrackInstrument,
+        moveClip: s.moveClip,
+        resizeClip: s.resizeClip,
+        setClipRegion: s.setClipRegion,
+        removeClip: s.removeClip,
+        duplicateClip: s.duplicateClip,
       };
     }),
   );
   const [over, setOver] = useState(false);
+  const laneRef = useRef<HTMLDivElement>(null);
 
   const isMidi = track.type === "drum" || track.type === "midi";
   const clipAlpha = vibrant ? 0.3 : 0.17;
+
+  /** Pointer clientX → bar position within the lane (unsnapped). */
+  const barAt = (clientX: number, rect: DOMRect): number =>
+    rect.width > 0 ? ((clientX - rect.left) / rect.width) * TOTAL_BARS : 0;
+
+  /** Run `onMove` for the duration of a pointer drag (global listeners, like
+   *  AutomationLane). Returns the pointerdown handler. */
+  const dragWith = (onMove: (ev: PointerEvent, rect: DOMRect) => void) => (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    const rect = laneRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const move = (ev: PointerEvent) => onMove(ev, rect);
+    const up = () => {
+      globalThis.removeEventListener("pointermove", move);
+      globalThis.removeEventListener("pointerup", up);
+    };
+    globalThis.addEventListener("pointermove", move);
+    globalThis.addEventListener("pointerup", up);
+  };
+
+  const startMove = (c: Clip) => (e: React.PointerEvent) => {
+    selectClip(c.id, id);
+    const rect = laneRef.current?.getBoundingClientRect();
+    if (!rect || e.button !== 0) return;
+    const grabOffset = barAt(e.clientX, rect) - c.bar;
+    const startX = e.clientX;
+    let moved = false;
+    dragWith((ev, r) => {
+      if (!moved && Math.abs(ev.clientX - startX) < 3) return; // preserve plain click→select
+      moved = true;
+      moveClip(id, c.id, snapBar(barAt(ev.clientX, r) - grabOffset, ev.altKey));
+    })(e);
+  };
+
+  const startResizeRight = (c: Clip) => (e: React.PointerEvent) => {
+    e.stopPropagation();
+    selectClip(c.id, id);
+    dragWith((ev, r) => resizeClip(id, c.id, snapBar(barAt(ev.clientX, r) - c.bar, ev.altKey)))(e);
+  };
+
+  const startResizeLeft = (c: Clip) => (e: React.PointerEvent) => {
+    e.stopPropagation();
+    selectClip(c.id, id);
+    const right = c.bar + c.len; // keep the right edge fixed
+    dragWith((ev, r) => {
+      const newBar = Math.min(right - 0.25, snapBar(barAt(ev.clientX, r), ev.altKey));
+      setClipRegion(id, c.id, newBar, right - newBar);
+    })(e);
+  };
+
+  const onClipKey = (c: Clip) => (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectClip(c.id, id); }
+    else if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); removeClip(id, c.id); }
+    else if ((e.metaKey || e.ctrlKey) && (e.key === "d" || e.key === "D")) { e.preventDefault(); duplicateClip(id, c.id); }
+  };
+
+  const edgeStyle = (side: "left" | "right"): React.CSSProperties => ({
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    [side]: 0,
+    width: 7,
+    cursor: "ew-resize",
+    touchAction: "none",
+    zIndex: 2,
+  });
 
   // Note patterns are deterministic per clip id; compute once.
   const notesByClip = useMemo(() => {
@@ -74,6 +156,7 @@ export function TrackLane({ track }: Readonly<{ track: Track }>) {
   return (
     <>
       <div
+        ref={laneRef}
         style={laneStyle}
         onDragOver={(e) => {
           if (!hasDragItem(e.dataTransfer)) return;
@@ -90,15 +173,12 @@ export function TrackLane({ track }: Readonly<{ track: Track }>) {
         return (
           <div
             key={c.id}
-            onClick={() => selectClip(c.id, id)}
+            onPointerDown={startMove(c)}
+            onContextMenu={(e) => { e.preventDefault(); removeClip(id, c.id); }}
             role="button"
             tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                selectClip(c.id, id);
-              }
-            }}
+            onKeyDown={onClipKey(c)}
+            title="Drag to move · edges to resize · Del to delete · ⌘/Ctrl+D to duplicate"
             style={{
               position: "absolute",
               left: (c.bar / TOTAL_BARS) * 100 + "%",
@@ -113,10 +193,13 @@ export function TrackLane({ track }: Readonly<{ track: Track }>) {
                 ? `0 0 0 1px ${track.color}, 0 0 18px ${hexA(track.color, 0.5)}`
                 : "inset 0 1px 0 rgba(255,255,255,0.06)",
               overflow: "hidden",
-              cursor: "pointer",
+              cursor: "grab",
+              touchAction: "none",
               opacity: dimmed ? 0.4 : 1,
             }}
           >
+            <div onPointerDown={startResizeLeft(c)} style={edgeStyle("left")} />
+            <div onPointerDown={startResizeRight(c)} style={edgeStyle("right")} />
             <div
               style={{
                 position: "absolute",

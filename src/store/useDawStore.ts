@@ -12,7 +12,7 @@ import type {
   TrackType,
 } from "../types";
 import { TRACK_DEFS, GROUP_DEFS } from "../data/seed";
-import { DEFAULT_VOLUME, TOTAL_BEATS } from "../lib/constants";
+import { DEFAULT_VOLUME, TOTAL_BARS, TOTAL_BEATS } from "../lib/constants";
 import { newClipId, newGroupId, newInstanceId, newTrackId, TRACK_COLORS } from "../lib/dnd";
 import { getAutoPts } from "../lib/automation";
 import { engine, engineActive } from "../lib/engine";
@@ -25,6 +25,16 @@ type Nums = Record<string, number>;
 
 /** Group that holds tracks created without an explicit group (created on demand). */
 const DEFAULT_GROUP: Group = { id: "g-tracks", name: "TRACKS", color: "#5e93ff", tracks: [] };
+
+/** Smallest clip length in bars (allows fine, sub-bar resizes). */
+const MIN_CLIP_LEN = 0.25;
+
+/** Apply `fn` to the matching clip of a track, immutably. */
+function mapClip(tracks: Track[], trackId: string, clipId: string, fn: (c: Clip) => Clip): Track[] {
+  return tracks.map((t) =>
+    t.id === trackId ? { ...t, clips: t.clips.map((c) => (c.id === clipId ? fn(c) : c)) } : t,
+  );
+}
 
 /** Deep-ish clone of the seed defs so the store owns mutable copies. */
 const seedTracks = (): Track[] => TRACK_DEFS.map((t) => ({ ...t, clips: t.clips.map((c) => ({ ...c })) }));
@@ -197,6 +207,15 @@ export interface DawState {
   /** Load an instrument/sample onto a track (sets name/type) and drop a clip. */
   setTrackInstrument: (id: string, item: { name: string; type: TrackType }, atBar?: number) => void;
   addClip: (trackId: string, clip: Clip) => void;
+  /** Move a clip's start bar (clamped to the grid). */
+  moveClip: (trackId: string, clipId: string, bar: number) => void;
+  /** Resize a clip's length in bars (clamped to >=MIN and within the grid). */
+  resizeClip: (trackId: string, clipId: string, len: number) => void;
+  /** Set a clip's bar+len together (left-edge resize), jointly clamped. */
+  setClipRegion: (trackId: string, clipId: string, bar: number, len: number) => void;
+  removeClip: (trackId: string, clipId: string) => void;
+  /** Duplicate a clip immediately after itself and select the copy. */
+  duplicateClip: (trackId: string, clipId: string) => void;
   addGroup: (name: string, color?: string) => string;
   removeGroup: (id: string) => void;
 
@@ -470,6 +489,46 @@ export const useDawStore = create<DawState>((set, get) => ({
     set((s) => ({
       tracks: s.tracks.map((t) => (t.id === trackId ? { ...t, clips: [...t.clips, clip] } : t)),
     })),
+  moveClip: (trackId, clipId, bar) =>
+    set((s) => ({
+      tracks: mapClip(s.tracks, trackId, clipId, (c) => ({
+        ...c,
+        bar: Math.max(0, Math.min(TOTAL_BARS - c.len, bar)),
+      })),
+    })),
+  resizeClip: (trackId, clipId, len) =>
+    set((s) => ({
+      tracks: mapClip(s.tracks, trackId, clipId, (c) => ({
+        ...c,
+        len: Math.max(MIN_CLIP_LEN, Math.min(TOTAL_BARS - c.bar, len)),
+      })),
+    })),
+  setClipRegion: (trackId, clipId, bar, len) =>
+    set((s) => ({
+      tracks: mapClip(s.tracks, trackId, clipId, (c) => {
+        const L = Math.max(MIN_CLIP_LEN, Math.min(TOTAL_BARS, len));
+        return { ...c, len: L, bar: Math.max(0, Math.min(TOTAL_BARS - L, bar)) };
+      }),
+    })),
+  removeClip: (trackId, clipId) =>
+    set((s) => ({
+      tracks: s.tracks.map((t) =>
+        t.id === trackId ? { ...t, clips: t.clips.filter((c) => c.id !== clipId) } : t,
+      ),
+      selClip: s.selClip === clipId ? "" : s.selClip,
+    })),
+  duplicateClip: (trackId, clipId) => {
+    const src = get().tracks.find((t) => t.id === trackId)?.clips.find((c) => c.id === clipId);
+    if (!src) return;
+    const id = newClipId();
+    const bar = Math.max(0, Math.min(TOTAL_BARS - src.len, src.bar + src.len));
+    set((s) => ({
+      tracks: s.tracks.map((t) =>
+        t.id === trackId ? { ...t, clips: [...t.clips, { ...src, id, bar }] } : t,
+      ),
+      selClip: id,
+    }));
+  },
   addGroup: (name, color) => {
     const id = newGroupId();
     set((s) => ({

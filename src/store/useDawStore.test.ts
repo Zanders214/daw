@@ -277,6 +277,47 @@ describe("useDawStore — chain openers & modals", () => {
     const id = get().addTrack();
     expect(get().groups.find((g) => g.id === "g-tracks")?.tracks).toContain(id);
   });
+
+  it("clip move/resize/region clamp to the grid", () => {
+    const tid = get().addTrack();
+    get().addClip(tid, { id: "c1", bar: 4, len: 8, name: "X" });
+    const clip = () => get().tracks.find((t) => t.id === tid)!.clips.find((c) => c.id === "c1")!;
+
+    get().moveClip(tid, "c1", 10);
+    expect(clip().bar).toBe(10);
+    get().moveClip(tid, "c1", -5);              // clamp to >= 0
+    expect(clip().bar).toBe(0);
+    get().moveClip(tid, "c1", 999);             // clamp so bar+len stays on the 32-bar grid
+    expect(clip().bar).toBe(32 - 8);
+
+    get().resizeClip(tid, "c1", 0);             // clamp to the minimum length
+    expect(clip().len).toBeGreaterThan(0);
+    get().moveClip(tid, "c1", 0);
+    get().resizeClip(tid, "c1", 999);           // clamp to the grid edge
+    expect(clip().len).toBe(32);
+
+    get().setClipRegion(tid, "c1", 6, 4);       // left-edge resize sets both jointly
+    expect(clip()).toMatchObject({ bar: 6, len: 4 });
+  });
+
+  it("clip remove clears selection; duplicate places + selects a copy", () => {
+    const tid = get().addTrack();
+    get().addClip(tid, { id: "c1", bar: 0, len: 4, name: "Loop" });
+    get().selectClip("c1", tid);
+
+    get().duplicateClip(tid, "c1");
+    const clips = () => get().tracks.find((t) => t.id === tid)!.clips;
+    expect(clips()).toHaveLength(2);
+    const copy = clips().find((c) => c.id !== "c1")!;
+    expect(copy.bar).toBe(4);                    // placed right after the original
+    expect(copy.name).toBe("Loop");
+    expect(get().selClip).toBe(copy.id);         // copy becomes selected
+
+    get().selectClip("c1", tid);
+    get().removeClip(tid, "c1");
+    expect(clips().some((c) => c.id === "c1")).toBe(false);
+    expect(get().selClip).toBe("");              // removing the selected clip clears it
+  });
 });
 
 describe("useDawStore — audio/MIDI settings", () => {
