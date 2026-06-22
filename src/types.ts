@@ -57,7 +57,24 @@ export interface AutoPoint {
   v: number;
 }
 
+/** The three built-in house plugins (fixed master chain + built-in inserts). */
 export type DeviceKey = "eq" | "tape" | "pre";
+
+/**
+ * How the engine instantiates a device in a node's insert rack. The built-in
+ * `DeviceKey`s resolve to the bundled house plugins; `"vst3"` (with a `path`)
+ * loads an arbitrary external plugin; any other token is a known-but-unbundled
+ * built-in FX that renders in the UI but has no audio processor (shows as
+ * `missing` when hosted). The `string & {}` arm keeps literal autocompletion. */
+export type DeviceKind = DeviceKey | "vst3" | (string & {});
+
+/** A descriptor used to add a device to a rack (the store assigns the id). */
+export interface DeviceDescriptor {
+  kind: DeviceKind;
+  name: string;
+  /** VST3/AU file path; only for `kind: "vst3"`. */
+  path?: string;
+}
 
 export interface BrowserItem {
   kind: Exclude<BrowserTab, "all">;

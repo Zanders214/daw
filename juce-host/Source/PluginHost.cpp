@@ -64,6 +64,37 @@ void PluginHost::createAsync (const PluginDescription& desc, double sampleRate, 
         });
 }
 
+void PluginHost::createFromPath (const File& file, double sampleRate, int blockSize,
+                                 const CreateCallback& cb)
+{
+    PluginDescription desc;
+    if (! describeFile (file, desc))
+    {
+        cb (nullptr, "Could not describe plugin: " + file.getFullPathName());
+        return;
+    }
+    createAsync (desc, sampleRate, blockSize, cb);
+}
+
+var PluginHost::listAllPlugins() const
+{
+    Array<var> out;
+    for (auto* format : formatManager.getFormats())
+    {
+        const auto locations = format->getDefaultLocationsToSearch();
+        const auto files = format->searchPathsForPlugins (locations, true, false);
+        for (const auto& path : files)
+        {
+            auto* o = new DynamicObject();
+            o->setProperty ("name", File (path).getFileNameWithoutExtension());
+            o->setProperty ("path", path);
+            o->setProperty ("format", format->getName());
+            out.add (var (o));
+        }
+    }
+    return var (out);
+}
+
 static void reportMatchingSlots (const File& f, const std::function<void (int, File)>& onFound)
 {
     const auto name = f.getFileNameWithoutExtension();

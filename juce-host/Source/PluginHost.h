@@ -33,8 +33,20 @@ public:
     void createAsync (const juce::PluginDescription& desc, double sampleRate, int blockSize,
                       const CreateCallback& cb);
 
+    /** Describe + instantiate a plugin file in one step (async). Calls back with a
+        null instance + error if the file cannot be described. Works for both the
+        built-in house plugins and arbitrary external VST3/AU files. */
+    void createFromPath (const juce::File& file, double sampleRate, int blockSize,
+                         const CreateCallback& cb);
+
+    /** Configured .vst3 path for a built-in key ("eq"/"tape"/"pre"); empty otherwise. */
+    juce::String resolveBuiltInPath (const juce::String& kind) const { return getSlotPath (slotIndex (kind)); }
+
     /** Scan the default VST3/AU locations and report files whose name matches a slot. */
     void scanDefaultLocations (const std::function<void (int slotIndex, juce::File)>& onFound) const;
+
+    /** Every plugin discovered in the default locations: [{ name, path, format }]. */
+    juce::var listAllPlugins() const;
 
     // Persisted slot -> path config (JSON in the user app-data dir).
     juce::File getConfigFile() const;

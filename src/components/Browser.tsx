@@ -3,6 +3,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useDawStore } from "../store/useDawStore";
 import { LIBRARY, KIND_COLOR } from "../data/seed";
 import { hexA } from "../lib/color";
+import { setDragItem } from "../lib/dnd";
 import type { BrowserTab } from "../types";
 
 const TABS: [BrowserTab, string][] = [
@@ -204,6 +205,9 @@ export function Browser() {
             {cat.items.map((it) => (
               <div
                 key={it.name}
+                draggable
+                onDragStart={(e) => setDragItem(e.dataTransfer, it)}
+                title={`Drag onto a track${it.kind === "fx" ? " or device chain" : ""}`}
                 style={{
                   display: "flex",
                   alignItems: "center",

@@ -1,16 +1,17 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useDawStore } from "../../store/useDawStore";
 import { hexA } from "../../lib/color";
 import { genNotes } from "../../lib/notes";
 import { TOTAL_BARS } from "../../lib/constants";
+import { deviceDescriptorForItem, getDragItem, hasDragItem, trackTypeForItem } from "../../lib/dnd";
 import { AutomationLane } from "./AutomationLane";
 import { SEND_ROW_H } from "./TrackHeader";
 import type { Track } from "../../types";
 
 export function TrackLane({ track }: Readonly<{ track: Track }>) {
   const id = track.id;
-  const { selected, showGrid, vibrant, dimmed, selClip, autoOpen, sendsOpen, selectClip } = useDawStore(
+  const { selected, showGrid, vibrant, dimmed, selClip, autoOpen, sendsOpen, selectClip, addNodeDevice, setTrackInstrument } = useDawStore(
     useShallow((s) => {
       const soloActive = Object.values(s.solos).some(Boolean);
       const audible = !s.mutes[id] && (!soloActive || !!s.solos[id]);
@@ -23,9 +24,12 @@ export function TrackLane({ track }: Readonly<{ track: Track }>) {
         autoOpen: !!s.autoLanes[id],
         sendsOpen: !!s.sendsOpen[id],
         selectClip: s.selectClip,
+        addNodeDevice: s.addNodeDevice,
+        setTrackInstrument: s.setTrackInstrument,
       };
     }),
   );
+  const [over, setOver] = useState(false);
 
   const isMidi = track.type === "drum" || track.type === "midi";
   const clipAlpha = vibrant ? 0.3 : 0.17;
@@ -41,7 +45,9 @@ export function TrackLane({ track }: Readonly<{ track: Track }>) {
     position: "relative",
     height: 108,
     borderBottom: "1px solid var(--layer-2)",
-    backgroundColor: selected ? "rgba(94,147,255,0.05)" : "transparent",
+    backgroundColor: over ? hexA(track.color, 0.12) : selected ? "rgba(94,147,255,0.05)" : "transparent",
+    outline: over ? `1px dashed ${track.color}` : "none",
+    outlineOffset: -2,
   };
   if (showGrid) {
     laneStyle.backgroundImage =
@@ -49,9 +55,35 @@ export function TrackLane({ track }: Readonly<{ track: Track }>) {
     laneStyle.backgroundSize = "calc(100% / 32) 100%, calc(100% / 8) 100%";
   }
 
+  const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    setOver(false);
+    const item = getDragItem(e.dataTransfer);
+    if (!item) return;
+    e.preventDefault();
+    if (item.kind === "fx") {
+      addNodeDevice(id, deviceDescriptorForItem(item));
+      return;
+    }
+    // Instrument / sample / MIDI → load onto this track at the dropped bar.
+    const rect = e.currentTarget.getBoundingClientRect();
+    const frac = rect.width > 0 ? (e.clientX - rect.left) / rect.width : 0;
+    const bar = Math.max(0, Math.min(TOTAL_BARS - 1, Math.floor(frac * TOTAL_BARS)));
+    setTrackInstrument(id, { name: item.name, type: trackTypeForItem(item) }, bar);
+  };
+
   return (
     <>
-      <div style={laneStyle}>
+      <div
+        style={laneStyle}
+        onDragOver={(e) => {
+          if (!hasDragItem(e.dataTransfer)) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "copy";
+          setOver(true);
+        }}
+        onDragLeave={() => setOver(false)}
+        onDrop={onDrop}
+      >
         {track.clips.map((c) => {
         const csel = selClip === c.id;
         const notes = notesByClip[c.id] || [];

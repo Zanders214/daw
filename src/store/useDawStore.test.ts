@@ -246,14 +246,36 @@ describe("useDawStore — chain openers & modals", () => {
     expect(get().sessionsOpen).toBe(false);
   });
 
-  it("node-device actions and setNodeRacks", () => {
-    expect(() => get().addNodeDevice("lead", "eq")).not.toThrow();
-    expect(() => get().removeNodeDevice("lead", "eq")).not.toThrow();
-    expect(() => get().setNodeDeviceBypass("lead", "eq", true)).not.toThrow();
-    expect(() => get().openNodeEditor("lead", "eq")).not.toThrow();
-    const racks = { lead: [{ key: "eq" as const, name: "EQ", bypassed: false }] };
+  it("node-device actions mutate the store (engine inactive)", () => {
+    const id = get().addNodeDevice("lead", { kind: "eq", name: "EQ" });
+    expect(get().nodeRacks.lead).toEqual([{ id, kind: "eq", name: "EQ", bypassed: false, path: undefined }]);
+    get().setNodeDeviceBypass("lead", id, true);
+    expect(get().nodeRacks.lead[0].bypassed).toBe(true);
+    get().removeNodeDevice("lead", id);
+    expect(get().nodeRacks.lead).toBeUndefined();
+    expect(() => get().openNodeEditor("lead", id)).not.toThrow();
+    const racks = { lead: [{ id: "d1", kind: "eq" as const, name: "EQ", bypassed: false }] };
     get().setNodeRacks(racks);
     expect(get().nodeRacks).toEqual(racks);
+  });
+
+  it("track add/remove mutate the arrangement and prune per-track state", () => {
+    const before = get().tracks.length;
+    const id = get().addTrack({ name: "BD", type: "drum", group: "g-drums" });
+    expect(get().tracks.some((t) => t.id === id)).toBe(true);
+    expect(get().groups.find((g) => g.id === "g-drums")?.tracks).toContain(id);
+    get().setVolume(id, 0.5);
+    get().addNodeDevice(id, { kind: "eq", name: "EQ" });
+    get().removeTrack(id);
+    expect(get().tracks.length).toBe(before);
+    expect(get().volumes[id]).toBeUndefined();
+    expect(get().nodeRacks[id]).toBeUndefined();
+    expect(get().groups.find((g) => g.id === "g-drums")?.tracks).not.toContain(id);
+  });
+
+  it("ungrouped new tracks land in the implicit TRACKS group", () => {
+    const id = get().addTrack();
+    expect(get().groups.find((g) => g.id === "g-tracks")?.tracks).toContain(id);
   });
 });
 

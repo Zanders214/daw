@@ -8,7 +8,6 @@
  * cycle with the store, which imports this module for `newSession`).
  */
 import { engine, engineActive } from "./engine";
-import { TRACK_DEFS, GROUP_DEFS } from "../data/seed";
 import { DEFAULT_VOLUME } from "./constants";
 import type { DeviceKey } from "../types";
 import type { DawState } from "../store/useDawStore";
@@ -23,9 +22,15 @@ export function applySessionToEngine(s: DawState): void {
   engine.mixer.setMasterVolume(s.masterVolume);
   engine.mixer.setMasterPan(s.masterPan);
 
-  // Re-assert each track's mix state + audio file so create-on-demand channels
-  // match the UI exactly (explicit false resets a track the session cleared).
-  TRACK_DEFS.forEach((t) => {
+  // Which group (if any) each track belongs to — pushed via trackCreate below.
+  const groupOf: Record<string, string> = {};
+  s.groups.forEach((g) => g.tracks.forEach((tid) => (groupOf[tid] = g.id)));
+
+  // Recreate every track the engine may not know about, then re-assert its mix
+  // state + audio file so the engine matches the UI exactly (explicit false
+  // resets a track the session cleared).
+  s.tracks.forEach((t) => {
+    engine.track.create(t.id, t.name, t.type, t.color, groupOf[t.id] ?? "");
     engine.mixer.setTrackVolume(t.id, s.volumes[t.id] ?? DEFAULT_VOLUME);
     engine.mixer.setTrackPan(t.id, s.pans[t.id] ?? 0.5);
     engine.mixer.setTrackMute(t.id, !!s.mutes[t.id]);
@@ -43,15 +48,22 @@ export function applySessionToEngine(s: DawState): void {
 
   (s.returnGains ?? [1, 1]).forEach((g, i) => engine.returns.setGain(i, g ?? 1));
 
-  // Group sub-mix buses: assign each track to its group (static, from GROUP_DEFS)
-  // and re-assert each group's gain/pan/mute/solo.
-  GROUP_DEFS.forEach((g) => {
-    g.tracks.forEach((tid) => engine.mixer.setTrackGroup(tid, g.id));
+  // Group sub-mix buses: re-assert each group's gain/pan/mute/solo (membership
+  // was wired per-track via trackCreate above).
+  s.groups.forEach((g) => {
     engine.group.setGain(g.id, s.groupVolumes[g.id] ?? 1);
     engine.group.setPan(g.id, s.groupPans[g.id] ?? 0.5);
     engine.group.setMute(g.id, !!s.groupMutes[g.id]);
     engine.group.setSolo(g.id, !!s.groupSolos[g.id]);
   });
+
+  // Rebuild each node's insert rack on the freshly-connected engine, in order.
+  for (const [nodeId, devices] of Object.entries(s.nodeRacks)) {
+    devices.forEach((d) => {
+      engine.node.add(nodeId, d.id, { kind: d.kind, name: d.name, path: d.path });
+      if (d.bypassed) engine.node.setBypass(nodeId, d.id, true);
+    });
+  }
 
   (Object.keys(s.devices) as DeviceKey[]).forEach((k) =>
     engine.device.setBypass(k, !s.devices[k]),

@@ -20,15 +20,23 @@ import type {
   AutomationParam,
   AutoPoint,
   DeviceKey,
+  Group,
   ThemeName,
+  Track,
 } from "../types";
-import type { TrackInfos } from "./engine";
+import type { NodeRacks, TrackInfos } from "./engine";
 
-// v2: automation envelopes drive engine params (Phase 5). v1 sessions load
-// unchanged — the automation fields already existed and unknown params are inert.
-export const SESSION_VERSION = 2;
+// v2: automation envelopes drive engine params (Phase 5). v3: the arrangement
+// structure (tracks/groups) and per-node device racks are stored, so add/remove
+// track and arbitrary plugin chains persist. v1/v2 sessions load unchanged —
+// missing structure fields fall back to the seed defaults in `hydrateSession`.
+export const SESSION_VERSION = 3;
 
 export interface SessionUi {
+  /** Arrangement structure (omitted in v1/v2 sessions → seed defaults apply). */
+  tracks?: Track[];
+  groups?: Group[];
+  nodeRacks?: NodeRacks;
   bpm: number;
   loop: boolean;
   loopStart: number;
@@ -80,6 +88,9 @@ export interface SessionData {
 
 export function serializeSession(s: DawState): SessionUi {
   return {
+    tracks: s.tracks,
+    groups: s.groups,
+    nodeRacks: s.nodeRacks,
     bpm: s.bpm,
     loop: s.loop,
     loopStart: s.loopStart,

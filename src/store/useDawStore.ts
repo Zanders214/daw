@@ -3,19 +3,40 @@ import type {
   AutomationParam,
   AutoPoint,
   BrowserTab,
+  Clip,
+  DeviceDescriptor,
   DeviceKey,
+  Group,
   ThemeName,
+  Track,
+  TrackType,
 } from "../types";
-import { TRACK_DEFS } from "../data/seed";
+import { TRACK_DEFS, GROUP_DEFS } from "../data/seed";
 import { DEFAULT_VOLUME, TOTAL_BEATS } from "../lib/constants";
+import { newClipId, newGroupId, newInstanceId, newTrackId, TRACK_COLORS } from "../lib/dnd";
 import { getAutoPts } from "../lib/automation";
 import { engine, engineActive } from "../lib/engine";
-import type { EngineState, TrackInfos, DeviceInfo, NodeRacks } from "../lib/engine";
+import type { EngineState, TrackInfos, DeviceInfo, NodeDevice, NodeRacks } from "../lib/engine";
 import { applySessionToEngine } from "../lib/engineSync";
 import type { PrefsData, SessionUi } from "../lib/session";
 
 type Bools = Record<string, boolean>;
 type Nums = Record<string, number>;
+
+/** Group that holds tracks created without an explicit group (created on demand). */
+const DEFAULT_GROUP: Group = { id: "g-tracks", name: "TRACKS", color: "#5e93ff", tracks: [] };
+
+/** Deep-ish clone of the seed defs so the store owns mutable copies. */
+const seedTracks = (): Track[] => TRACK_DEFS.map((t) => ({ ...t, clips: t.clips.map((c) => ({ ...c })) }));
+const seedGroups = (): Group[] => GROUP_DEFS.map((g) => ({ ...g, tracks: [...g.tracks] }));
+
+/** Remove a key from a record, returning a new record (no-op if absent). */
+function omit<T>(rec: Record<string, T>, key: string): Record<string, T> {
+  if (!(key in rec)) return rec;
+  const next = { ...rec };
+  delete next[key];
+  return next;
+}
 
 // ---- automation engine push (debounced) ----
 const autoPushTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -79,6 +100,10 @@ export interface DawState {
   // ---- session ----
   /** Name of the currently open named session, or null when untitled. */
   currentSessionName: string | null;
+
+  // ---- arrangement structure (source of truth; seeded from the demo project) ----
+  tracks: Track[];
+  groups: Group[];
 
   // ---- per-track state ----
   mutes: Bools;
@@ -157,6 +182,24 @@ export interface DawState {
   toggleRecord: () => void;
   toggleLoop: () => void;
 
+  // ---- arrangement editing ----
+  /** Create a track (optionally from a dropped instrument) and return its id. */
+  addTrack: (opts?: {
+    name?: string;
+    type?: TrackType;
+    color?: string;
+    group?: string;
+    instrument?: string;
+  }) => string;
+  /** Remove a track and prune all of its per-track state. */
+  removeTrack: (id: string) => void;
+  renameTrack: (id: string, name: string) => void;
+  /** Load an instrument/sample onto a track (sets name/type) and drop a clip. */
+  setTrackInstrument: (id: string, item: { name: string; type: TrackType }, atBar?: number) => void;
+  addClip: (trackId: string, clip: Clip) => void;
+  addGroup: (name: string, color?: string) => string;
+  removeGroup: (id: string) => void;
+
   selectTrack: (id: string) => void;
   selectClip: (clipId: string, trackId: string) => void;
   toggleMute: (id: string) => void;
@@ -216,10 +259,13 @@ export interface DawState {
 
   // ---- per-node insert FX ----
   setNodeRacks: (r: NodeRacks) => void;
-  addNodeDevice: (nodeId: string, key: DeviceKey) => void;
-  removeNodeDevice: (nodeId: string, key: DeviceKey) => void;
-  setNodeDeviceBypass: (nodeId: string, key: DeviceKey, b: boolean) => void;
-  openNodeEditor: (nodeId: string, key: DeviceKey) => void;
+  /** Add a device instance to a node's rack; returns the new instance id. */
+  addNodeDevice: (nodeId: string, d: DeviceDescriptor) => string;
+  removeNodeDevice: (nodeId: string, instanceId: string) => void;
+  setNodeDeviceBypass: (nodeId: string, instanceId: string, b: boolean) => void;
+  openNodeEditor: (nodeId: string, instanceId: string) => void;
+  /** Open a native chooser to add an external VST3 to a node rack (hosted only). */
+  pickNodeDevice: (nodeId: string) => void;
   openSettings: () => void;
   closeSettings: () => void;
   openSessions: () => void;
@@ -263,6 +309,9 @@ export const useDawStore = create<DawState>((set, get) => ({
   selClip: "lead-drop",
 
   currentSessionName: null,
+
+  tracks: seedTracks(),
+  groups: seedGroups(),
 
   mutes: {},
   solos: {},
@@ -359,6 +408,91 @@ export const useDawStore = create<DawState>((set, get) => ({
     set({ loopEnd: v });
   },
 
+  addTrack: (opts = {}) => {
+    const id = newTrackId();
+    const s = get();
+    const color = opts.color ?? TRACK_COLORS[s.tracks.length % TRACK_COLORS.length];
+    const type: TrackType = opts.type ?? "midi";
+    const name = opts.name ?? `TRACK ${s.tracks.length + 1}`;
+    const groupId = opts.group ?? DEFAULT_GROUP.id;
+    const clips: Clip[] = opts.instrument
+      ? [{ id: newClipId(), bar: 0, len: 8, name: opts.instrument }]
+      : [];
+    const track: Track = { id, name, color, io: "A1", type, clips };
+
+    set((st) => {
+      const hasGroup = st.groups.some((g) => g.id === groupId);
+      const seeded = hasGroup ? st.groups : [...st.groups, { ...DEFAULT_GROUP, id: groupId, tracks: [] }];
+      const groups = seeded.map((g) => (g.id === groupId ? { ...g, tracks: [...g.tracks, id] } : g));
+      return { tracks: [...st.tracks, track], groups, selTrack: id };
+    });
+
+    if (engineActive()) engine.track.create(id, name, type, color, groupId);
+    return id;
+  },
+  removeTrack: (id) => {
+    if (engineActive()) engine.track.delete(id);
+    set((s) => {
+      const autoData = Object.fromEntries(
+        Object.entries(s.autoData).filter(([k]) => !k.startsWith(id + ":")),
+      );
+      return {
+        tracks: s.tracks.filter((t) => t.id !== id),
+        groups: s.groups.map((g) => ({ ...g, tracks: g.tracks.filter((t) => t !== id) })),
+        volumes: omit(s.volumes, id),
+        pans: omit(s.pans, id),
+        mutes: omit(s.mutes, id),
+        solos: omit(s.solos, id),
+        arms: omit(s.arms, id),
+        sends: omit(s.sends, id),
+        sendsOpen: omit(s.sendsOpen, id),
+        trackFiles: omit(s.trackFiles, id),
+        nodeRacks: omit(s.nodeRacks, id),
+        levels: omit(s.levels, id),
+        autoLanes: omit(s.autoLanes, id),
+        autoParam: omit(s.autoParam, id),
+        autoData,
+        selTrack: s.selTrack === id ? "master" : s.selTrack,
+      };
+    });
+  },
+  renameTrack: (id, name) =>
+    set((s) => ({ tracks: s.tracks.map((t) => (t.id === id ? { ...t, name } : t)) })),
+  setTrackInstrument: (id, item, atBar = 0) =>
+    set((s) => ({
+      tracks: s.tracks.map((t) =>
+        t.id === id
+          ? { ...t, name: item.name, type: item.type, clips: [...t.clips, { id: newClipId(), bar: atBar, len: 8, name: item.name }] }
+          : t,
+      ),
+    })),
+  addClip: (trackId, clip) =>
+    set((s) => ({
+      tracks: s.tracks.map((t) => (t.id === trackId ? { ...t, clips: [...t.clips, clip] } : t)),
+    })),
+  addGroup: (name, color) => {
+    const id = newGroupId();
+    set((s) => ({
+      groups: [...s.groups, { id, name, color: color ?? TRACK_COLORS[s.groups.length % TRACK_COLORS.length], tracks: [] }],
+    }));
+    return id;
+  },
+  removeGroup: (id) => {
+    set((s) => {
+      const gone = s.groups.find((g) => g.id === id);
+      const orphans = gone?.tracks ?? [];
+      let groups = s.groups.filter((g) => g.id !== id);
+      if (orphans.length > 0) {
+        const hasDefault = groups.some((g) => g.id === DEFAULT_GROUP.id);
+        const seeded = hasDefault ? groups : [...groups, { ...DEFAULT_GROUP, tracks: [] }];
+        groups = seeded.map((g) =>
+          g.id === DEFAULT_GROUP.id ? { ...g, tracks: [...g.tracks, ...orphans] } : g,
+        );
+      }
+      return { groups };
+    });
+  },
+
   selectTrack: (id) => set({ selTrack: id }),
   selectClip: (clipId, trackId) => set({ selClip: clipId, selTrack: trackId }),
   toggleMute: (id) => {
@@ -407,6 +541,9 @@ export const useDawStore = create<DawState>((set, get) => ({
   setCurrentSessionName: (name) => set({ currentSessionName: name }),
   hydrateSession: (ui) =>
     set((s) => ({
+      tracks: ui.tracks ?? s.tracks,
+      groups: ui.groups ?? s.groups,
+      nodeRacks: ui.nodeRacks ?? s.nodeRacks,
       bpm: ui.bpm ?? s.bpm,
       loop: ui.loop ?? s.loop,
       loopStart: ui.loopStart ?? s.loopStart,
@@ -448,6 +585,9 @@ export const useDawStore = create<DawState>((set, get) => ({
     })),
   newSession: () => {
     set({
+      tracks: seedTracks(),
+      groups: seedGroups(),
+      nodeRacks: {},
       bpm: 124,
       loop: true,
       loopStart: 0,
@@ -550,17 +690,37 @@ export const useDawStore = create<DawState>((set, get) => ({
   openReturnChain: (idx) => set({ selTrack: `return-${idx}`, rackOpen: true }),
 
   setNodeRacks: (r) => set({ nodeRacks: r }),
-  addNodeDevice: (nodeId, key) => {
-    if (engineActive()) engine.node.add(nodeId, key);
+  addNodeDevice: (nodeId, d) => {
+    const id = newInstanceId();
+    const dev: NodeDevice = { id, kind: d.kind, name: d.name, bypassed: false, path: d.path };
+    set((s) => ({ nodeRacks: { ...s.nodeRacks, [nodeId]: [...(s.nodeRacks[nodeId] ?? []), dev] } }));
+    if (engineActive()) engine.node.add(nodeId, id, d);
+    return id;
   },
-  removeNodeDevice: (nodeId, key) => {
-    if (engineActive()) engine.node.remove(nodeId, key);
+  removeNodeDevice: (nodeId, instanceId) => {
+    if (engineActive()) engine.node.remove(nodeId, instanceId);
+    set((s) => {
+      const next = (s.nodeRacks[nodeId] ?? []).filter((dv) => dv.id !== instanceId);
+      const racks = next.length > 0 ? { ...s.nodeRacks, [nodeId]: next } : omit(s.nodeRacks, nodeId);
+      return { nodeRacks: racks };
+    });
   },
-  setNodeDeviceBypass: (nodeId, key, b) => {
-    if (engineActive()) engine.node.setBypass(nodeId, key, b);
+  setNodeDeviceBypass: (nodeId, instanceId, b) => {
+    if (engineActive()) engine.node.setBypass(nodeId, instanceId, b);
+    set((s) => ({
+      nodeRacks: {
+        ...s.nodeRacks,
+        [nodeId]: (s.nodeRacks[nodeId] ?? []).map((dv) =>
+          dv.id === instanceId ? { ...dv, bypassed: b } : dv,
+        ),
+      },
+    }));
   },
-  openNodeEditor: (nodeId, key) => {
-    if (engineActive()) engine.node.openEditor(nodeId, key);
+  openNodeEditor: (nodeId, instanceId) => {
+    if (engineActive()) engine.node.openEditor(nodeId, instanceId);
+  },
+  pickNodeDevice: (nodeId) => {
+    if (engineActive()) engine.node.pickFile(nodeId, newInstanceId());
   },
   openSettings: () => set({ settingsOpen: true }),
   closeSettings: () => set({ settingsOpen: false }),
@@ -667,7 +827,7 @@ export const useDawStore = create<DawState>((set, get) => ({
     const soloActive = Object.values(s.solos).some(Boolean);
     let peak = 0;
     const levels: Nums = { ...s.levels };
-    for (const td of TRACK_DEFS) {
+    for (const td of s.tracks) {
       const muted = !!s.mutes[td.id];
       const solo = !!s.solos[td.id];
       const audible = !muted && (!soloActive || solo);
