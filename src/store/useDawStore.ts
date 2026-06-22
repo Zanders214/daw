@@ -372,6 +372,8 @@ export interface DawState {
 
   /** Advance one animation frame; returns the current integer beat. */
   tick: (dt: number) => number;
+  /** Push per-frame meter levels (real audio in the sim; peak-hold smoothed). */
+  setMeterLevels: (levels: Nums, groupLevels: Nums, returnLevels: number[], master: number) => void;
   /** Apply engine-pushed state (playhead / meters / reel) when hosted. */
   setEngineState: (p: EngineState) => void;
 }
@@ -1180,27 +1182,32 @@ export const useDawStore = create<DawState>((set, get) => ({
     let reel = s.reel;
     if (s.playing) {
       ph += dt * (s.bpm / 60);
-      if (ph >= TOTAL_BEATS) ph -= TOTAL_BEATS;
+      if (s.loop && s.loopEnd > s.loopStart) {
+        if (ph >= s.loopEnd) ph = s.loopStart + ((ph - s.loopStart) % (s.loopEnd - s.loopStart));
+      } else if (ph >= TOTAL_BEATS) {
+        ph -= TOTAL_BEATS;
+      }
       reel = (reel + dt * 300) % 360;
     }
-    const soloActive = Object.values(s.solos).some(Boolean);
-    let peak = 0;
-    const levels: Nums = { ...s.levels };
-    for (const td of s.tracks) {
-      const muted = !!s.mutes[td.id];
-      const solo = !!s.solos[td.id];
-      const audible = !muted && (!soloActive || solo);
-      const covered = td.clips.some((c) => ph >= c.bar * 4 && ph < (c.bar + c.len) * 4);
-      const vol = s.volumes[td.id] ?? DEFAULT_VOLUME;
-      const target = s.playing && audible && covered ? (0.42 + 0.5 * Math.random()) * vol : 0;
-      const cur = levels[td.id] || 0;
-      levels[td.id] = cur + (target - cur) * 0.3;
-      if (audible) peak = Math.max(peak, levels[td.id]);
-    }
-    const master = s.playing ? Math.min(0.97, peak * 0.95 + 0.04) : 0.04;
-    set({ playhead: ph, reel, levels, master });
+    set({ playhead: ph, reel });
     return Math.floor(ph);
   },
+
+  setMeterLevels: (levels, groupLevels, returnLevels, master) =>
+    set((s) => {
+      // Peak-hold with decay so meters fall smoothly between frames.
+      const hold = (next: Nums, prev: Nums): Nums => {
+        const out: Nums = {};
+        for (const k of Object.keys(next)) out[k] = Math.max(next[k], (prev[k] ?? 0) * 0.85);
+        return out;
+      };
+      return {
+        levels: hold(levels, s.levels),
+        groupLevels: hold(groupLevels, s.groupLevels),
+        returnLevels: returnLevels.map((v, i) => Math.max(v, (s.returnLevels[i] ?? 0) * 0.85)),
+        master: Math.max(master, s.master * 0.85),
+      };
+    }),
 
   setEngineState: (p) =>
     set((s) => ({

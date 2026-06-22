@@ -3,7 +3,7 @@ import { useDawStore } from "../store/useDawStore";
 import { click, silence, triggerNote } from "../lib/audio";
 import { engineActive } from "../lib/engine";
 import { buildSchedule, notesInWindow, type SchedNote } from "../lib/playback";
-import { getTrackInput } from "../lib/mixerGraph";
+import { getTrackInput, readLevels } from "../lib/mixerGraph";
 import type { Track } from "../types";
 
 /**
@@ -60,6 +60,10 @@ export function useTransportLoop() {
         silence(); // cut ringing voices on stop / pause
       }
       wasPlaying.current = s.playing;
+
+      // Real meters tapped from the mixer graph (peak-hold smoothed in the store).
+      const lv = readLevels();
+      if (lv) s.setMeterLevels(lv.tracks, lv.groups, lv.returns, lv.master);
 
       raf = requestAnimationFrame(loop);
     };

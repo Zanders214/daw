@@ -482,22 +482,37 @@ describe("useDawStore — frame tick & engine state", () => {
     expect(beat).toBe(12);
     expect(get().playhead).toBe(12.7);
     expect(get().reel).toBe(33);
-    expect(get().master).toBe(0.04);
   });
 
   it("tick advances the playhead by dt·bpm/60 while playing", () => {
-    useDawStore.setState({ playing: true, playhead: 0, bpm: 120 });
+    useDawStore.setState({ playing: true, playhead: 0, bpm: 120, loop: false });
     const beat = get().tick(1);
     expect(get().playhead).toBeCloseTo(2, 5);
     expect(beat).toBe(2);
-    expect(get().master).toBeGreaterThanOrEqual(0.04);
-    expect(get().master).toBeLessThanOrEqual(0.97);
   });
 
-  it("tick wraps the playhead at the timeline end", () => {
-    useDawStore.setState({ playing: true, playhead: 127, bpm: 120 });
+  it("tick wraps the playhead at the timeline end when not looping", () => {
+    useDawStore.setState({ playing: true, playhead: 127, bpm: 120, loop: false });
     get().tick(1); // 127 + 2 = 129 → wraps to 1
     expect(get().playhead).toBeCloseTo(1, 5);
+  });
+
+  it("tick loops within [loopStart, loopEnd] when LOOP is on", () => {
+    useDawStore.setState({ playing: true, loop: true, loopStart: 4, loopEnd: 8, playhead: 7.5, bpm: 120 });
+    get().tick(1); // 7.5 + 2 = 9.5 → wrap into [4,8) → 4 + (9.5-4)%4 = 5.5
+    expect(get().playhead).toBeCloseTo(5.5, 5);
+    expect(get().playhead).toBeLessThan(8);
+  });
+
+  it("setMeterLevels peak-holds with decay (held below prev*0.85, replaced above)", () => {
+    useDawStore.setState({ master: 1, levels: { a: 1 }, groupLevels: {}, returnLevels: [1, 0] });
+    get().setMeterLevels({ a: 0.5 }, {}, [0.5, 0], 0.5);
+    expect(get().master).toBeCloseTo(0.85, 5); // max(0.5, 1*0.85)
+    expect(get().levels.a).toBeCloseTo(0.85, 5);
+    expect(get().returnLevels[0]).toBeCloseTo(0.85, 5);
+    get().setMeterLevels({ a: 0.95 }, {}, [0, 0], 0.95);
+    expect(get().master).toBeCloseTo(0.95, 5); // incoming above the decayed hold
+    expect(get().levels.a).toBeCloseTo(0.95, 5);
   });
 
   it("setEngineState applies pushed fields and falls back for missing ones", () => {
@@ -679,9 +694,8 @@ describe("useDawStore — multi-clip selection & note clipboard", () => {
   });
 });
 
-describe("useDawStore — defaults referenced by tick", () => {
-  it("uses DEFAULT_VOLUME when a track has no explicit volume", () => {
-    // Exercises the volume fallback branch inside tick's metering loop.
+describe("useDawStore — tick robustness", () => {
+  it("advances without throwing when tracks have no explicit volumes", () => {
     useDawStore.setState({ playing: true, playhead: 0, volumes: {} });
     expect(() => get().tick(0.1)).not.toThrow();
     expect(DEFAULT_VOLUME).toBe(0.8);
