@@ -1,4 +1,6 @@
-import type { Clip, ClipNote, Track } from "../types";
+import type { Clip, ClipNote, Note, Track } from "../types";
+import { BEATS_PER_BAR, PITCH_MAX, PITCH_MIN } from "./constants";
+import { newNoteId } from "./dnd";
 import { seed } from "./prng";
 
 /** Drum clips lay down a kick on the downbeat, snares on off-beats and sparse hats. */
@@ -36,4 +38,33 @@ function melodicNotes(clip: Clip, rng: () => number): ClipNote[] {
 export function genNotes(clip: Clip, td: Track): ClipNote[] {
   const rng = seed(clip.id);
   return td.type === "drum" ? drumNotes(clip, rng) : melodicNotes(clip, rng);
+}
+
+const PITCH_SPAN = PITCH_MAX - PITCH_MIN;
+
+/** Materialize the generated pattern as editable notes (beats + absolute pitch),
+ *  so opening a never-edited clip in the piano roll starts from its display pattern. */
+export function notesFromPattern(clip: Clip, td: Track): Note[] {
+  const beats = clip.len * BEATS_PER_BAR;
+  return genNotes(clip, td).map((n) => ({
+    id: newNoteId(),
+    start: n.x * beats,
+    len: Math.max(0.25, n.w * beats),
+    pitch: PITCH_MAX - Math.round((n.row / 7) * PITCH_SPAN),
+  }));
+}
+
+/** Unified vertical preview shape for a lane clip: x/w are 0..1 across the clip,
+ *  y is 0..1 from top (high pitch). Uses stored notes when present, else the
+ *  generated pattern. */
+export function clipPreview(clip: Clip, td: Track): { x: number; w: number; y: number }[] {
+  if (clip.notes) {
+    const beats = clip.len * BEATS_PER_BAR || 1;
+    return clip.notes.map((n) => ({
+      x: n.start / beats,
+      w: n.len / beats,
+      y: (PITCH_MAX - n.pitch) / PITCH_SPAN,
+    }));
+  }
+  return genNotes(clip, td).map((n) => ({ x: n.x, w: n.w, y: n.row / 8 }));
 }

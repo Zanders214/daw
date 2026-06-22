@@ -7,13 +7,23 @@ import type {
   DeviceDescriptor,
   DeviceKey,
   Group,
+  Note,
   ThemeName,
   Track,
   TrackType,
 } from "../types";
 import { TRACK_DEFS, GROUP_DEFS } from "../data/seed";
-import { DEFAULT_VOLUME, TOTAL_BARS, TOTAL_BEATS } from "../lib/constants";
+import {
+  BEATS_PER_BAR,
+  DEFAULT_VOLUME,
+  NOTE_STEP,
+  PITCH_MAX,
+  PITCH_MIN,
+  TOTAL_BARS,
+  TOTAL_BEATS,
+} from "../lib/constants";
 import { newClipId, newGroupId, newInstanceId, newTrackId, TRACK_COLORS } from "../lib/dnd";
+import { notesFromPattern } from "../lib/notes";
 import { getAutoPts } from "../lib/automation";
 import { engine, engineActive } from "../lib/engine";
 import type { EngineState, TrackInfos, DeviceInfo, NodeDevice, NodeRacks } from "../lib/engine";
@@ -145,6 +155,11 @@ export interface DawState {
   showGrid: boolean;
   vibrantClips: boolean;
 
+  // ---- piano-roll editor ----
+  editorOpen: boolean;
+  editorClip: string;
+  editorTrack: string;
+
   // ---- settings ----
   settingsOpen: boolean;
   sessionsOpen: boolean;
@@ -218,6 +233,16 @@ export interface DawState {
   removeClip: (trackId: string, clipId: string) => void;
   /** Duplicate a clip immediately after itself and select the copy. */
   duplicateClip: (trackId: string, clipId: string) => void;
+
+  // ---- piano-roll editor + MIDI notes ----
+  openEditor: (trackId: string, clipId: string) => void;
+  closeEditor: () => void;
+  /** Materialize a clip's notes from its generated pattern if it has none yet. */
+  ensureClipNotes: (trackId: string, clipId: string) => void;
+  addNote: (trackId: string, clipId: string, note: Note) => void;
+  moveNote: (trackId: string, clipId: string, noteId: string, start: number, pitch: number) => void;
+  resizeNote: (trackId: string, clipId: string, noteId: string, len: number) => void;
+  removeNote: (trackId: string, clipId: string, noteId: string) => void;
   addGroup: (name: string, color?: string) => string;
   removeGroup: (id: string) => void;
 
@@ -358,6 +383,10 @@ export const useDawStore = create<DawState>((set, get) => ({
   tracksRight: false,
   showGrid: true,
   vibrantClips: false,
+
+  editorOpen: false,
+  editorClip: "",
+  editorTrack: "",
 
   settingsOpen: false,
   sessionsOpen: false,
@@ -536,6 +565,67 @@ export const useDawStore = create<DawState>((set, get) => ({
       selClip: id,
     }));
   },
+
+  openEditor: (trackId, clipId) => {
+    get().ensureClipNotes(trackId, clipId);
+    set({ editorOpen: true, editorClip: clipId, editorTrack: trackId, selClip: clipId, selTrack: trackId });
+  },
+  closeEditor: () => set({ editorOpen: false, editorClip: "", editorTrack: "" }),
+  ensureClipNotes: (trackId, clipId) => {
+    const t = get().tracks.find((x) => x.id === trackId);
+    const c = t?.clips.find((cc) => cc.id === clipId);
+    if (!t || !c || c.notes) return;
+    const notes = notesFromPattern(c, t);
+    set((s) => ({ tracks: mapClip(s.tracks, trackId, clipId, (cc) => ({ ...cc, notes })) }));
+  },
+  addNote: (trackId, clipId, note) =>
+    set((s) => ({
+      tracks: mapClip(s.tracks, trackId, clipId, (c) => {
+        const beats = c.len * BEATS_PER_BAR;
+        const len = Math.max(NOTE_STEP, Math.min(beats, note.len));
+        const start = Math.max(0, Math.min(beats - len, note.start));
+        const pitch = Math.max(PITCH_MIN, Math.min(PITCH_MAX, Math.round(note.pitch)));
+        return { ...c, notes: [...(c.notes ?? []), { ...note, start, len, pitch }] };
+      }),
+    })),
+  moveNote: (trackId, clipId, noteId, start, pitch) =>
+    set((s) => ({
+      tracks: mapClip(s.tracks, trackId, clipId, (c) => {
+        const beats = c.len * BEATS_PER_BAR;
+        return {
+          ...c,
+          notes: (c.notes ?? []).map((n) =>
+            n.id === noteId
+              ? {
+                  ...n,
+                  start: Math.max(0, Math.min(beats - n.len, start)),
+                  pitch: Math.max(PITCH_MIN, Math.min(PITCH_MAX, Math.round(pitch))),
+                }
+              : n,
+          ),
+        };
+      }),
+    })),
+  resizeNote: (trackId, clipId, noteId, len) =>
+    set((s) => ({
+      tracks: mapClip(s.tracks, trackId, clipId, (c) => {
+        const beats = c.len * BEATS_PER_BAR;
+        return {
+          ...c,
+          notes: (c.notes ?? []).map((n) =>
+            n.id === noteId ? { ...n, len: Math.max(NOTE_STEP, Math.min(beats - n.start, len)) } : n,
+          ),
+        };
+      }),
+    })),
+  removeNote: (trackId, clipId, noteId) =>
+    set((s) => ({
+      tracks: mapClip(s.tracks, trackId, clipId, (c) => ({
+        ...c,
+        notes: (c.notes ?? []).filter((n) => n.id !== noteId),
+      })),
+    })),
+
   addGroup: (name, color) => {
     const id = newGroupId();
     set((s) => ({

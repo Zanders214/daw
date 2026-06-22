@@ -9,6 +9,7 @@ import { Arrange } from "./components/arrange/Arrange";
 import { DeviceChain } from "./components/devices/DeviceChain";
 import { Settings } from "./components/Settings";
 import { Sessions } from "./components/Sessions";
+import { PianoRoll } from "./components/PianoRoll";
 
 export function App() {
   useTransportLoop();
@@ -49,6 +50,7 @@ export function App() {
       <DeviceChain />
       <Settings />
       <Sessions />
+      <PianoRoll />
     </div>
   );
 }

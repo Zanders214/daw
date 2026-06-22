@@ -9,6 +9,19 @@ export interface Clip {
   /** Length in bars. */
   len: number;
   name: string;
+  /** Edited MIDI notes. When absent, a pattern is generated for display. */
+  notes?: Note[];
+}
+
+/** An editable MIDI note within a clip. */
+export interface Note {
+  id: string;
+  /** Start in beats relative to the clip start (0..len*BEATS_PER_BAR). */
+  start: number;
+  /** Length in beats. */
+  len: number;
+  /** Absolute pitch (semitone / MIDI note number). */
+  pitch: number;
 }
 
 export interface Track {
