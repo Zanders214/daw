@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useDawStore } from "./store/useDawStore";
 import { useTransportLoop } from "./hooks/useTransportLoop";
+import { useMixerGraph } from "./hooks/useMixerGraph";
 import { useEngineBridge } from "./hooks/useEngineBridge";
 import { useSessionPersistence } from "./hooks/useSessionPersistence";
 import { TransportBar } from "./components/TransportBar";
@@ -13,6 +14,7 @@ import { PianoRoll } from "./components/PianoRoll";
 
 export function App() {
   useTransportLoop();
+  useMixerGraph();
   useEngineBridge();
   useSessionPersistence();
   const theme = useDawStore((s) => s.theme);

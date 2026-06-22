@@ -3,7 +3,7 @@ import { useDawStore } from "../store/useDawStore";
 import { click, silence, triggerNote } from "../lib/audio";
 import { engineActive } from "../lib/engine";
 import { buildSchedule, notesInWindow, type SchedNote } from "../lib/playback";
-import { DEFAULT_VOLUME } from "../lib/constants";
+import { getTrackInput } from "../lib/mixerGraph";
 import type { Track } from "../types";
 
 /**
@@ -44,19 +44,16 @@ export function useTransportLoop() {
       }
 
       // Trigger notes crossing the playhead this frame (forward windows only).
+      // The mixer graph applies track/group/master gain+pan, mute/solo, sends and
+      // insert FX — the voice carries only velocity and routes into its track input.
       if (s.playing) {
-        const soloActive = Object.values(s.solos).some(Boolean);
         for (const n of notesInWindow(schedule.current, prevPh, s.playhead)) {
-          const muted = !!s.mutes[n.trackId];
-          const solo = !!s.solos[n.trackId];
-          if (muted || (soloActive && !solo)) continue;
-          const vol = s.volumes[n.trackId] ?? DEFAULT_VOLUME;
           triggerNote({
             pitch: n.pitch,
             durationSec: (n.durBeat * 60) / s.bpm,
-            gain: n.velocity * vol * s.masterVolume,
-            pan: (s.pans[n.trackId] ?? 0.5) * 2 - 1,
+            gain: n.velocity,
             drum: n.type === "drum",
+            destination: getTrackInput(n.trackId) ?? undefined,
           });
         }
       } else if (wasPlaying.current) {
