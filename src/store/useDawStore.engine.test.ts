@@ -21,13 +21,13 @@ vi.mock("../lib/engine", () => {
     automation: grp({ set: vi.fn(), clear: vi.fn(), clearAll: vi.fn() }),
     node: grp({
       add: vi.fn(), remove: vi.fn(), setBypass: vi.fn(), openEditor: vi.fn(),
-      closeEditor: vi.fn(), listParams: vi.fn(),
+      closeEditor: vi.fn(), pickFile: vi.fn(), listParams: vi.fn(),
     }),
-    track: grp({ assignFile: vi.fn(), pickFile: vi.fn(), clearFile: vi.fn() }),
+    track: grp({ create: vi.fn(), delete: vi.fn(), assignFile: vi.fn(), pickFile: vi.fn(), clearFile: vi.fn() }),
     device: grp({
       setBypass: vi.fn(), setParam: vi.fn(), openEditor: vi.fn(), closeEditor: vi.fn(), listParams: vi.fn(),
     }),
-    plugins: grp({ scan: vi.fn(), assign: vi.fn(), pickFile: vi.fn() }),
+    plugins: grp({ scan: vi.fn(), assign: vi.fn(), pickFile: vi.fn(), list: vi.fn() }),
     audio: grp({
       getDevices: vi.fn(() => Promise.resolve(undefined)),
       setSettings: vi.fn(() => Promise.resolve(undefined)),
@@ -118,15 +118,29 @@ describe("useDawStore (hosted) — commands reach the engine", () => {
     expect(engine.device.setParam).toHaveBeenCalledWith("pre", "amount", 0.5);
   });
 
-  it("node-device actions dispatch", () => {
-    get().addNodeDevice("lead", "eq");
-    expect(engine.node.add).toHaveBeenCalledWith("lead", "eq");
-    get().removeNodeDevice("lead", "eq");
-    expect(engine.node.remove).toHaveBeenCalledWith("lead", "eq");
-    get().setNodeDeviceBypass("lead", "eq", true);
-    expect(engine.node.setBypass).toHaveBeenCalledWith("lead", "eq", true);
-    get().openNodeEditor("lead", "eq");
-    expect(engine.node.openEditor).toHaveBeenCalledWith("lead", "eq");
+  it("node-device actions dispatch (instance-id addressed)", () => {
+    const d = { kind: "eq" as const, name: "ZANDERS EQ" };
+    const id = get().addNodeDevice("lead", d);
+    expect(engine.node.add).toHaveBeenCalledWith("lead", id, d);
+    // store is now the source of truth — the device is in the rack
+    expect(get().nodeRacks.lead?.[0]).toMatchObject({ id, kind: "eq", name: "ZANDERS EQ", bypassed: false });
+    get().setNodeDeviceBypass("lead", id, true);
+    expect(engine.node.setBypass).toHaveBeenCalledWith("lead", id, true);
+    expect(get().nodeRacks.lead?.[0].bypassed).toBe(true);
+    get().openNodeEditor("lead", id);
+    expect(engine.node.openEditor).toHaveBeenCalledWith("lead", id);
+    get().removeNodeDevice("lead", id);
+    expect(engine.node.remove).toHaveBeenCalledWith("lead", id);
+    expect(get().nodeRacks.lead).toBeUndefined();
+  });
+
+  it("track lifecycle dispatches create / delete", () => {
+    const id = get().addTrack({ name: "NEW", type: "midi", color: "#fff", group: "g-drums" });
+    expect(engine.track.create).toHaveBeenCalledWith(id, "NEW", "midi", "#fff", "g-drums");
+    expect(get().tracks.some((t) => t.id === id)).toBe(true);
+    get().removeTrack(id);
+    expect(engine.track.delete).toHaveBeenCalledWith(id);
+    expect(get().tracks.some((t) => t.id === id)).toBe(false);
   });
 
   it("audio device settings query and apply the engine", () => {

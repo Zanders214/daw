@@ -17,7 +17,7 @@
  * backend API; can be swapped for the official `juce-framework-frontend`
  * package without changing callers.
  */
-import type { DeviceKey } from "../types";
+import type { DeviceKey, DeviceDescriptor, DeviceKind, TrackType } from "../types";
 
 interface JuceBackend {
   // JUCE 8's `window.__JUCE__.backend` exposes exactly these primitives.
@@ -116,11 +116,19 @@ export interface PluginStatus {
 }
 export type PluginStatuses = Partial<Record<DeviceKey, PluginStatus>>;
 
-/** One device in a node's insert rack. */
+/** One device instance in a node's insert rack. */
 export interface NodeDevice {
-  key: DeviceKey;
-  name?: string;
+  /** Stable per-instance id (frontend-generated so the optimistic store and the
+   *  engine agree on identity). */
+  id: string;
+  /** Built-in key (`eq`/`tape`/`pre`), `"vst3"`, or another built-in fx token. */
+  kind: DeviceKind;
+  name: string;
   bypassed?: boolean;
+  /** VST3/AU file path for external plugins (`kind: "vst3"`). */
+  path?: string;
+  /** True when a saved external plugin could not be located at load. */
+  missing?: boolean;
 }
 /** { nodeId: [devices...] } for every node with a non-empty insert rack. */
 export type NodeRacks = Record<string, NodeDevice[]>;
@@ -166,17 +174,25 @@ export const engine = {
     clearAll: () => call("automationClearAll"),
   },
   node: {
-    // Per-node insert FX (nodeId = track id | group id | "return-N"; key = eq/tape/pre).
-    add: (nodeId: string, key: DeviceKey) => call("nodeDeviceAdd", nodeId, key),
-    remove: (nodeId: string, key: DeviceKey) => call("nodeDeviceRemove", nodeId, key),
-    setBypass: (nodeId: string, key: DeviceKey, b: boolean) => call("nodeDeviceSetBypass", nodeId, key, b),
-    openEditor: (nodeId: string, key: DeviceKey) => call("nodeDeviceOpenEditor", nodeId, key),
-    closeEditor: (nodeId: string, key: DeviceKey) => call("nodeDeviceCloseEditor", nodeId, key),
-    // Params of one node device, each with a ready-to-use automation id ("dev:slot:i").
-    listParams: (nodeId: string, key: DeviceKey) =>
-      call("nodeDeviceListParams", nodeId, key) as Promise<{ id: string; name: string }[] | undefined>,
+    // Per-node insert FX (nodeId = track id | group id | "return-N"). Devices are
+    // addressed by a frontend-generated instance id; `add` takes a full descriptor.
+    add: (nodeId: string, instanceId: string, d: DeviceDescriptor) =>
+      call("nodeDeviceAdd", nodeId, { id: instanceId, kind: d.kind, path: d.path ?? "" }),
+    remove: (nodeId: string, instanceId: string) => call("nodeDeviceRemove", nodeId, instanceId),
+    setBypass: (nodeId: string, instanceId: string, b: boolean) =>
+      call("nodeDeviceSetBypass", nodeId, instanceId, b),
+    openEditor: (nodeId: string, instanceId: string) => call("nodeDeviceOpenEditor", nodeId, instanceId),
+    closeEditor: (nodeId: string, instanceId: string) => call("nodeDeviceCloseEditor", nodeId, instanceId),
+    // Open a native file chooser to add an arbitrary external VST3 to a node rack.
+    pickFile: (nodeId: string, instanceId: string) => call("nodeDevicePickFile", nodeId, instanceId),
+    // Params of one node device, each with a ready-to-use automation id ("dev:<instanceId>:i").
+    listParams: (nodeId: string, instanceId: string) =>
+      call("nodeDeviceListParams", nodeId, instanceId) as Promise<{ id: string; name: string }[] | undefined>,
   },
   track: {
+    create: (id: string, name: string, type: TrackType, color: string, group: string) =>
+      call("trackCreate", id, name, type, color, group),
+    delete: (id: string) => call("trackDelete", id),
     assignFile: (id: string, path: string) => call("trackAssignFile", id, path),
     pickFile: (id: string) => call("trackPickFile", id),
     clearFile: (id: string) => call("trackClearFile", id),
@@ -192,6 +208,8 @@ export const engine = {
     scan: () => call("pluginsScan"),
     assign: (key: DeviceKey, path: string) => call("pluginsAssign", key, path),
     pickFile: (key: DeviceKey) => call("pluginsPickFile", key),
+    // Every plugin discovered in the default scan locations (for the browser list).
+    list: () => call("pluginsList") as Promise<{ name: string; path: string; format: string }[] | undefined>,
   },
   audio: {
     getDevices: () => call("audioGetDevices") as Promise<DeviceInfo | undefined>,

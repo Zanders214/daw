@@ -72,8 +72,8 @@ function DeviceParamSelect({ nodeId }: Readonly<{ nodeId: string }>) {
     (async () => {
       const all: { id: string; label: string }[] = [];
       for (const d of devices) {
-        const params = await engine.node.listParams(nodeId, d.key);
-        if (params) for (const p of params) all.push({ id: p.id, label: `${d.name ?? d.key} · ${p.name}` });
+        const params = await engine.node.listParams(nodeId, d.id);
+        if (params) for (const p of params) all.push({ id: p.id, label: `${d.name} · ${p.name}` });
       }
       if (!cancelled) setOpts(all);
     })();

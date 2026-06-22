@@ -102,6 +102,7 @@ export function TrackHeader({ track }: Readonly<{ track: Track }>) {
     setPan,
     pickTrackFile,
     clearTrackFile,
+    removeTrack,
   } = useDawStore(
     useShallow((s) => ({
       muted: !!s.mutes[id],
@@ -125,6 +126,7 @@ export function TrackHeader({ track }: Readonly<{ track: Track }>) {
       setPan: s.setPan,
       pickTrackFile: s.pickTrackFile,
       clearTrackFile: s.clearTrackFile,
+      removeTrack: s.removeTrack,
     })),
   );
 
@@ -273,6 +275,29 @@ export function TrackHeader({ track }: Readonly<{ track: Track }>) {
               ✕
             </button>
           )}
+          <button
+            type="button"
+            title="Delete track"
+            onClick={(e) => {
+              e.stopPropagation();
+              removeTrack(id);
+            }}
+            style={{
+              width: 22,
+              height: 22,
+              borderRadius: 6,
+              fontSize: 11,
+              lineHeight: 1,
+              cursor: "pointer",
+              flex: "none",
+              fontFamily: "var(--font-display)",
+              background: "var(--layer-2)",
+              color: "var(--text-3)",
+              border: "1px solid var(--layer-5)",
+            }}
+          >
+            🗑
+          </button>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 9 }}>

@@ -1,8 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useDawStore } from "../../store/useDawStore";
-import { GROUP_DEFS, TRACK_DEFS } from "../../data/seed";
 import type { Group, Track } from "../../types";
+import { getDragItem, hasDragItem, trackDefaultsForItem } from "../../lib/dnd";
 import { Ruler } from "./Ruler";
 import { GroupHeader, GroupLane } from "./GroupHeader";
 import { TrackHeader } from "./TrackHeader";
@@ -11,18 +11,27 @@ import { MasterBar } from "./MasterBar";
 import { PlayheadLine, LoopRegion } from "./Playhead";
 
 const HEADER_W = 258;
+const ADD_ROW_H = 64;
 type Row = { kind: "group"; group: Group } | { kind: "track"; track: Track };
 
-const trackMap: Record<string, Track> = Object.fromEntries(TRACK_DEFS.map((t) => [t.id, t]));
-
 export function Arrange() {
-  const { tracksRight, groupCollapsed } = useDawStore(
-    useShallow((s) => ({ tracksRight: s.tracksRight, groupCollapsed: s.groupCollapsed })),
+  const { tracksRight, groupCollapsed, tracks, groups, addTrack } = useDawStore(
+    useShallow((s) => ({
+      tracksRight: s.tracksRight,
+      groupCollapsed: s.groupCollapsed,
+      tracks: s.tracks,
+      groups: s.groups,
+      addTrack: s.addTrack,
+    })),
   );
+  const [over, setOver] = useState(false);
 
   const rows = useMemo<Row[]>(() => {
+    const trackMap: Record<string, Track> = Object.fromEntries(tracks.map((t) => [t.id, t]));
     const out: Row[] = [];
-    for (const g of GROUP_DEFS) {
+    for (const g of groups) {
+      // Skip the implicit ungrouped bucket while it holds no tracks.
+      if (g.id === "g-tracks" && g.tracks.length === 0) continue;
       out.push({ kind: "group", group: g });
       if (!groupCollapsed[g.id]) {
         for (const id of g.tracks) {
@@ -32,7 +41,7 @@ export function Arrange() {
       }
     }
     return out;
-  }, [groupCollapsed]);
+  }, [groupCollapsed, tracks, groups]);
 
   const sb = "1px solid var(--layer-3)";
 
@@ -68,6 +77,30 @@ export function Arrange() {
               <TrackHeader key={r.track.id} track={r.track} />
             ),
           )}
+          <button
+            type="button"
+            onClick={() => addTrack()}
+            title="Add a new track"
+            style={{
+              width: "100%",
+              height: ADD_ROW_H,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              background: "transparent",
+              border: "none",
+              borderBottom: "1px solid var(--layer-2)",
+              color: "var(--text-3)",
+              cursor: "pointer",
+              fontFamily: "var(--font-display)",
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: "0.12em",
+            }}
+          >
+            ＋ ADD TRACK
+          </button>
         </div>
 
         {/* lanes */}
@@ -79,6 +112,30 @@ export function Arrange() {
               <TrackLane key={r.track.id} track={r.track} />
             ),
           )}
+          <div
+            onDragOver={(e) => {
+              if (!hasDragItem(e.dataTransfer)) return;
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "copy";
+              setOver(true);
+            }}
+            onDragLeave={() => setOver(false)}
+            onDrop={(e) => {
+              setOver(false);
+              const item = getDragItem(e.dataTransfer);
+              if (!item || item.kind === "fx") return; // FX needs a target chain
+              e.preventDefault();
+              addTrack({ ...trackDefaultsForItem(item, tracks.length), instrument: item.name });
+            }}
+            title="Drop an instrument or sample here to create a track"
+            style={{
+              height: ADD_ROW_H,
+              borderBottom: "1px solid var(--layer-2)",
+              background: over ? "var(--accent-soft)" : "transparent",
+              outline: over ? "1px dashed var(--accent)" : "none",
+              outlineOffset: -2,
+            }}
+          />
           <PlayheadLine />
           <LoopRegion />
         </div>
