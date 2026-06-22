@@ -59,7 +59,7 @@ describe("Ruler", () => {
     const cells = Array.from(barArea.children).filter((el) =>
       (el as HTMLElement).style.fontFamily.includes("--font-mono"),
     );
-    expect(cells.length).toBe(TOTAL_BARS);
+    expect(cells).toHaveLength(TOTAL_BARS);
   });
 
   it("toggling the side button flips tracksRight in the store", () => {

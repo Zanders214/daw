@@ -120,7 +120,7 @@ describe("Slider", () => {
     fireEvent(globalThis as unknown as Window, new (globalThis as any).PointerEvent("pointerup", {}));
     const callsBefore = onChange.mock.calls.length;
     fireEvent(globalThis as unknown as Window, new (globalThis as any).PointerEvent("pointermove", { clientX: 90 }));
-    expect(onChange.mock.calls.length).toBe(callsBefore);
+    expect(onChange.mock.calls).toHaveLength(callsBefore);
   });
 
   it("does not call onChange (and is harmless) when read-only", () => {

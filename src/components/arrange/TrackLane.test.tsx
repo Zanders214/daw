@@ -84,7 +84,7 @@ describe("TrackLane", () => {
 
     // One clip element per clip.
     const clips = container.querySelectorAll("[data-clip-id]");
-    expect(clips.length).toBe(track.clips.length);
+    expect(clips).toHaveLength(track.clips.length);
   });
 
   it("renders MIDI note preview chips for a MIDI/drum track", () => {
@@ -171,7 +171,7 @@ describe("TrackLane", () => {
     const el = container.querySelector(`[data-clip-id="${clip.id}"]`) as HTMLElement;
 
     fireEvent.keyDown(el, { key: "d", ctrlKey: true });
-    expect(trackById("reese").clips.length).toBe(before + 1);
+    expect(trackById("reese").clips).toHaveLength(before + 1);
   });
 
   it("Enter key on a clip selects it", () => {

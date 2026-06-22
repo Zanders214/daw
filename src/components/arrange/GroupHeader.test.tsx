@@ -236,7 +236,7 @@ describe("GroupLane", () => {
     const bars = Array.from(container.querySelectorAll("div")).filter(
       (el) => el.style.height === "56px",
     );
-    expect(bars.length).toBe(1);
+    expect(bars).toHaveLength(1);
     // No crosshair-cursor automation lane while closed.
     expect(container.querySelector('[style*="crosshair"]')).toBeNull();
   });

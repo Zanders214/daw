@@ -111,7 +111,7 @@ describe("PianoRoll", () => {
 
     // Each note gets a velocity bar titled with its 0..127 value.
     const velBars = screen.getAllByTitle(/^Velocity \d+$/);
-    expect(velBars.length).toBe(clip.notes!.length);
+    expect(velBars).toHaveLength(clip.notes!.length);
     // Default velocity 0.8 -> round(0.8*127) = 102.
     expect(screen.getAllByTitle("Velocity 102").length).toBeGreaterThan(0);
   });
@@ -189,7 +189,7 @@ describe("PianoRoll", () => {
 
     // After select-all every velocity bar paints white (happy-dom keeps "#fff").
     const after = screen.getAllByTitle(/^Velocity \d+$/);
-    expect(after.length).toBe(clip.notes!.length);
+    expect(after).toHaveLength(clip.notes!.length);
     expect(after.every((b) => (b as HTMLElement).style.background === "#fff")).toBe(true);
   });
 
@@ -234,7 +234,7 @@ describe("PianoRoll", () => {
 
     fireEvent.keyDown(root, { key: "a", ctrlKey: true }); // select all
     fireEvent.keyDown(root, { key: "c", ctrlKey: true }); // copy
-    expect(useDawStore.getState().noteClipboard!.length).toBe(startCount);
+    expect(useDawStore.getState().noteClipboard!).toHaveLength(startCount);
 
     fireEvent.keyDown(root, { key: "v", ctrlKey: true }); // paste at anchor
 

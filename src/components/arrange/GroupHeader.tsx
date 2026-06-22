@@ -54,7 +54,10 @@ export function GroupHeader({ g }: Readonly<{ g: Group }>) {
   return (
     <>
     <div
+      role="button"
+      tabIndex={0}
       onClick={() => openGroupChain(g.id)}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openGroupChain(g.id); } }}
       title="Open group chain"
       style={{
         height: GROUP_ROW_H,
@@ -139,7 +142,7 @@ export function GroupHeader({ g }: Readonly<{ g: Group }>) {
       </div>
 
       {/* row 2: group fader + pan */}
-      <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div role="button" tabIndex={0} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span style={{ fontSize: 8, color: "var(--text-label)", letterSpacing: "0.1em", flex: "none", width: 22 }}>BUS</span>
         <div style={{ flex: 1 }}>
           <Slider value={vol} onChange={(v) => setGroupVolume(g.id, v)} gradient={`linear-gradient(90deg, ${hexA(g.color, 0.5)}, ${g.color})`} />

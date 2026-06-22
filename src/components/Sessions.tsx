@@ -124,6 +124,7 @@ export function Sessions() {
 
   return (
     <div
+      role="button"
       onClick={(e) => {
         if (e.target === e.currentTarget) close();
       }}

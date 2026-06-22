@@ -238,6 +238,7 @@ export function AutomationLane({ nodeId, color }: Readonly<{ nodeId: string; col
       {pts.map((p, idx) => (
         <div
           key={`${p.t}-${p.v}`}
+          role="button"
           tabIndex={0}
           onPointerDown={startDrag(idx)}
           onKeyDown={(e) => {

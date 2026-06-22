@@ -87,7 +87,7 @@ describe("Dial", () => {
     // After pointerup the listeners are removed: no further calls.
     const callCount = onChange.mock.calls.length;
     dispatchGlobalPointer("pointermove", 0);
-    expect(onChange.mock.calls.length).toBe(callCount);
+    expect(onChange.mock.calls).toHaveLength(callCount);
   });
 
   it("decreases the value when dragging down and clamps at 0", () => {

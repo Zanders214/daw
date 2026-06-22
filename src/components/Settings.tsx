@@ -182,6 +182,7 @@ export function Settings() {
 
   return (
     <div
+      role="button"
       onClick={(e) => {
         if (e.target === e.currentTarget) s.closeSettings();
       }}

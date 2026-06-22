@@ -104,7 +104,7 @@ describe("triggerNote", () => {
       destination: dest as unknown as AudioNode,
     });
     // triggerNote created exactly one new gain (the envelope) which connects to dest.
-    expect(gainSpy.mock.results.length).toBe(created + 1);
+    expect(gainSpy.mock.results).toHaveLength(created + 1);
     const env = gainSpy.mock.results[created].value as { connectedTo: unknown[] };
     expect(env.connectedTo).toContain(dest);
   });

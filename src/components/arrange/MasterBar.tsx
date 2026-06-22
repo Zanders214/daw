@@ -182,7 +182,10 @@ export function MasterBar({ tracksRight }: Readonly<{ tracksRight: boolean }>) {
       }}
     >
       <div
+        role="button"
+        tabIndex={0}
         onClick={openMasterChain}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openMasterChain(); } }}
         title="Open master chain"
         style={{
           width: HEADER_W,

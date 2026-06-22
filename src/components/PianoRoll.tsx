@@ -153,6 +153,7 @@ export function PianoRoll() {
 
   return (
     <div
+      role="button"
       onClick={(e) => { if (e.target === e.currentTarget) closeEditor(); }}
       tabIndex={0}
       onKeyDown={(e) => {

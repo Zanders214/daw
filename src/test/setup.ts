@@ -20,26 +20,38 @@ afterEach(() => {
 // --- minimal browser-API stubs (only when running in a DOM that lacks them) ---
 const g = globalThis as unknown as Record<string, unknown>;
 
-if (typeof g.ResizeObserver === "undefined") {
+if (g.ResizeObserver === undefined) {
   g.ResizeObserver = class {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
+    observe() {
+      /* no-op stub */
+    }
+    unobserve() {
+      /* no-op stub */
+    }
+    disconnect() {
+      /* no-op stub */
+    }
   };
 }
 
-if (typeof g.IntersectionObserver === "undefined") {
+if (g.IntersectionObserver === undefined) {
   g.IntersectionObserver = class {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
+    observe() {
+      /* no-op stub */
+    }
+    unobserve() {
+      /* no-op stub */
+    }
+    disconnect() {
+      /* no-op stub */
+    }
     takeRecords() {
       return [];
     }
   };
 }
 
-if (typeof g.window !== "undefined" && typeof (g.window as Window).matchMedia !== "function") {
+if (g.window !== undefined && typeof (g.window as Window).matchMedia !== "function") {
   (g.window as unknown as Record<string, unknown>).matchMedia = (query: string) => ({
     matches: false,
     media: query,

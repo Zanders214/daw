@@ -112,7 +112,7 @@ describe("LoopBracket", () => {
     const edges = Array.from(body.querySelectorAll("div")).filter(
       (el) => el.style.cursor === "ew-resize",
     );
-    expect(edges.length).toBe(2);
+    expect(edges).toHaveLength(2);
   });
 
   it("dragging the start edge sets loopStart from the pointer position", () => {
