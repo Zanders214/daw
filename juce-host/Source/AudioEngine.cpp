@@ -130,7 +130,7 @@ void AudioEngine::setInputMode (const String& mode)
 // ---- audio device settings ----
 var AudioEngine::getDevicesInfo() const
 {
-    auto* obj = new DynamicObject();
+    DynamicObject::Ptr obj = new DynamicObject();
 
     AudioDeviceManager::AudioDeviceSetup setup;
     deviceManager.getAudioDeviceSetup (setup);
@@ -155,7 +155,7 @@ var AudioEngine::getDevicesInfo() const
     obj->setProperty ("sampleRates", rates);
     obj->setProperty ("bufferSizes", sizes);
     obj->setProperty ("outputs", outputs);
-    return var (obj);
+    return var (obj.get());
 }
 
 void AudioEngine::applySettings (const var& opts)
@@ -254,7 +254,7 @@ var AudioEngine::buildTrackList() const
     const ScopedLock sl (tracksLock);
     for (const auto* t : tracks)
     {
-        auto* o = new DynamicObject();
+        DynamicObject::Ptr o = new DynamicObject();
         o->setProperty ("id", t->getId());
         o->setProperty ("name", t->displayName);
         o->setProperty ("type", t->type);
@@ -262,7 +262,7 @@ var AudioEngine::buildTrackList() const
         const auto* g = t->group.load();
         o->setProperty ("group", g != nullptr ? g->getId() : String());
         o->setProperty ("filePath", t->getFilePath());
-        out.add (var (o));
+        out.add (var (o.get()));
     }
     return var (out);
 }
@@ -303,12 +303,12 @@ void AudioEngine::setGroupSolo (const String& groupId, bool soloed)      { ensur
 
 var AudioEngine::buildGroupLevels() const
 {
-    auto* obj = new DynamicObject();
+    DynamicObject::Ptr obj = new DynamicObject();
     const ScopedTryLock stl (tracksLock);
     if (stl.isLocked())
         for (const auto* g : groups)
             obj->setProperty (Identifier (g->getId()), (double) g->level.load());
-    return var (obj);
+    return var (obj.get());
 }
 
 void AudioEngine::setTrackSend (const String& trackId, int sendIdx, float amount)
@@ -426,7 +426,7 @@ DeviceRack* AudioEngine::ensureNodeRack (const String& nodeId)
 
 var AudioEngine::buildNodeRacks()
 {
-    auto* obj = new DynamicObject();
+    DynamicObject::Ptr obj = new DynamicObject();
     const ScopedLock sl (tracksLock);
 
     auto addRack = [obj] (const String& nodeId, const DeviceRack& r)
@@ -434,14 +434,14 @@ var AudioEngine::buildNodeRacks()
         Array<var> list;
         r.forEach ([&list] (const DeviceRack::Device& d)
         {
-            auto* o = new DynamicObject();
+            DynamicObject::Ptr o = new DynamicObject();
             o->setProperty ("id", d.id);
             o->setProperty ("kind", d.kind);
             o->setProperty ("name", d.name);
             o->setProperty ("bypassed", d.bypassed.load());
             if (d.path.isNotEmpty()) o->setProperty ("path", d.path);
             if (d.missing)           o->setProperty ("missing", true);
-            list.add (var (o));
+            list.add (var (o.get()));
         });
         if (! list.isEmpty())
             obj->setProperty (Identifier (nodeId), var (list));
@@ -450,12 +450,12 @@ var AudioEngine::buildNodeRacks()
     for (const auto* t : tracks) addRack (t->getId(), t->inserts);
     for (const auto* g : groups) addRack (g->getId(), g->inserts);
     for (int i = 0; i < numSends; ++i) addRack ("return-" + String (i), returnRacks[(size_t) i]);
-    return var (obj);
+    return var (obj.get());
 }
 
 var AudioEngine::buildNodeRackStates()
 {
-    auto* obj = new DynamicObject();
+    DynamicObject::Ptr obj = new DynamicObject();
     const ScopedLock sl (tracksLock);
 
     auto addRack = [obj] (const String& nodeId, const DeviceRack& r)
@@ -463,13 +463,13 @@ var AudioEngine::buildNodeRackStates()
         Array<var> list;
         r.forEach ([&list, &r] (const DeviceRack::Device& d)
         {
-            auto* o = new DynamicObject();
+            DynamicObject::Ptr o = new DynamicObject();
             o->setProperty ("id", d.id);
             o->setProperty ("kind", d.kind);
             if (d.path.isNotEmpty()) o->setProperty ("path", d.path);
             o->setProperty ("bypassed", d.bypassed.load());
             o->setProperty ("state", r.getState (d.id));
-            list.add (var (o));
+            list.add (var (o.get()));
         });
         if (! list.isEmpty())
             obj->setProperty (Identifier (nodeId), var (list));
@@ -478,7 +478,7 @@ var AudioEngine::buildNodeRackStates()
     for (const auto* t : tracks) addRack (t->getId(), t->inserts);
     for (const auto* g : groups) addRack (g->getId(), g->inserts);
     for (int i = 0; i < numSends; ++i) addRack ("return-" + String (i), returnRacks[(size_t) i]);
-    return var (obj);
+    return var (obj.get());
 }
 
 bool AudioEngine::assignTrackFile (const String& id, const File& file)
@@ -503,21 +503,21 @@ void AudioEngine::clearTrackFile (const String& id) const
 
 var AudioEngine::buildTrackLevels() const
 {
-    auto* obj = new DynamicObject();
+    DynamicObject::Ptr obj = new DynamicObject();
     const ScopedTryLock stl (tracksLock);
     if (stl.isLocked())
         for (const auto* t : tracks)
             obj->setProperty (Identifier (t->getId()), (double) t->level.load());
-    return var (obj);
+    return var (obj.get());
 }
 
 var AudioEngine::buildTrackInfo() const
 {
-    auto* obj = new DynamicObject();
+    DynamicObject::Ptr obj = new DynamicObject();
     const ScopedLock sl (tracksLock);
     for (const auto* t : tracks)
     {
-        auto* s = new DynamicObject();
+        DynamicObject::Ptr s = new DynamicObject();
         s->setProperty ("loaded", t->hasFile());
         s->setProperty ("name", t->getFileName());
         s->setProperty ("path", t->getFilePath());
@@ -526,9 +526,9 @@ var AudioEngine::buildTrackInfo() const
         s->setProperty ("color", t->color);
         const auto* g = t->group.load();
         s->setProperty ("group", g != nullptr ? g->getId() : String());
-        obj->setProperty (Identifier (t->getId()), var (s));
+        obj->setProperty (Identifier (t->getId()), var (s.get()));
     }
-    return var (obj);
+    return var (obj.get());
 }
 
 // ---- plugin chain ----
@@ -614,12 +614,12 @@ var AudioEngine::listParams (int slot) const
         const auto& params = inst->getParameters();
         for (int i = 0; i < params.size(); ++i)
         {
-            auto* obj = new DynamicObject();
+            DynamicObject::Ptr obj = new DynamicObject();
             obj->setProperty ("id", String (i));
             obj->setProperty ("name", params[i]->getName (64));
             obj->setProperty ("value", params[i]->getValue());
             obj->setProperty ("text", params[i]->getText (params[i]->getValue(), 0));
-            out.add (var (obj));
+            out.add (var (obj.get()));
         }
     }
     return out;

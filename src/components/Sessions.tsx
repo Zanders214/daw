@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useDawStore } from "../store/useDawStore";
 import { applySession, buildSession } from "../lib/session";
@@ -67,6 +67,7 @@ export function Sessions() {
   const [list, setList] = useState<SessionListItem[]>([]);
   const [name, setName] = useState("");
   const [status, setStatus] = useState("");
+  const panelRef = useRef<HTMLDivElement>(null);
 
   const refresh = useCallback(async () => {
     setList(await sessionBackend.list());
@@ -79,6 +80,24 @@ export function Sessions() {
       void refresh();
     }
   }, [open, refresh]);
+
+  // Dismiss on Escape or a click outside the panel (document-level so the overlay
+  // itself stays a plain, non-interactive element).
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+    const onClick = (e: MouseEvent) => {
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) close();
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("click", onClick);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("click", onClick);
+    };
+  }, [open, close]);
 
   if (!open) return null;
 
@@ -124,14 +143,6 @@ export function Sessions() {
 
   return (
     <div
-      role="button"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) close();
-      }}
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === "Escape") close();
-      }}
       style={{
         position: "absolute",
         inset: 0,
@@ -145,6 +156,7 @@ export function Sessions() {
       }}
     >
       <div
+        ref={panelRef}
         style={{
           width: 640,
           maxHeight: "86%",

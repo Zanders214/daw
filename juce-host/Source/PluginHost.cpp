@@ -85,11 +85,11 @@ var PluginHost::listAllPlugins() const
         const auto files = format->searchPathsForPlugins (locations, true, false);
         for (const auto& path : files)
         {
-            auto* o = new DynamicObject();
+            DynamicObject::Ptr o = new DynamicObject();
             o->setProperty ("name", File (path).getFileNameWithoutExtension());
             o->setProperty ("path", path);
             o->setProperty ("format", format->getName());
-            out.add (var (o));
+            out.add (var (o.get()));
         }
     }
     return var (out);
@@ -135,13 +135,13 @@ void PluginHost::loadConfig()
 
 void PluginHost::saveConfig() const
 {
-    auto* obj = new DynamicObject();
+    DynamicObject::Ptr obj = new DynamicObject();
     for (int i = 0; i < numSlots; ++i)
         obj->setProperty (slotKey (i), slotPaths[i]);
 
     auto file = getConfigFile();
     file.getParentDirectory().createDirectory();
-    file.replaceWithText (JSON::toString (var (obj)));
+    file.replaceWithText (JSON::toString (var (obj.get())));
 }
 
 String PluginHost::getSlotPath (int index) const

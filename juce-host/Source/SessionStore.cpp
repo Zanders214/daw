@@ -60,12 +60,12 @@ var SessionStore::listSessions() const
 
         const auto* obj = JSON::parse (entry).getDynamicObject();
 
-        auto* item = new DynamicObject();
+        DynamicObject::Ptr item = new DynamicObject();
         item->setProperty ("name", obj != nullptr && obj->hasProperty ("name")
                                        ? obj->getProperty ("name")
                                        : var (entry.getFileNameWithoutExtension()));
         item->setProperty ("savedAt", obj != nullptr ? obj->getProperty ("savedAt") : var());
-        out.add (var (item));
+        out.add (var (item.get()));
     }
     return out;
 }
