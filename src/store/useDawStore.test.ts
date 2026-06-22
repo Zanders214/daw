@@ -621,6 +621,64 @@ describe("useDawStore — cross-track drag, clipboard, rename, velocity", () => 
   });
 });
 
+describe("useDawStore — multi-clip selection & note clipboard", () => {
+  it("setClipSelection + removeSelectedClips removes the set across tracks", () => {
+    const a = get().addTrack({ type: "midi" });
+    const b = get().addTrack({ type: "midi" });
+    get().addClip(a, { id: "a1", bar: 0, len: 2, name: "A1" });
+    get().addClip(b, { id: "b1", bar: 0, len: 2, name: "B1" });
+    get().setClipSelection(["a1", "b1"]);
+    expect(get().selClips).toEqual(["a1", "b1"]);
+    get().removeSelectedClips();
+    const has = (tid: string, cid: string) => get().tracks.find((t) => t.id === tid)!.clips.some((c) => c.id === cid);
+    expect(has(a, "a1")).toBe(false);
+    expect(has(b, "b1")).toBe(false);
+    expect(get().selClips).toEqual([]);
+  });
+
+  it("duplicateSelectedClips clones the set and selects the copies; setClipBars clamps", () => {
+    const a = get().addTrack({ type: "midi" });
+    get().addClip(a, { id: "c1", bar: 0, len: 2, name: "C" });
+    get().setClipSelection(["c1"]);
+    get().duplicateSelectedClips();
+    const clips = () => get().tracks.find((t) => t.id === a)!.clips;
+    expect(clips()).toHaveLength(2);
+    expect(get().selClips).not.toContain("c1");        // selection moved to the copy
+    expect(get().selClips).toHaveLength(1);
+
+    get().setClipBars([{ trackId: a, clipId: "c1", bar: 999 }]);
+    expect(clips().find((c) => c.id === "c1")!.bar).toBe(32 - 2); // clamped to grid
+  });
+
+  it("copyNotes normalizes to 0 and pasteNotes places fresh ids at the anchor", () => {
+    const a = get().addTrack({ type: "midi" });
+    get().addClip(a, { id: "c", bar: 0, len: 4, name: "C" }); // 16 beats
+    get().addNote(a, "c", { id: "n1", start: 2, len: 1, pitch: 60 });
+    get().addNote(a, "c", { id: "n2", start: 4, len: 1, pitch: 62 });
+    get().copyNotes(a, "c", ["n1", "n2"]);
+    const pasted = get().pasteNotes(a, "c", 8);
+    expect(pasted).toHaveLength(2);
+    const notes = () => get().tracks.find((t) => t.id === a)!.clips[0].notes!;
+    const byId = (id: string) => notes().find((n) => n.id === id)!;
+    expect(byId(pasted[0]).start).toBe(8);             // earliest normalized to 0 → anchor
+    expect(byId(pasted[1]).start).toBe(10);            // 2 beats after, preserved
+    expect(pasted).not.toContain("n1");                // fresh ids
+  });
+
+  it("setNotePositions and removeNotes operate on batches with clamping", () => {
+    const a = get().addTrack({ type: "midi" });
+    get().addClip(a, { id: "c", bar: 0, len: 2, name: "C" }); // 8 beats
+    get().addNote(a, "c", { id: "n1", start: 0, len: 1, pitch: 60 });
+    get().addNote(a, "c", { id: "n2", start: 2, len: 1, pitch: 62 });
+    get().setNotePositions(a, "c", [{ id: "n1", start: -5, pitch: 999 }, { id: "n2", start: 3, pitch: 50 }]);
+    const notes = () => get().tracks.find((t) => t.id === a)!.clips[0].notes!;
+    expect(notes().find((n) => n.id === "n1")!.start).toBe(0);    // clamped
+    expect(notes().find((n) => n.id === "n2")!.pitch).toBe(50);
+    get().removeNotes(a, "c", ["n1", "n2"]);
+    expect(notes()).toEqual([]);
+  });
+});
+
 describe("useDawStore — defaults referenced by tick", () => {
   it("uses DEFAULT_VOLUME when a track has no explicit volume", () => {
     // Exercises the volume fallback branch inside tick's metering loop.

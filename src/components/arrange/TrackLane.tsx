@@ -16,9 +16,10 @@ const step = (fine: boolean) => (fine ? 0.25 : 1);
 export function TrackLane({ track }: Readonly<{ track: Track }>) {
   const id = track.id;
   const {
-    selected, showGrid, vibrant, dimmed, selClip, autoOpen, sendsOpen,
-    selectClip, addNodeDevice, setTrackInstrument,
-    moveClip, moveClipToTrack, resizeClip, setClipRegion, removeClip, duplicateClip, openEditor,
+    selected, showGrid, vibrant, dimmed, selClip, selClips, autoOpen, sendsOpen,
+    selectClip, toggleClipSelected, addNodeDevice, setTrackInstrument,
+    moveClip, moveClipToTrack, setClipBars, resizeClip, setClipRegion, removeClip, removeSelectedClips,
+    duplicateClip, duplicateSelectedClips, openEditor,
     copyClip, cutClip, pasteClip, playhead,
   } = useDawStore(
     useShallow((s) => {
@@ -30,17 +31,22 @@ export function TrackLane({ track }: Readonly<{ track: Track }>) {
         vibrant: s.vibrantClips,
         dimmed: !audible,
         selClip: s.selClip,
+        selClips: s.selClips,
         autoOpen: !!s.autoLanes[id],
         sendsOpen: !!s.sendsOpen[id],
         selectClip: s.selectClip,
+        toggleClipSelected: s.toggleClipSelected,
         addNodeDevice: s.addNodeDevice,
         setTrackInstrument: s.setTrackInstrument,
         moveClip: s.moveClip,
         moveClipToTrack: s.moveClipToTrack,
+        setClipBars: s.setClipBars,
         resizeClip: s.resizeClip,
         setClipRegion: s.setClipRegion,
         removeClip: s.removeClip,
+        removeSelectedClips: s.removeSelectedClips,
         duplicateClip: s.duplicateClip,
+        duplicateSelectedClips: s.duplicateSelectedClips,
         openEditor: s.openEditor,
         copyClip: s.copyClip,
         cutClip: s.cutClip,
@@ -58,13 +64,33 @@ export function TrackLane({ track }: Readonly<{ track: Track }>) {
   const laneRect = () => laneRef.current?.getBoundingClientRect() ?? null;
 
   const startMove = (c: Clip) => (e: React.PointerEvent) => {
-    selectClip(c.id, id);
+    e.stopPropagation(); // don't let the lanes-column marquee start
+    if (e.button !== 0) return;
+    if (e.shiftKey) { toggleClipSelected(c.id, id); return; } // toggle, no drag
+    const multi = selClips.length > 1 && selClips.includes(c.id);
+    if (!multi) selectClip(c.id, id); // replace selection unless dragging the group
     const rect = laneRect();
-    if (!rect || e.button !== 0) return;
-    const grabOffset = barsAt(e.clientX, rect) - c.bar;
+    if (!rect) return;
+    const startBar = barsAt(e.clientX, rect);
+    const grabOffset = startBar - c.bar;
     const startX = e.clientX;
     let moved = false;
-    let curTrack = id; // follows the clip as it crosses lanes
+
+    if (multi) {
+      // Move every selected clip (across tracks) by the same snapped bar delta.
+      const snapshot = useDawStore.getState().tracks.flatMap((t) =>
+        t.clips.filter((cc) => selClips.includes(cc.id)).map((cc) => ({ trackId: t.id, clipId: cc.id, startBar: cc.bar })),
+      );
+      startDrag((ev) => {
+        if (!moved && Math.abs(ev.clientX - startX) < 3) return;
+        moved = true;
+        const delta = snap(barsAt(ev.clientX, rect) - startBar, step(ev.altKey));
+        setClipBars(snapshot.map((u) => ({ trackId: u.trackId, clipId: u.clipId, bar: u.startBar + delta })));
+      });
+      return;
+    }
+
+    let curTrack = id; // single-clip move follows the clip as it crosses lanes
     startDrag((ev) => {
       if (!moved && Math.abs(ev.clientX - startX) < 3) return; // preserve plain click→select
       moved = true;
@@ -102,9 +128,10 @@ export function TrackLane({ track }: Readonly<{ track: Track }>) {
 
   const onClipKey = (c: Clip) => (e: React.KeyboardEvent) => {
     const mod = e.metaKey || e.ctrlKey;
+    const multi = selClips.length > 1 && selClips.includes(c.id);
     if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectClip(c.id, id); }
-    else if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); removeClip(id, c.id); }
-    else if (mod && (e.key === "d" || e.key === "D")) { e.preventDefault(); duplicateClip(id, c.id); }
+    else if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); multi ? removeSelectedClips() : removeClip(id, c.id); }
+    else if (mod && (e.key === "d" || e.key === "D")) { e.preventDefault(); multi ? duplicateSelectedClips() : duplicateClip(id, c.id); }
     else if (mod && (e.key === "c" || e.key === "C")) { e.preventDefault(); copyClip(id, c.id); }
     else if (mod && (e.key === "x" || e.key === "X")) { e.preventDefault(); cutClip(id, c.id); }
     else if (mod && (e.key === "v" || e.key === "V")) { e.preventDefault(); pasteClip(id, Math.floor(playhead / BEATS_PER_BAR)); }
@@ -174,11 +201,12 @@ export function TrackLane({ track }: Readonly<{ track: Track }>) {
         onDrop={onDrop}
       >
         {track.clips.map((c) => {
-        const csel = selClip === c.id;
+        const csel = selClip === c.id || selClips.includes(c.id);
         const notes = notesByClip[c.id] || [];
         return (
           <div
             key={c.id}
+            data-clip-id={c.id}
             onPointerDown={startMove(c)}
             onDoubleClick={(e) => { e.stopPropagation(); openEditor(id, c.id); }}
             onContextMenu={(e) => { e.preventDefault(); removeClip(id, c.id); }}
