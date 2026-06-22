@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useDawStore } from "../../store/useDawStore";
 import { hexA } from "../../lib/color";
-import { genNotes } from "../../lib/notes";
+import { clipPreview } from "../../lib/notes";
 import { TOTAL_BARS } from "../../lib/constants";
 import { deviceDescriptorForItem, getDragItem, hasDragItem, trackTypeForItem } from "../../lib/dnd";
 import { barsAt, snap, startDrag } from "../../lib/timeline";
@@ -18,7 +18,7 @@ export function TrackLane({ track }: Readonly<{ track: Track }>) {
   const {
     selected, showGrid, vibrant, dimmed, selClip, autoOpen, sendsOpen,
     selectClip, addNodeDevice, setTrackInstrument,
-    moveClip, resizeClip, setClipRegion, removeClip, duplicateClip,
+    moveClip, resizeClip, setClipRegion, removeClip, duplicateClip, openEditor,
   } = useDawStore(
     useShallow((s) => {
       const soloActive = Object.values(s.solos).some(Boolean);
@@ -39,6 +39,7 @@ export function TrackLane({ track }: Readonly<{ track: Track }>) {
         setClipRegion: s.setClipRegion,
         removeClip: s.removeClip,
         duplicateClip: s.duplicateClip,
+        openEditor: s.openEditor,
       };
     }),
   );
@@ -101,10 +102,10 @@ export function TrackLane({ track }: Readonly<{ track: Track }>) {
     zIndex: 2,
   });
 
-  // Note patterns are deterministic per clip id; compute once.
+  // Per-clip note preview (stored notes when edited, else the generated pattern).
   const notesByClip = useMemo(() => {
-    const map: Record<string, ReturnType<typeof genNotes>> = {};
-    if (isMidi) for (const c of track.clips) map[c.id] = genNotes(c, track);
+    const map: Record<string, ReturnType<typeof clipPreview>> = {};
+    if (isMidi) for (const c of track.clips) map[c.id] = clipPreview(c, track);
     return map;
   }, [track, isMidi]);
 
@@ -159,6 +160,7 @@ export function TrackLane({ track }: Readonly<{ track: Track }>) {
           <div
             key={c.id}
             onPointerDown={startMove(c)}
+            onDoubleClick={(e) => { e.stopPropagation(); openEditor(id, c.id); }}
             onContextMenu={(e) => { e.preventDefault(); removeClip(id, c.id); }}
             role="button"
             tabIndex={0}
@@ -207,14 +209,14 @@ export function TrackLane({ track }: Readonly<{ track: Track }>) {
             </div>
             {isMidi ? (
               <div style={{ position: "absolute", left: 6, right: 4, top: 17, bottom: 5 }}>
-                {notes.map((n) => (
+                {notes.map((n, i) => (
                   <div
-                    key={`${n.row}-${n.x}-${n.w}`}
+                    key={`${i}-${n.y}-${n.x}`}
                     style={{
                       position: "absolute",
                       left: n.x * 100 + "%",
                       width: `calc(${Math.max(1.6, n.w * 100)}% - 1px)`,
-                      top: (n.row / 8) * 100 + "%",
+                      top: n.y * 100 + "%",
                       height: `calc(${100 / 8}% - 2px)`,
                       background: track.color,
                       borderRadius: 1.5,

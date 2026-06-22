@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { useDawStore } from "./useDawStore";
-import { DEFAULT_VOLUME, TOTAL_BEATS } from "../lib/constants";
+import { DEFAULT_VOLUME, PITCH_MAX, PITCH_MIN, TOTAL_BEATS } from "../lib/constants";
+import { serializeSession } from "../lib/session";
 
 // The store is a singleton created at import time. Capture its pristine state
 // once and restore it before each test so cases don't bleed into one another.
@@ -506,6 +507,65 @@ describe("useDawStore — frame tick & engine state", () => {
     expect(s.playhead).toBe(20);
     expect(s.playing).toBe(true);
     expect(s.bpm).toBe(140); // tempo → bpm
+  });
+});
+
+describe("useDawStore — piano-roll editor & MIDI notes", () => {
+  const newClipTrack = () => {
+    const tid = get().addTrack({ type: "midi" });
+    get().addClip(tid, { id: "pc", bar: 0, len: 2, name: "Clip" }); // len 2 bars = 8 beats
+    return tid;
+  };
+  const clipOf = (tid: string) => get().tracks.find((t) => t.id === tid)!.clips.find((c) => c.id === "pc")!;
+
+  it("openEditor seeds notes from the pattern and sets editor state", () => {
+    const tid = newClipTrack();
+    expect(clipOf(tid).notes).toBeUndefined();
+    get().openEditor(tid, "pc");
+    expect(get().editorOpen).toBe(true);
+    expect(get().editorClip).toBe("pc");
+    expect(get().editorTrack).toBe(tid);
+    expect((clipOf(tid).notes?.length ?? 0)).toBeGreaterThan(0); // materialized
+    get().closeEditor();
+    expect(get().editorOpen).toBe(false);
+  });
+
+  it("ensureClipNotes does not overwrite existing notes", () => {
+    const tid = newClipTrack();
+    get().addNote(tid, "pc", { id: "n1", start: 0, len: 1, pitch: 60 });
+    get().ensureClipNotes(tid, "pc");
+    expect(clipOf(tid).notes).toEqual([{ id: "n1", start: 0, len: 1, pitch: 60 }]);
+  });
+
+  it("note add/move/resize clamp to the clip and pitch range", () => {
+    const tid = newClipTrack(); // 8 beats
+    get().addNote(tid, "pc", { id: "n1", start: 99, len: 0, pitch: 999 });
+    let n = clipOf(tid).notes![0];
+    expect(n.pitch).toBe(PITCH_MAX);            // clamped to range
+    expect(n.len).toBeGreaterThan(0);
+    expect(n.start).toBeLessThanOrEqual(8 - n.len);
+
+    get().moveNote(tid, "pc", "n1", -5, -5);
+    n = clipOf(tid).notes![0];
+    expect(n.start).toBe(0);
+    expect(n.pitch).toBe(PITCH_MIN);
+
+    get().resizeNote(tid, "pc", "n1", 999);
+    expect(clipOf(tid).notes![0].len).toBe(8 - clipOf(tid).notes![0].start);
+
+    get().removeNote(tid, "pc", "n1");
+    expect(clipOf(tid).notes).toEqual([]);
+  });
+
+  it("notes survive a serialize -> hydrate round-trip", () => {
+    const tid = newClipTrack();
+    get().addNote(tid, "pc", { id: "n1", start: 1, len: 2, pitch: 64 });
+    const ui = serializeSession(get());
+    get().newSession();
+    expect(get().tracks.some((t) => t.id === tid)).toBe(false); // reset
+    get().hydrateSession(ui);
+    const restored = get().tracks.find((t) => t.id === tid)!.clips.find((c) => c.id === "pc")!;
+    expect(restored.notes).toEqual([{ id: "n1", start: 1, len: 2, pitch: 64 }]);
   });
 });
 
