@@ -244,11 +244,15 @@ void EngineController::applyEnginePayload (const var& enginePayload)
 
     // Per-node insert racks: instantiate each saved device into its node (async)
     // and restore its state on completion.
+    auto restoreRack = [this] (const String& nodeId, const var& slotsVar)
+    {
+        if (auto* slots = slotsVar.getDynamicObject())
+            for (const auto& sp : slots->getProperties())
+                nodeDeviceAdd (nodeId, sp.name.toString(), sp.value.toString());
+    };
     if (auto* nodes = obj->getProperty ("nodes").getDynamicObject())
         for (const auto& np : nodes->getProperties())
-            if (auto* slots = np.value.getDynamicObject())
-                for (const auto& sp : slots->getProperties())
-                    nodeDeviceAdd (np.name.toString(), sp.name.toString(), sp.value.toString());
+            restoreRack (np.name.toString(), np.value);
 }
 
 void EngineController::sessionExport (const String& name, const var& uiPayload)
@@ -332,7 +336,7 @@ var EngineController::handle (const String& name, const Array<var>& args)
     if (name == "automationSet")
     {
         std::vector<AutomationStore::Point> pts;
-        if (auto* arr = arg (2).getArray())
+        if (const auto* arr = arg (2).getArray())
         {
             pts.reserve ((size_t) arr->size());
             for (const auto& pv : *arr)
@@ -357,18 +361,19 @@ var EngineController::handle (const String& name, const Array<var>& args)
         // so the automation picker can use `id` directly as the paramId.
         Array<var> out;
         const int slot = PluginHost::slotIndex (arg (1).toString());
-        if (auto* r = audioEngine.rackForNode (arg (0).toString()))
-            if (auto* inst = r->get (slot))
+        const auto* r = audioEngine.rackForNode (arg (0).toString());
+        const auto* inst = r != nullptr ? r->get (slot) : nullptr;
+        if (inst != nullptr)
+        {
+            const auto& params = inst->getParameters();
+            for (int i = 0; i < params.size(); ++i)
             {
-                const auto& params = inst->getParameters();
-                for (int i = 0; i < params.size(); ++i)
-                {
-                    auto* obj = new DynamicObject();
-                    obj->setProperty ("id", "dev:" + String (slot) + ":" + String (i));
-                    obj->setProperty ("name", params[i]->getName (64));
-                    out.add (var (obj));
-                }
+                auto* obj = new DynamicObject();
+                obj->setProperty ("id", "dev:" + String (slot) + ":" + String (i));
+                obj->setProperty ("name", params[i]->getName (64));
+                out.add (var (obj));
             }
+        }
         return var (out);
     }
 
@@ -406,7 +411,7 @@ var EngineController::handle (const String& name, const Array<var>& args)
     }
     if (name == "sessionLoad")
     {
-        auto* obj = sessionStore.readSession (arg (0).toString()).getDynamicObject();
+        const auto* obj = sessionStore.readSession (arg (0).toString()).getDynamicObject();
         if (obj == nullptr)
             return {};                                  // not found
         applyEnginePayload (obj->getProperty ("engine"));
