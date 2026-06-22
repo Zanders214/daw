@@ -96,7 +96,7 @@ std::unique_ptr<WebBrowserComponent> createWebView (EngineController& controller
     options = options
                   .withBackend (WebBrowserComponent::Options::Backend::webview2)
                   .withWinWebView2Options (
-                      WebBrowserComponent::Options::WinWebView2Options{}
+                      WebBrowserComponent::Options::WinWebView2{}
                           .withUserDataFolder (File::getSpecialLocation (File::userApplicationDataDirectory)
                                                    .getChildFile ("ZandersDAW")
                                                    .getChildFile ("WebView2"))
