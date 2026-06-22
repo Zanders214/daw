@@ -1,12 +1,27 @@
+import { useRef } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useDawStore } from "../../store/useDawStore";
 import { TOTAL_BARS } from "../../lib/constants";
-import { PlayheadMarker } from "./Playhead";
+import { beatsAt, startDrag } from "../../lib/timeline";
+import { LoopBracket, PlayheadMarker } from "./Playhead";
 
 const HEADER_W = 258;
 
 export function Ruler({ tracksRight }: Readonly<{ tracksRight: boolean }>) {
-  const toggleTracksSide = useDawStore((s) => s.toggleTracksSide);
+  const { toggleTracksSide, setPlayhead } = useDawStore(
+    useShallow((s) => ({ toggleTracksSide: s.toggleTracksSide, setPlayhead: s.setPlayhead })),
+  );
+  const barsRef = useRef<HTMLDivElement>(null);
   const sb = "1px solid var(--layer-3)";
+
+  // Click to seek, drag to scrub (continuous; the bar-area shares the lanes width).
+  const onScrub = (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    const rect = barsRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setPlayhead(beatsAt(e.clientX, rect));
+    startDrag((ev) => setPlayhead(beatsAt(ev.clientX, rect)));
+  };
 
   return (
     <div
@@ -57,7 +72,11 @@ export function Ruler({ tracksRight }: Readonly<{ tracksRight: boolean }>) {
           ⇆
         </button>
       </div>
-      <div style={{ flex: 1, position: "relative", display: "flex" }}>
+      <div
+        ref={barsRef}
+        onPointerDown={onScrub}
+        style={{ flex: 1, position: "relative", display: "flex", cursor: "pointer", touchAction: "none" }}
+      >
         {Array.from({ length: TOTAL_BARS }, (_, i) => {
           const major = i % 4 === 0;
           return (
@@ -79,6 +98,7 @@ export function Ruler({ tracksRight }: Readonly<{ tracksRight: boolean }>) {
             </div>
           );
         })}
+        <LoopBracket />
         <PlayheadMarker />
       </div>
     </div>

@@ -63,6 +63,8 @@ describe("useDawStore (hosted) — commands reach the engine", () => {
     expect(engine.transport.stop).toHaveBeenCalled();
     get().rewind();
     expect(engine.transport.setPosition).toHaveBeenCalledWith(0);
+    get().setPlayhead(24);
+    expect(engine.transport.setPosition).toHaveBeenCalledWith(24);
     get().toggleRecord();
     expect(engine.transport.setRecording).toHaveBeenCalledWith(true);
     get().toggleLoop();
