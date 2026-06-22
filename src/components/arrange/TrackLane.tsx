@@ -3,7 +3,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useDawStore } from "../../store/useDawStore";
 import { hexA } from "../../lib/color";
 import { clipPreview } from "../../lib/notes";
-import { TOTAL_BARS } from "../../lib/constants";
+import { BEATS_PER_BAR, TOTAL_BARS } from "../../lib/constants";
 import { deviceDescriptorForItem, getDragItem, hasDragItem, trackTypeForItem } from "../../lib/dnd";
 import { barsAt, snap, startDrag } from "../../lib/timeline";
 import { AutomationLane } from "./AutomationLane";
@@ -18,7 +18,8 @@ export function TrackLane({ track }: Readonly<{ track: Track }>) {
   const {
     selected, showGrid, vibrant, dimmed, selClip, autoOpen, sendsOpen,
     selectClip, addNodeDevice, setTrackInstrument,
-    moveClip, resizeClip, setClipRegion, removeClip, duplicateClip, openEditor,
+    moveClip, moveClipToTrack, resizeClip, setClipRegion, removeClip, duplicateClip, openEditor,
+    copyClip, cutClip, pasteClip, playhead,
   } = useDawStore(
     useShallow((s) => {
       const soloActive = Object.values(s.solos).some(Boolean);
@@ -35,11 +36,16 @@ export function TrackLane({ track }: Readonly<{ track: Track }>) {
         addNodeDevice: s.addNodeDevice,
         setTrackInstrument: s.setTrackInstrument,
         moveClip: s.moveClip,
+        moveClipToTrack: s.moveClipToTrack,
         resizeClip: s.resizeClip,
         setClipRegion: s.setClipRegion,
         removeClip: s.removeClip,
         duplicateClip: s.duplicateClip,
         openEditor: s.openEditor,
+        copyClip: s.copyClip,
+        cutClip: s.cutClip,
+        pasteClip: s.pasteClip,
+        playhead: s.playhead,
       };
     }),
   );
@@ -58,10 +64,19 @@ export function TrackLane({ track }: Readonly<{ track: Track }>) {
     const grabOffset = barsAt(e.clientX, rect) - c.bar;
     const startX = e.clientX;
     let moved = false;
+    let curTrack = id; // follows the clip as it crosses lanes
     startDrag((ev) => {
       if (!moved && Math.abs(ev.clientX - startX) < 3) return; // preserve plain click→select
       moved = true;
-      moveClip(id, c.id, snap(barsAt(ev.clientX, rect) - grabOffset, step(ev.altKey)));
+      const bar = snap(barsAt(ev.clientX, rect) - grabOffset, step(ev.altKey));
+      const destEl = document.elementFromPoint(ev.clientX, ev.clientY)?.closest("[data-track-id]");
+      const dest = destEl?.getAttribute("data-track-id");
+      if (dest && dest !== curTrack) {
+        moveClipToTrack(curTrack, c.id, dest, bar);
+        curTrack = dest;
+      } else {
+        moveClip(curTrack, c.id, bar);
+      }
     });
   };
 
@@ -86,9 +101,13 @@ export function TrackLane({ track }: Readonly<{ track: Track }>) {
   };
 
   const onClipKey = (c: Clip) => (e: React.KeyboardEvent) => {
+    const mod = e.metaKey || e.ctrlKey;
     if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectClip(c.id, id); }
     else if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); removeClip(id, c.id); }
-    else if ((e.metaKey || e.ctrlKey) && (e.key === "d" || e.key === "D")) { e.preventDefault(); duplicateClip(id, c.id); }
+    else if (mod && (e.key === "d" || e.key === "D")) { e.preventDefault(); duplicateClip(id, c.id); }
+    else if (mod && (e.key === "c" || e.key === "C")) { e.preventDefault(); copyClip(id, c.id); }
+    else if (mod && (e.key === "x" || e.key === "X")) { e.preventDefault(); cutClip(id, c.id); }
+    else if (mod && (e.key === "v" || e.key === "V")) { e.preventDefault(); pasteClip(id, Math.floor(playhead / BEATS_PER_BAR)); }
   };
 
   const edgeStyle = (side: "left" | "right"): React.CSSProperties => ({
@@ -143,6 +162,7 @@ export function TrackLane({ track }: Readonly<{ track: Track }>) {
     <>
       <div
         ref={laneRef}
+        data-track-id={id}
         style={laneStyle}
         onDragOver={(e) => {
           if (!hasDragItem(e.dataTransfer)) return;

@@ -51,6 +51,7 @@ export function notesFromPattern(clip: Clip, td: Track): Note[] {
     start: n.x * beats,
     len: Math.max(0.25, n.w * beats),
     pitch: PITCH_MAX - Math.round((n.row / 7) * PITCH_SPAN),
+    velocity: 0.8,
   }));
 }
 

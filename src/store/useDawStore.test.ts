@@ -534,7 +534,7 @@ describe("useDawStore — piano-roll editor & MIDI notes", () => {
     const tid = newClipTrack();
     get().addNote(tid, "pc", { id: "n1", start: 0, len: 1, pitch: 60 });
     get().ensureClipNotes(tid, "pc");
-    expect(clipOf(tid).notes).toEqual([{ id: "n1", start: 0, len: 1, pitch: 60 }]);
+    expect(clipOf(tid).notes).toEqual([{ id: "n1", start: 0, len: 1, pitch: 60, velocity: 0.8 }]);
   });
 
   it("note add/move/resize clamp to the clip and pitch range", () => {
@@ -565,7 +565,59 @@ describe("useDawStore — piano-roll editor & MIDI notes", () => {
     expect(get().tracks.some((t) => t.id === tid)).toBe(false); // reset
     get().hydrateSession(ui);
     const restored = get().tracks.find((t) => t.id === tid)!.clips.find((c) => c.id === "pc")!;
-    expect(restored.notes).toEqual([{ id: "n1", start: 1, len: 2, pitch: 64 }]);
+    expect(restored.notes).toEqual([{ id: "n1", start: 1, len: 2, pitch: 64, velocity: 0.8 }]);
+  });
+});
+
+describe("useDawStore — cross-track drag, clipboard, rename, velocity", () => {
+  it("moveClipToTrack relocates a clip and clamps the bar", () => {
+    const a = get().addTrack({ type: "midi" });
+    const b = get().addTrack({ type: "midi" });
+    get().addClip(a, { id: "x", bar: 0, len: 4, name: "X" });
+    get().moveClipToTrack(a, "x", b, 999);
+    const ta = get().tracks.find((t) => t.id === a)!;
+    const tb = get().tracks.find((t) => t.id === b)!;
+    expect(ta.clips.some((c) => c.id === "x")).toBe(false);
+    const moved = tb.clips.find((c) => c.id === "x")!;
+    expect(moved.bar).toBe(32 - 4); // clamped to the grid
+    expect(get().selTrack).toBe(b);
+  });
+
+  it("copy/paste yields a fresh clip + note ids and selects it; cut removes the original", () => {
+    const a = get().addTrack({ type: "midi" });
+    get().addClip(a, { id: "src", bar: 0, len: 2, name: "Loop", notes: [{ id: "n1", start: 0, len: 1, pitch: 60, velocity: 0.8 }] });
+    get().copyClip(a, "src");
+    const pasted = get().pasteClip(a, 4)!;
+    expect(pasted).not.toBe("src");
+    const clips = () => get().tracks.find((t) => t.id === a)!.clips;
+    const copy = clips().find((c) => c.id === pasted)!;
+    expect(copy.bar).toBe(4);
+    expect(copy.notes![0].id).not.toBe("n1"); // fresh note id
+    expect(get().selClip).toBe(pasted);
+
+    get().cutClip(a, "src");
+    expect(clips().some((c) => c.id === "src")).toBe(false);
+    // clipboard still holds the cut clip → can paste again
+    expect(get().pasteClip(a, 0)).not.toBeNull();
+  });
+
+  it("renameClip updates the clip name", () => {
+    const a = get().addTrack({ type: "midi" });
+    get().addClip(a, { id: "c", bar: 0, len: 1, name: "Old" });
+    get().renameClip(a, "c", "New");
+    expect(get().tracks.find((t) => t.id === a)!.clips[0].name).toBe("New");
+  });
+
+  it("setNoteVelocity clamps to 0..1 and addNote defaults to 0.8", () => {
+    const a = get().addTrack({ type: "midi" });
+    get().addClip(a, { id: "c", bar: 0, len: 2, name: "C" });
+    get().addNote(a, "c", { id: "n1", start: 0, len: 1, pitch: 60 });
+    const note = () => get().tracks.find((t) => t.id === a)!.clips[0].notes!.find((n) => n.id === "n1")!;
+    expect(note().velocity).toBe(0.8);
+    get().setNoteVelocity(a, "c", "n1", 5);
+    expect(note().velocity).toBe(1);
+    get().setNoteVelocity(a, "c", "n1", -1);
+    expect(note().velocity).toBe(0);
   });
 });
 
