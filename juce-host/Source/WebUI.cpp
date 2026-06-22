@@ -87,6 +87,22 @@ std::unique_ptr<WebBrowserComponent> createWebView (EngineController& controller
                        .withNativeIntegrationEnabled()
                        .withKeepPageLoadedWhenBrowserIsHidden();
 
+#if JUCE_WINDOWS && JUCE_USE_WIN_WEBVIEW2
+    // On Windows the resource provider + native integration (window.__JUCE__) only work
+    // with the WebView2 backend; the default falls back to the legacy IE/Win32 WebView,
+    // which can't serve them and shows "navigation to the webpage was cancelled". Force
+    // WebView2 and give it a writable user-data folder (its default sits next to the .exe,
+    // which aborts startup under a read-only install location).
+    options = options
+                  .withBackend (WebBrowserComponent::Options::Backend::webview2)
+                  .withWinWebView2Options (
+                      WebBrowserComponent::Options::WinWebView2{}
+                          .withUserDataFolder (File::getSpecialLocation (File::userApplicationDataDirectory)
+                                                   .getChildFile ("ZandersDAW")
+                                                   .getChildFile ("WebView2"))
+                          .withBackgroundColour (Colour (0xff06070b)));
+#endif
+
 #if ZD_HAS_WEB
     // Serve the bundled UI, and declare the origin the page is served from.
     // Without this second argument JUCE omits the Access-Control-Allow-Origin
