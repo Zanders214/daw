@@ -95,7 +95,8 @@ var PluginHost::listAllPlugins() const
     return var (out);
 }
 
-static void reportMatchingSlots (const File& f, const std::function<void (int, File)>& onFound)
+template <typename OnFound>
+static void reportMatchingSlots (const File& f, OnFound&& onFound)
 {
     const auto name = f.getFileNameWithoutExtension();
     for (int slot = 0; slot < PluginHost::numSlots; ++slot)

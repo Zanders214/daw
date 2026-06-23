@@ -64,6 +64,10 @@ private:
     juce::var buildSession (const juce::String& name, const juce::var& uiPayload);
     juce::var buildEnginePayload(); // full plugin state, keyed by slot, base64-encoded
     void applyEnginePayload (const juce::var& enginePayload);
+    // applyEnginePayload helpers — one per restore phase (tracks → master → nodes).
+    void restoreTracks (const juce::DynamicObject& obj);
+    void restoreMasterPlugins (const juce::DynamicObject& obj);
+    void restoreNodeRacks (const juce::DynamicObject& obj);
     void sessionExport (const juce::String& name, const juce::var& uiPayload);
     void sessionImport();
 
