@@ -137,8 +137,8 @@ export function TrackHeader({ track }: Readonly<{ track: Track }>) {
       <div
         role="button"
         tabIndex={0}
-        onClick={() => selectTrack(id)}
-        onDoubleClick={() => openTrackChain(id)}
+        onClick={(e) => { if (!(e.target as HTMLElement).closest("[data-ctl]")) selectTrack(id); }}
+        onDoubleClick={(e) => { if (!(e.target as HTMLElement).closest("[data-ctl]")) openTrackChain(id); }}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectTrack(id); } }}
         style={{
           height: 108,
@@ -291,11 +291,8 @@ export function TrackHeader({ track }: Readonly<{ track: Track }>) {
           <button type="button" onClick={(e) => { e.stopPropagation(); toggleArm(id); }} style={aStyle}>●</button>
           <button type="button" onClick={(e) => { e.stopPropagation(); toggleAuto(id); }} title="Automation lane" style={autoBtnStyle}>A</button>
           <div
-            role="button"
-            tabIndex={0}
-            onClick={(e) => e.stopPropagation()}
+            data-ctl=""
             onDoubleClick={(e) => { e.stopPropagation(); setPan(id, 0.5); }}
-            onKeyDown={(e) => e.stopPropagation()}
             title={`Pan: ${panLabel} (double-click to center)`}
             style={{ flex: "none" }}
           >
@@ -306,7 +303,7 @@ export function TrackHeader({ track }: Readonly<{ track: Track }>) {
 
         <div style={{ display: "flex", alignItems: "center", gap: 9, marginTop: 9 }}>
           <span style={{ fontSize: 9, color: "var(--text-label)", letterSpacing: "0.1em", flex: "none" }}>VOL</span>
-          <div style={{ flex: 1 }} role="button" tabIndex={0} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+          <div style={{ flex: 1 }} data-ctl="">
             <Slider value={vol} onChange={(v) => setVolume(id, v)} />
           </div>
           <span
