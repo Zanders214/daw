@@ -29,9 +29,6 @@ public:
     const juce::String& getId() const noexcept { return id; }
 
     // ---- metadata (message thread only; for the arrange/mixer + session) ----
-    juce::String displayName;
-    juce::String type;
-    juce::String color;
     void setMeta (const juce::String& n, const juce::String& t, const juce::String& c)
     {
         if (n.isNotEmpty()) displayName = n;
@@ -77,7 +74,7 @@ public:
                    const juce::File& file);
     void clearFile();
     void prepare (double sampleRate, int blockSize);
-    void releaseResources();
+    void releaseResources() const;
 
     bool hasFile() const noexcept { return ! clips.empty(); }
     juce::String getFilePath() const { return clips.empty() ? juce::String() : clips.front()->filePath; }
@@ -100,6 +97,12 @@ public:
                      double blockStartBeats, double bpm, bool playing);
     /** Decay the meter when the track is silent (muted / soloed-out / no file). */
     void decayMeter() noexcept { level.store (level.load() * 0.88f); }
+
+    // ---- public data (grouped contiguously; read by name from the engine) ----
+    // ---- metadata (message thread only; for the arrange/mixer + session) ----
+    juce::String displayName;
+    juce::String type;
+    juce::String color;
 
     // ---- real-time controls (atomics; lock-free from any thread) ----
     std::atomic<float> gain  { 0.8f };   // matches DEFAULT_VOLUME on the JS side
@@ -134,18 +137,31 @@ private:
         bool   active     { false };  // currently started (playhead inside region)
     };
 
+    /** Per-block scratch buffers reused across renderInto() calls (grouped so the
+        class stays under the data-member budget; same construction order as before). */
+    struct Scratch
+    {
+        juce::MidiBuffer synthMidi;             // per-block note events fed to the synth
+        juce::AudioBuffer<float> trackScratch;  // summed clips + synth for this block
+        juce::AudioBuffer<float> clipScratch;   // one clip's pull
+        juce::MidiBuffer rackMidi;              // empty MIDI for the insert chain
+    };
+
     juce::String id;
     std::vector<std::unique_ptr<ClipPlayer>> clips;
 
     std::vector<MidiNoteSpec> midiNotes;    // timeline notes for the built-in synth
     TrackSynth synth;                       // voices this track's MIDI clips
-    juce::MidiBuffer synthMidi;             // per-block note events fed to the synth
-
-    juce::AudioBuffer<float> trackScratch;  // summed clips + synth for this block
-    juce::AudioBuffer<float> clipScratch;   // one clip's pull
-    juce::MidiBuffer rackMidi;              // empty MIDI for the insert chain
+    Scratch scratch;                        // reusable per-block work buffers
     double preparedSampleRate { 0.0 };
     int    preparedBlockSize  { 0 };
+
+    // ---- render helpers (audio thread; split out of renderInto for clarity) ----
+    bool mixClips (int numSamples, double blockStartBeats, double spb, bool playing);
+    void renderMidi (int numSamples, double blockStartBeats, double spb, bool playing);
+    void applyPan (int numSamples);
+    void mixToSends (juce::AudioBuffer<float>* sendBuses, int numSendBuses, int numSamples, int srcCh);
+    void updateMeter (int numSamples, int srcCh);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TrackChannel)
 };

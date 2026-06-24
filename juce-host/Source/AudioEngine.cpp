@@ -6,7 +6,7 @@ using namespace juce;
 
 AudioEngine::AudioEngine()
 {
-    audioFormatManager.registerBasicFormats();
+    source.audioFormatManager.registerBasicFormats();
 }
 
 AudioEngine::~AudioEngine()
@@ -28,8 +28,8 @@ void AudioEngine::shutdown()
         closeEditor (i);
 
     {
-        const ScopedLock sl (chainLock);
-        for (const auto& p : chain)
+        const ScopedLock sl (masterChain.chainLock);
+        for (const auto& p : masterChain.chain)
             if (p != nullptr)
                 p->releaseResources();
     }
@@ -47,23 +47,23 @@ void AudioEngine::shutdown()
     }
     readThread.stopThread (2000);
 
-    transportSource.setSource (nullptr);
-    readerSource.reset();
+    source.transportSource.setSource (nullptr);
+    source.readerSource.reset();
 }
 
 // ---- transport ----
 double AudioEngine::beatsToSeconds (double beats) const
 {
-    return beats * 60.0 / jmax (1.0, tempo.load());
+    return beats * 60.0 / jmax (1.0, transport.tempo.load());
 }
 
 void AudioEngine::setPlaying (bool shouldPlay)
 {
-    playing.store (shouldPlay);
-    if (inputMode == "file")
+    transport.playing.store (shouldPlay);
+    if (source.inputMode == "file")
     {
-        if (shouldPlay) transportSource.start();
-        else            transportSource.stop();
+        if (shouldPlay) source.transportSource.start();
+        else            source.transportSource.stop();
     }
 
     // Drop clips out of their playing state; the audio callback re-enters each one
@@ -75,10 +75,10 @@ void AudioEngine::setPlaying (bool shouldPlay)
 
 void AudioEngine::stop()
 {
-    playing.store (false);
-    transportSource.stop();
-    transportSource.setPosition (0.0);
-    playheadBeats.store (0.0);
+    transport.playing.store (false);
+    source.transportSource.stop();
+    source.transportSource.setPosition (0.0);
+    transport.playheadBeats.store (0.0);
 
     const ScopedLock sl (tracksLock);
     for (auto* t : tracks)
@@ -88,7 +88,7 @@ void AudioEngine::stop()
 void AudioEngine::setPosition (double beats)
 {
     const double b = jlimit (0.0, totalBeats, beats);
-    playheadBeats.store (b);
+    transport.playheadBeats.store (b);
 
     const ScopedLock sl (tracksLock);
     for (auto* t : tracks)
@@ -98,20 +98,20 @@ void AudioEngine::setPosition (double beats)
 // ---- source ----
 bool AudioEngine::loadAudioFile (const File& file)
 {
-    auto* reader = audioFormatManager.createReaderFor (file);
+    auto* reader = source.audioFormatManager.createReaderFor (file);
     if (reader == nullptr)
         return false;
 
     auto newSource = std::make_unique<AudioFormatReaderSource> (reader, true);
-    transportSource.setSource (newSource.get(), 0, nullptr, reader->sampleRate);
-    readerSource = std::move (newSource);
-    fileLoaded.store (true);
+    source.transportSource.setSource (newSource.get(), 0, nullptr, reader->sampleRate);
+    source.readerSource = std::move (newSource);
+    source.fileLoaded.store (true);
     return true;
 }
 
 void AudioEngine::setInputMode (const String& mode)
 {
-    inputMode = mode;
+    source.inputMode = mode;
 }
 
 // ---- audio device settings ----
@@ -166,8 +166,8 @@ void AudioEngine::applySettings (const var& opts)
 // ---- loop region ----
 void AudioEngine::setLoopRegion (double startBeats, double endBeats)
 {
-    loopStartBeats.store (jlimit (0.0, totalBeats, startBeats));
-    loopEndBeats.store   (jlimit (0.0, totalBeats, endBeats));
+    transport.loopStartBeats.store (jlimit (0.0, totalBeats, startBeats));
+    transport.loopEndBeats.store   (jlimit (0.0, totalBeats, endBeats));
 }
 
 // ---- mixer (multitrack) ----
@@ -307,14 +307,14 @@ void AudioEngine::setTrackSend (const String& trackId, int sendIdx, float amount
 void AudioEngine::setReturnGain (int sendIdx, float gainLinear)
 {
     if (isPositiveAndBelow (sendIdx, numSends))
-        returnGain[(size_t) sendIdx].store (jlimit (0.0f, 4.0f, gainLinear));
+        sendReturn.returnGain[(size_t) sendIdx].store (jlimit (0.0f, 4.0f, gainLinear));
 }
 
 var AudioEngine::buildReturnLevels()
 {
     Array<var> out;
     for (int i = 0; i < numSends; ++i)
-        out.add ((double) returnLevel[(size_t) i].load());
+        out.add ((double) sendReturn.returnLevel[(size_t) i].load());
     return out;
 }
 
@@ -369,7 +369,7 @@ AutomationStore::Target AudioEngine::resolveAutoTarget (const String& nodeId, co
     {
         if (const int i = nodeId.fromFirstOccurrenceOf ("return-", false, false).getIntValue();
             paramId == "rgain" && isPositiveAndBelow (i, numSends))
-            return f32 (&returnGain[(size_t) i], 0.0f, 4.0f);
+            return f32 (&sendReturn.returnGain[(size_t) i], 0.0f, 4.0f);
         return t;
     }
     if (nodeId.startsWith ("g-"))
@@ -393,7 +393,7 @@ DeviceRack* AudioEngine::rackForNode (const String& nodeId)
     if (nodeId.startsWith ("return-"))
     {
         const int i = nodeId.fromFirstOccurrenceOf ("return-", false, false).getIntValue();
-        return isPositiveAndBelow (i, numSends) ? &returnRacks[(size_t) i] : nullptr;
+        return isPositiveAndBelow (i, numSends) ? &sendReturn.returnRacks[(size_t) i] : nullptr;
     }
     const ScopedLock sl (tracksLock);
     if (auto* g = groupById[nodeId]) return &g->inserts;
@@ -436,7 +436,7 @@ var AudioEngine::buildNodeRacks()
 
     for (const auto* t : tracks) addRack (t->getId(), t->inserts);
     for (const auto* g : groups) addRack (g->getId(), g->inserts);
-    for (int i = 0; i < numSends; ++i) addRack ("return-" + String (i), returnRacks[(size_t) i]);
+    for (int i = 0; i < numSends; ++i) addRack ("return-" + String (i), sendReturn.returnRacks[(size_t) i]);
     return var (obj.get());
 }
 
@@ -464,7 +464,7 @@ var AudioEngine::buildNodeRackStates()
 
     for (const auto* t : tracks) addRack (t->getId(), t->inserts);
     for (const auto* g : groups) addRack (g->getId(), g->inserts);
-    for (int i = 0; i < numSends; ++i) addRack ("return-" + String (i), returnRacks[(size_t) i]);
+    for (int i = 0; i < numSends; ++i) addRack ("return-" + String (i), sendReturn.returnRacks[(size_t) i]);
     return var (obj.get());
 }
 
@@ -473,14 +473,14 @@ bool AudioEngine::assignTrackFile (const String& id, const File& file)
     auto& ch = ensureTrack (id);
     const ScopedLock sl (tracksLock); // serialize the source swap against the audio thread
     // The next audio block enters the (full-span) clip at the current playhead.
-    return ch.loadFile (audioFormatManager, readThread, file);
+    return ch.loadFile (source.audioFormatManager, readThread, file);
 }
 
 void AudioEngine::setTrackClips (const String& id, const std::vector<TrackChannel::ClipSpec>& clips)
 {
     auto& ch = ensureTrack (id);
     const ScopedLock sl (tracksLock);
-    ch.setClips (audioFormatManager, readThread, clips);
+    ch.setClips (source.audioFormatManager, readThread, clips);
 }
 
 void AudioEngine::setTrackMidiNotes (const String& id, std::vector<TrackChannel::MidiNoteSpec> notes)
@@ -531,7 +531,7 @@ var AudioEngine::buildTrackInfo() const
 AudioPluginInstance* AudioEngine::getInstance (int slot) const
 {
     if (slot < 0 || slot >= numSlots) return nullptr;
-    return chain[(size_t) slot].get();
+    return masterChain.chain[(size_t) slot].get();
 }
 
 void AudioEngine::prepareSlot (int slot) const
@@ -550,10 +550,10 @@ void AudioEngine::installPlugin (int slot, std::unique_ptr<AudioPluginInstance> 
         return;
 
     {
-        const ScopedLock sl (chainLock);
-        if (chain[(size_t) slot] != nullptr)
-            chain[(size_t) slot]->releaseResources();
-        chain[(size_t) slot] = std::move (instance);
+        const ScopedLock sl (masterChain.chainLock);
+        if (masterChain.chain[(size_t) slot] != nullptr)
+            masterChain.chain[(size_t) slot]->releaseResources();
+        masterChain.chain[(size_t) slot] = std::move (instance);
     }
     prepareSlot (slot);
 }
@@ -563,10 +563,10 @@ void AudioEngine::removePlugin (int slot)
     if (slot < 0 || slot >= numSlots)
         return;
     closeEditor (slot);
-    const ScopedLock sl (chainLock);
-    if (chain[(size_t) slot] != nullptr)
-        chain[(size_t) slot]->releaseResources();
-    chain[(size_t) slot].reset();
+    const ScopedLock sl (masterChain.chainLock);
+    if (masterChain.chain[(size_t) slot] != nullptr)
+        masterChain.chain[(size_t) slot]->releaseResources();
+    masterChain.chain[(size_t) slot].reset();
 }
 
 bool AudioEngine::hasPlugin (int slot) const { return getInstance (slot) != nullptr; }
@@ -580,7 +580,7 @@ String AudioEngine::getPluginName (int slot) const
 void AudioEngine::setBypassed (int slot, bool b)
 {
     if (slot >= 0 && slot < numSlots)
-        bypassed[(size_t) slot].store (b);
+        masterChain.bypassed[(size_t) slot].store (b);
 }
 
 void AudioEngine::setParam (int slot, const String& paramId, float value01) const
@@ -628,7 +628,7 @@ String AudioEngine::getPluginState (int slot) const
         return {};
 
     // Guard against a concurrent processBlock (audio thread try-locks chainLock).
-    const ScopedLock sl (chainLock);
+    const ScopedLock sl (masterChain.chainLock);
     juce::MemoryBlock mb;
     inst->getStateInformation (mb);
     return mb.toBase64Encoding();
@@ -644,7 +644,7 @@ bool AudioEngine::setPluginState (int slot, const String& base64) const
     if (! mb.fromBase64Encoding (base64) || mb.isEmpty())
         return false;
 
-    const ScopedLock sl (chainLock);
+    const ScopedLock sl (masterChain.chainLock);
     inst->setStateInformation (mb.getData(), (int) mb.getSize());
     return true;
 }
@@ -655,9 +655,9 @@ void AudioEngine::openEditor (int slot)
     if (inst == nullptr)
         return;
 
-    if (editorWindows[(size_t) slot] != nullptr)
+    if (masterChain.editorWindows[(size_t) slot] != nullptr)
     {
-        editorWindows[(size_t) slot]->toFront (true);
+        masterChain.editorWindows[(size_t) slot]->toFront (true);
         return;
     }
 
@@ -678,17 +678,17 @@ void AudioEngine::openEditor (int slot)
     window->setResizable (true, false);
     window->centreWithSize (window->getWidth(), window->getHeight());
     window->setVisible (true);
-    editorWindows[(size_t) slot] = std::move (window);
+    masterChain.editorWindows[(size_t) slot] = std::move (window);
 }
 
 void AudioEngine::closeEditor (int slot)
 {
     if (slot < 0 || slot >= numSlots)
         return;
-    if (editorWindows[(size_t) slot] != nullptr)
+    if (masterChain.editorWindows[(size_t) slot] != nullptr)
     {
-        editorWindows[(size_t) slot]->clearContentComponent();
-        editorWindows[(size_t) slot].reset();
+        masterChain.editorWindows[(size_t) slot]->clearContentComponent();
+        masterChain.editorWindows[(size_t) slot].reset();
     }
 }
 
@@ -699,10 +699,10 @@ void AudioEngine::audioDeviceAboutToStart (AudioIODevice* device)
     currentBlockSize  = device->getCurrentBufferSizeSamples();
     scratch.setSize (2, currentBlockSize, false, false, true);
 
-    transportSource.prepareToPlay (currentBlockSize, currentSampleRate);
+    source.transportSource.prepareToPlay (currentBlockSize, currentSampleRate);
 
     {
-        const ScopedLock sl (chainLock);
+        const ScopedLock sl (masterChain.chainLock);
         for (int i = 0; i < numSlots; ++i)
             prepareSlot (i);
     }
@@ -714,18 +714,18 @@ void AudioEngine::audioDeviceAboutToStart (AudioIODevice* device)
             g->prepare (currentSampleRate, currentBlockSize);
     }
 
-    for (auto& sb : sendBuses)
+    for (auto& sb : sendReturn.sendBuses)
         sb.setSize (2, currentBlockSize, false, false, true);
-    for (auto& r : returnRacks)
+    for (auto& r : sendReturn.returnRacks)
         r.prepare (currentSampleRate, currentBlockSize);
 }
 
 void AudioEngine::audioDeviceStopped()
 {
-    transportSource.releaseResources();
+    source.transportSource.releaseResources();
     {
-        const ScopedLock sl (chainLock);
-        for (const auto& p : chain)
+        const ScopedLock sl (masterChain.chainLock);
+        for (const auto& p : masterChain.chain)
             if (p != nullptr)
                 p->releaseResources();
     }
@@ -736,8 +736,133 @@ void AudioEngine::audioDeviceStopped()
         for (const auto* g : groups)
             g->inserts.release();
     }
-    for (const auto& r : returnRacks)
+    for (const auto& r : sendReturn.returnRacks)
         r.release();
+}
+
+void AudioEngine::renderLegacySource (const float* const* inputChannelData,
+                                      int numInputChannels, int numSamples)
+{
+    // Legacy single source (Phase 1 path: file player or input monitor).
+    if (source.inputMode == "file" && source.fileLoaded.load())
+    {
+        AudioSourceChannelInfo info (&scratch, 0, numSamples);
+        source.transportSource.getNextAudioBlock (info); // silent when stopped
+    }
+    else if (source.inputMode == "input")
+    {
+        for (int ch = 0; ch < jmin (2, numInputChannels); ++ch)
+            if (inputChannelData[ch] != nullptr)
+                scratch.copyFrom (ch, 0, inputChannelData[ch], numSamples);
+    }
+}
+
+void AudioEngine::mixTracks (int numSamples)
+{
+    // Sum the multitrack mixer. Each track renders into its group's buffer (or
+    // straight to the master scratch when ungrouped) and taps the send buses;
+    // each group then applies its own gain/pan, meters, and sums into the
+    // master; finally the returns sum back in. Try-lock so loads never block
+    // audio. Muted / soloed-out tracks still advance to stay in sync.
+    const ScopedTryLock stl (tracksLock);
+    if (! stl.isLocked())
+        return;
+
+    for (auto* g : groups)
+        g->clearBuffer (numSamples);
+
+    const bool trackSoloing = anySolo.load() > 0;
+    const bool groupSoloing = anyGroupSolo.load() > 0;
+
+    // Block-start playhead drives which clip(s) each track plays this block.
+    const double blockBeats = transport.playheadBeats.load();
+    const double bpmNow = transport.tempo.load();
+    const bool playingNow = transport.playing.load();
+
+    for (auto* t : tracks)
+    {
+        auto* g = t->group.load();
+        const bool trackOK = ! t->mute.load() && (! trackSoloing || t->solo.load());
+        const bool groupOK = (g == nullptr) ? (! groupSoloing)
+                                            : (! g->mute.load() && (! groupSoloing || g->solo.load()));
+        AudioBuffer<float>& dest = (g != nullptr) ? g->getBuffer() : scratch;
+        t->renderInto (dest, sendReturn.sendBuses.data(), numSends, numSamples, trackOK && groupOK,
+                       blockBeats, bpmNow, playingNow);
+    }
+
+    for (auto* g : groups)
+        g->sumInto (scratch, numSamples);
+
+    // Returns: run the return's insert FX, apply its gain, meter, and sum
+    // into the master.
+    for (int i = 0; i < numSends; ++i)
+    {
+        auto& rb = sendReturn.sendBuses[(size_t) i];
+        midi.clear();
+        sendReturn.returnRacks[(size_t) i].process (rb, midi);
+        rb.applyGain (sendReturn.returnGain[(size_t) i].load());
+
+        float rpeak = 0.0f;
+        for (int ch = 0; ch < rb.getNumChannels(); ++ch)
+            rpeak = jmax (rpeak, rb.getMagnitude (ch, 0, numSamples));
+        sendReturn.returnLevel[(size_t) i].store (jmax (rpeak, sendReturn.returnLevel[(size_t) i].load() * 0.88f));
+
+        for (int ch = 0; ch < scratch.getNumChannels(); ++ch)
+            scratch.addFrom (ch, 0, rb, jmin (ch, rb.getNumChannels() - 1), 0, numSamples);
+    }
+}
+
+void AudioEngine::processMasterChain()
+{
+    // Run the master FX chain in series (try-lock so loads never block audio).
+    const ScopedTryLock stl (masterChain.chainLock);
+    if (! stl.isLocked())
+        return;
+
+    midi.clear();
+    for (int i = 0; i < numSlots; ++i)
+    {
+        auto* inst = masterChain.chain[(size_t) i].get();
+        if (inst == nullptr || masterChain.bypassed[(size_t) i].load())
+            continue;
+        inst->processBlock (scratch, midi);
+    }
+}
+
+void AudioEngine::advanceTransport (int numSamples)
+{
+    // Advance the beat clock, wrapping within the loop region when looping.
+    if (! transport.playing.load())
+        return;
+
+    const double bpm = transport.tempo.load();
+    double beats = transport.playheadBeats.load() + (double) numSamples / currentSampleRate * (bpm / 60.0);
+
+    const double loS = transport.loopStartBeats.load();
+    const double loE = transport.loopEndBeats.load();
+    bool wrapped = false;
+
+    if (transport.looping.load() && loE > loS)
+    {
+        if (beats >= loE) { beats = loS + std::fmod (beats - loS, loE - loS); wrapped = true; }
+    }
+    else
+    {
+        while (beats >= totalBeats) { beats -= totalBeats; wrapped = true; }
+    }
+    transport.playheadBeats.store (beats);
+
+    if (! wrapped)
+        return;
+
+    // On a wrap, drop clips out of their playing state so the next block
+    // re-enters them at the new (looped) playhead — no drift.
+    const ScopedTryLock stl (tracksLock);
+    if (stl.isLocked())
+        for (auto* t : tracks)
+            t->resyncClips();
+    if (source.inputMode == "file" && source.fileLoaded.load())
+        source.transportSource.setPosition (beatsToSeconds (beats));
 }
 
 void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputChannelData,
@@ -751,24 +876,14 @@ void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputCha
     scratch.clear(); // master bus accumulator
 
     // 1) Legacy single source (Phase 1 path: file player or input monitor).
-    if (inputMode == "file" && fileLoaded.load())
-    {
-        AudioSourceChannelInfo info (&scratch, 0, numSamples);
-        transportSource.getNextAudioBlock (info); // silent when stopped
-    }
-    else if (inputMode == "input")
-    {
-        for (int ch = 0; ch < jmin (2, numInputChannels); ++ch)
-            if (inputChannelData[ch] != nullptr)
-                scratch.copyFrom (ch, 0, inputChannelData[ch], numSamples);
-    }
+    renderLegacySource (inputChannelData, numInputChannels, numSamples);
 
     // Aux send buses accumulate post-fader taps; cleared every block so a missed
     // try-lock yields silence (not stale audio) at the returns.
     for (int i = 0; i < numSends; ++i)
     {
-        sendBuses[(size_t) i].setSize (2, numSamples, false, false, true);
-        sendBuses[(size_t) i].clear();
+        sendReturn.sendBuses[(size_t) i].setSize (2, numSamples, false, false, true);
+        sendReturn.sendBuses[(size_t) i].clear();
     }
 
     // 1b) Parameter automation: evaluate every enabled envelope at the current
@@ -776,74 +891,13 @@ void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputCha
     //     setters use, so this block's gains/pans/sends ride the curve. The
     //     playhead is advanced at the end of the callback, so reading it here is
     //     the block-start position. Lock-free on contention (manual vals persist).
-    automation.apply (playheadBeats.load());
+    automation.apply (transport.playheadBeats.load());
 
-    // 2) Sum the multitrack mixer. Each track renders into its group's buffer (or
-    //    straight to the master scratch when ungrouped) and taps the send buses;
-    //    each group then applies its own gain/pan, meters, and sums into the
-    //    master; finally the returns sum back in. Try-lock so loads never block
-    //    audio. Muted / soloed-out tracks still advance to stay in sync.
-    {
-        const ScopedTryLock stl (tracksLock);
-        if (stl.isLocked())
-        {
-            for (auto* g : groups)
-                g->clearBuffer (numSamples);
-
-            const bool trackSoloing = anySolo.load() > 0;
-            const bool groupSoloing = anyGroupSolo.load() > 0;
-
-            // Block-start playhead drives which clip(s) each track plays this block.
-            const double blockBeats = playheadBeats.load();
-            const double bpmNow = tempo.load();
-            const bool playingNow = playing.load();
-
-            for (auto* t : tracks)
-            {
-                auto* g = t->group.load();
-                const bool trackOK = ! t->mute.load() && (! trackSoloing || t->solo.load());
-                const bool groupOK = (g == nullptr) ? (! groupSoloing)
-                                                    : (! g->mute.load() && (! groupSoloing || g->solo.load()));
-                AudioBuffer<float>& dest = (g != nullptr) ? g->getBuffer() : scratch;
-                t->renderInto (dest, sendBuses.data(), numSends, numSamples, trackOK && groupOK,
-                               blockBeats, bpmNow, playingNow);
-            }
-
-            for (auto* g : groups)
-                g->sumInto (scratch, numSamples);
-
-            // Returns: run the return's insert FX, apply its gain, meter, and sum
-            // into the master.
-            for (int i = 0; i < numSends; ++i)
-            {
-                auto& rb = sendBuses[(size_t) i];
-                midi.clear();
-                returnRacks[(size_t) i].process (rb, midi);
-                rb.applyGain (returnGain[(size_t) i].load());
-
-                float rpeak = 0.0f;
-                for (int ch = 0; ch < rb.getNumChannels(); ++ch)
-                    rpeak = jmax (rpeak, rb.getMagnitude (ch, 0, numSamples));
-                returnLevel[(size_t) i].store (jmax (rpeak, returnLevel[(size_t) i].load() * 0.88f));
-
-                for (int ch = 0; ch < scratch.getNumChannels(); ++ch)
-                    scratch.addFrom (ch, 0, rb, jmin (ch, rb.getNumChannels() - 1), 0, numSamples);
-            }
-        }
-    }
+    // 2) Sum the multitrack mixer (tracks -> groups -> returns) into scratch.
+    mixTracks (numSamples);
 
     // 3) Run the master FX chain in series (try-lock so loads never block audio).
-    {
-        const ScopedTryLock stl (chainLock);
-        if (stl.isLocked())
-        {
-            midi.clear();
-            for (int i = 0; i < numSlots; ++i)
-                if (auto* inst = chain[(size_t) i].get())
-                    if (! bypassed[(size_t) i].load())
-                        inst->processBlock (scratch, midi);
-        }
-    }
+    processMasterChain();
 
     // 4) Master volume.
     scratch.applyGain (masterVolume.load());
@@ -859,7 +913,7 @@ void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputCha
     float peak = 0.0f;
     for (int ch = 0; ch < scratch.getNumChannels(); ++ch)
         peak = jmax (peak, scratch.getMagnitude (ch, 0, numSamples));
-    masterLevel.store (jmax (peak, masterLevel.load() * 0.88f));
+    transport.masterLevel.store (jmax (peak, transport.masterLevel.load() * 0.88f));
 
     // 6) Write to the output device.
     for (int ch = 0; ch < numOutputChannels; ++ch)
@@ -868,35 +922,5 @@ void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputCha
                                          scratch.getReadPointer (jmin (ch, 1)), numSamples);
 
     // 7) Advance the beat clock, wrapping within the loop region when looping.
-    if (playing.load())
-    {
-        const double bpm = tempo.load();
-        double beats = playheadBeats.load() + (double) numSamples / currentSampleRate * (bpm / 60.0);
-
-        const double loS = loopStartBeats.load();
-        const double loE = loopEndBeats.load();
-        bool wrapped = false;
-
-        if (looping.load() && loE > loS)
-        {
-            if (beats >= loE) { beats = loS + std::fmod (beats - loS, loE - loS); wrapped = true; }
-        }
-        else
-        {
-            while (beats >= totalBeats) { beats -= totalBeats; wrapped = true; }
-        }
-        playheadBeats.store (beats);
-
-        // On a wrap, drop clips out of their playing state so the next block
-        // re-enters them at the new (looped) playhead — no drift.
-        if (wrapped)
-        {
-            const ScopedTryLock stl (tracksLock);
-            if (stl.isLocked())
-                for (auto* t : tracks)
-                    t->resyncClips();
-            if (inputMode == "file" && fileLoaded.load())
-                transportSource.setPosition (beatsToSeconds (beats));
-        }
-    }
+    advanceTransport (numSamples);
 }
