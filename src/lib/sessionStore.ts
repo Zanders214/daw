@@ -87,27 +87,22 @@ const SKEY = (name: string) => `zdaw:session:${name}`;
 const PKEY = "zdaw:prefs";
 const SPREFIX = "zdaw:session:";
 
-// Allowed session-name characters: letters, numbers, combining marks, space and
-// a small set of safe punctuation. The same character class is used to strip
-// input and to validate it (anchored, length-capped) before it reaches storage.
-const NAME_DISALLOWED = /[^\p{L}\p{N}\p{M} ._()-]/gu;
-const VALID_NAME = /^[\p{L}\p{N}\p{M} ._()-]{0,200}$/u;
-
-/** Strip disallowed characters and cap length before persisting a user-supplied
- *  session name to browser storage (avoids storing tainted input verbatim). */
-const sanitizeName = (s: string): string => s.replace(NAME_DISALLOWED, "").slice(0, 200);
+/** A valid session name: letters, numbers, combining marks, space and a small
+ *  set of safe punctuation, 1..200 chars. User-supplied names are validated
+ *  against this allowlist before being written to browser storage, so untrusted
+ *  input is never persisted verbatim. */
+const VALID_NAME = /^[\p{L}\p{N}\p{M} ._()-]{1,200}$/u;
 
 const browserBackend: SessionBackend = {
   canUseFiles: false,
   async save(name, data) {
+    // Reject any name not on the allowlist before touching storage — this guards
+    // the localStorage sink so tainted input can't be persisted.
+    if (!VALID_NAME.test(name)) return false;
     try {
-      const safe = sanitizeName(name);
-      // Validate the cleaned name against the allowlist before writing it: this
-      // guards the localStorage sink so no untrusted value is persisted verbatim.
-      if (!VALID_NAME.test(safe)) return false;
       localStorage.setItem(
-        SKEY(safe),
-        JSON.stringify({ ...data, name: safe, savedAt: new Date().toISOString() }),
+        SKEY(name),
+        JSON.stringify({ ...data, name, savedAt: new Date().toISOString() }),
       );
       return true;
     } catch {

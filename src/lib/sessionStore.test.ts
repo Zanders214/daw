@@ -79,15 +79,12 @@ describe("sessionBackend (browser / offline)", () => {
     expect(Number.isNaN(Date.parse(loaded!.savedAt!))).toBe(false);
   });
 
-  it("save writes under the sanitized key and load reads it back", async () => {
-    // "Bad/Name" sanitizes to "BadName"; the raw localStorage key uses the safe form.
-    await sessionBackend.save("Bad/Name", makeSession("Bad/Name", { bpm: 100 }));
-    expect(localStorage.getItem("zdaw:session:BadName")).not.toBeNull();
+  it("rejects a name with disallowed characters and writes nothing", async () => {
+    // "Bad/Name" contains '/', which is not on the allowlist, so save is refused.
+    const ok = await sessionBackend.save("Bad/Name", makeSession("Bad/Name", { bpm: 100 }));
+    expect(ok).toBe(false);
     expect(localStorage.getItem("zdaw:session:Bad/Name")).toBeNull();
-
-    const loaded = await sessionBackend.load("BadName");
-    expect(loaded!.name).toBe("BadName");
-    expect(loaded!.ui.bpm).toBe(100);
+    expect(localStorage.getItem("zdaw:session:BadName")).toBeNull();
   });
 
   it("load returns null for a missing session", async () => {
@@ -179,9 +176,9 @@ describe("sessionBackend (browser / offline)", () => {
   });
 });
 
-describe("sessionBackend — sanitizeName behaviour (observed via save key)", () => {
-  // sanitizeName isn't exported, so we exercise it through the public save() path:
-  // the localStorage key reflects the sanitized name.
+describe("sessionBackend — session-name validation (allowlist)", () => {
+  // save() validates the user-supplied name against an allowlist before writing
+  // it to storage; the localStorage key is the accepted name, unmodified.
   const savedKeys = (): string[] => {
     const out: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
@@ -191,40 +188,35 @@ describe("sessionBackend — sanitizeName behaviour (observed via save key)", ()
     return out;
   };
 
-  it("keeps letters, numbers, spaces and . _ ( ) - intact", async () => {
+  it("accepts letters, numbers, spaces and . _ ( ) - and stores under that name", async () => {
     const name = "Mix_v2 (final-take).take";
-    await sessionBackend.save(name, makeSession(name));
+    expect(await sessionBackend.save(name, makeSession(name))).toBe(true);
     expect(savedKeys()).toContain(name);
   });
 
-  it("strips characters outside the allowed set", async () => {
-    // slashes, colons, angle brackets and emoji are removed.
-    await sessionBackend.save("a/b:c<d>e", makeSession("x"));
-    expect(savedKeys()).toContain("abcde");
-  });
-
-  it("preserves unicode letters and marks", async () => {
+  it("accepts unicode letters and marks", async () => {
     const name = "Café Naïve";
-    await sessionBackend.save(name, makeSession(name));
     // accented letters and combining marks are in the allowed \p{L}\p{M} classes.
+    expect(await sessionBackend.save(name, makeSession(name))).toBe(true);
     expect(savedKeys()).toContain(name);
   });
 
-  it("caps the name at 200 characters", async () => {
-    const long = "z".repeat(500);
-    await sessionBackend.save(long, makeSession(long));
-    const keys = savedKeys();
-    expect(keys).toHaveLength(1);
-    expect(keys[0]).toHaveLength(200);
-    // the persisted body also records the truncated name
-    const body = JSON.parse(localStorage.getItem(`zdaw:session:${keys[0]}`)!) as SessionData;
-    expect(body.name).toHaveLength(200);
+  it("rejects a name with disallowed characters and writes nothing", async () => {
+    // slashes, colons and angle brackets are not on the allowlist.
+    expect(await sessionBackend.save("a/b:c<d>e", makeSession("x"))).toBe(false);
+    expect(savedKeys()).toHaveLength(0);
   });
 
-  it("an all-junk name sanitizes to the empty string (still a valid key)", async () => {
-    await sessionBackend.save("***", makeSession("***"));
-    expect(savedKeys()).toContain("");
-    expect(localStorage.getItem("zdaw:session:")).not.toBeNull();
+  it("rejects an all-disallowed or empty name", async () => {
+    expect(await sessionBackend.save("***", makeSession("***"))).toBe(false);
+    expect(await sessionBackend.save("", makeSession(""))).toBe(false);
+    expect(savedKeys()).toHaveLength(0);
+  });
+
+  it("accepts a 200-char name but rejects a longer one", async () => {
+    expect(await sessionBackend.save("z".repeat(200), makeSession("x"))).toBe(true);
+    expect(await sessionBackend.save("z".repeat(201), makeSession("x"))).toBe(false);
+    expect(savedKeys()).toEqual(["z".repeat(200)]);
   });
 });
 
