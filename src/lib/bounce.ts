@@ -183,13 +183,13 @@ export async function renderToBuffer(s: DawState, opts: BounceOpts = {}): Promis
     const playSec = (Math.min(a.endBeat, endBeat) - Math.max(a.startBeat, startBeat)) * spb;
     const node = ctx.createBufferSource();
     node.buffer = entry.buffer;
-    if (a.gain !== 1) {
+    if (a.gain === 1) {
+      node.connect(dest);
+    } else {
       const g = ctx.createGain();
       g.gain.value = a.gain;
       node.connect(g);
       g.connect(dest);
-    } else {
-      node.connect(dest);
     }
     node.start(when, intoBuffer);
     node.stop(when + Math.max(0.01, playSec));

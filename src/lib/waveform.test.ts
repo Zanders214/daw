@@ -12,9 +12,9 @@ describe("computePeaks", () => {
     const data = new Float32Array(1000);
     for (let i = 0; i < data.length; i++) data[i] = Math.sin(i / 10);
     const p = computePeaks(buf([data]), 32);
-    expect(p.length).toBe(32);
-    expect(p.min.length).toBe(32);
-    expect(p.max.length).toBe(32);
+    expect(p).toHaveLength(32);
+    expect(p.min).toHaveLength(32);
+    expect(p.max).toHaveLength(32);
     for (let b = 0; b < 32; b++) {
       expect(p.min[b]).toBeLessThanOrEqual(p.max[b]);
       expect(p.max[b]).toBeLessThanOrEqual(1);
@@ -35,7 +35,7 @@ describe("computePeaks", () => {
 
   it("yields zeroed buckets for an empty buffer", () => {
     const p = computePeaks(buf([new Float32Array(0)]), 8);
-    expect(p.length).toBe(8);
+    expect(p).toHaveLength(8);
     expect(Array.from(p.max).every((v) => v === 0)).toBe(true);
     expect(Array.from(p.min).every((v) => v === 0)).toBe(true);
   });

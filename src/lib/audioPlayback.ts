@@ -98,13 +98,13 @@ export class AudioClipScheduler {
     const node = ctx.createBufferSource();
     node.buffer = entry.buffer;
     const dest = destFor(cl.trackId) ?? ctx.destination;
-    if (cl.gain !== 1) {
+    if (cl.gain === 1) {
+      node.connect(dest);
+    } else {
       const g = ctx.createGain();
       g.gain.value = cl.gain;
       node.connect(g);
       g.connect(dest);
-    } else {
-      node.connect(dest);
     }
     node.onended = () => {
       if (this.live.get(cl.clipId) === node) this.live.delete(cl.clipId);

@@ -90,7 +90,7 @@ describe("renderToBuffer", () => {
     setMix([midiTrack()]); // body = 1 beat @120bpm = 0.5s; + 2s tail = 2.5s
     const buf = await B.renderToBuffer(S.useDawStore.getState(), { sampleRate: 1000 });
     expect(buf.numberOfChannels).toBe(2);
-    expect(buf.length).toBe(2500); // ceil(2.5 * 1000)
+    expect(buf).toHaveLength(2500); // ceil(2.5 * 1000)
   });
 
   it("schedules a synth voice per MIDI note and a source per audio clip", async () => {

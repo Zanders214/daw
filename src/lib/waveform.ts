@@ -41,17 +41,28 @@ export function computePeaks(buffer: BufferLike, buckets = 1024): WaveformPeaks 
   for (let b = 0; b < n; b++) {
     const start = Math.floor(b * per);
     const end = b === n - 1 ? frames : Math.floor((b + 1) * per);
-    let lo = 0;
-    let hi = 0;
-    for (let i = start; i < end; i++) {
-      let sum = 0;
-      for (let c = 0; c < channels; c++) sum += data[c][i];
-      const v = sum / channels;
-      if (v < lo) lo = v;
-      if (v > hi) hi = v;
-    }
+    const { lo, hi } = bucketRange(data, channels, start, end);
     min[b] = lo;
     max[b] = hi;
   }
   return { min, max, length: n };
+}
+
+/** Min/max of the channel-averaged samples over the half-open range [start, end). */
+function bucketRange(
+  data: Float32Array[],
+  channels: number,
+  start: number,
+  end: number,
+): { lo: number; hi: number } {
+  let lo = 0;
+  let hi = 0;
+  for (let i = start; i < end; i++) {
+    let sum = 0;
+    for (let c = 0; c < channels; c++) sum += data[c][i];
+    const v = sum / channels;
+    if (v < lo) lo = v;
+    if (v > hi) hi = v;
+  }
+  return { lo, hi };
 }

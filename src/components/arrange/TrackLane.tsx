@@ -233,6 +233,47 @@ export function TrackLane({ track }: Readonly<{ track: Track }>) {
         {track.clips.map((c) => {
         const csel = selClip === c.id || selClips.includes(c.id);
         const notes = notesByClip[c.id] || [];
+        let clipPreview: React.ReactNode;
+        if (c.src) {
+          clipPreview = <WaveformCanvas src={c.src} color={track.color} />;
+        } else if (isMidi) {
+          clipPreview = (
+            <div style={{ position: "absolute", left: 6, right: 4, top: 17, bottom: 5 }}>
+              {notes.map((n, i) => (
+                <div
+                  key={`${i}-${n.y}-${n.x}`}
+                  style={{
+                    position: "absolute",
+                    left: n.x * 100 + "%",
+                    width: `calc(${Math.max(1.6, n.w * 100)}% - 1px)`,
+                    top: n.y * 100 + "%",
+                    height: `calc(${100 / 8}% - 2px)`,
+                    background: track.color,
+                    borderRadius: 1.5,
+                    boxShadow: `0 0 4px ${hexA(track.color, 0.55)}`,
+                    opacity: 0.92,
+                  }}
+                />
+              ))}
+            </div>
+          );
+        } else {
+          clipPreview = (
+            <div
+              style={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: "56%",
+                opacity: 0.5,
+                background: `repeating-linear-gradient(90deg, ${track.color} 0 1.5px, transparent 1.5px 4px)`,
+                WebkitMaskImage: "linear-gradient(180deg, transparent, #000 65%)",
+                maskImage: "linear-gradient(180deg, transparent, #000 65%)",
+              }}
+            />
+          );
+        }
         return (
           <div
             key={c.id}
@@ -285,42 +326,7 @@ export function TrackLane({ track }: Readonly<{ track: Track }>) {
             >
               {c.name}
             </div>
-            {c.src ? (
-              <WaveformCanvas src={c.src} color={track.color} />
-            ) : isMidi ? (
-              <div style={{ position: "absolute", left: 6, right: 4, top: 17, bottom: 5 }}>
-                {notes.map((n, i) => (
-                  <div
-                    key={`${i}-${n.y}-${n.x}`}
-                    style={{
-                      position: "absolute",
-                      left: n.x * 100 + "%",
-                      width: `calc(${Math.max(1.6, n.w * 100)}% - 1px)`,
-                      top: n.y * 100 + "%",
-                      height: `calc(${100 / 8}% - 2px)`,
-                      background: track.color,
-                      borderRadius: 1.5,
-                      boxShadow: `0 0 4px ${hexA(track.color, 0.55)}`,
-                      opacity: 0.92,
-                    }}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div
-                style={{
-                  position: "absolute",
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  height: "56%",
-                  opacity: 0.5,
-                  background: `repeating-linear-gradient(90deg, ${track.color} 0 1.5px, transparent 1.5px 4px)`,
-                  WebkitMaskImage: "linear-gradient(180deg, transparent, #000 65%)",
-                  maskImage: "linear-gradient(180deg, transparent, #000 65%)",
-                }}
-              />
-            )}
+            {clipPreview}
           </div>
         );
       })}

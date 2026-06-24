@@ -23,6 +23,28 @@ export const SHORT_H = 640;
  * once. Reads `globalThis.innerWidth/innerHeight`, so it's inert under SSR/test
  * environments without a window.
  */
+/**
+ * Handles one panel's collapse/restore transition. Collapses an open panel when
+ * the window first becomes constrained (flagging it for restore), and reopens it
+ * once there's room again — but only if we were the one who closed it.
+ * Returns the panel's pending-restore flag after this transition.
+ */
+function reconcilePanel(
+  constrained: boolean,
+  isOpen: boolean,
+  pendingRestore: boolean,
+  toggle: () => void,
+): boolean {
+  if (constrained) {
+    if (!isOpen) return pendingRestore;
+    toggle();
+    return true;
+  }
+  if (!pendingRestore) return false;
+  if (!isOpen) toggle();
+  return false;
+}
+
 export function useResponsiveLayout() {
   useEffect(() => {
     // false initially so the first apply() treats a constrained mount as a
@@ -39,24 +61,12 @@ export function useResponsiveLayout() {
 
       if (narrow !== wasNarrow) {
         wasNarrow = narrow;
-        if (narrow && browserOpen) {
-          restoreBrowser = true;
-          toggleBrowser();
-        } else if (!narrow && restoreBrowser) {
-          restoreBrowser = false;
-          if (!browserOpen) toggleBrowser();
-        }
+        restoreBrowser = reconcilePanel(narrow, browserOpen, restoreBrowser, toggleBrowser);
       }
 
       if (short !== wasShort) {
         wasShort = short;
-        if (short && rackOpen) {
-          restoreRack = true;
-          toggleRack();
-        } else if (!short && restoreRack) {
-          restoreRack = false;
-          if (!rackOpen) toggleRack();
-        }
+        restoreRack = reconcilePanel(short, rackOpen, restoreRack, toggleRack);
       }
     };
 
