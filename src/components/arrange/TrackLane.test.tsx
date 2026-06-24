@@ -4,6 +4,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { TrackLane } from "./TrackLane";
 import { useDawStore } from "../../store/useDawStore";
 import { ITEM_MIME } from "../../lib/dnd";
+import { putAsset, clearAssets } from "../../lib/assetStore";
 import type { Track } from "../../types";
 
 // TrackLane reads many store slices and dispatches clip mutations. Snapshot the
@@ -102,6 +103,24 @@ describe("TrackLane", () => {
     const { container } = render(<TrackLane track={track} />);
     expect(screen.getByText("Vox")).toBeInTheDocument();
     expect(container.querySelector(`[data-clip-id="${track.clips[0].id}"]`)).not.toBeNull();
+  });
+
+  it("renders a real waveform for an audio-backed (src) clip", () => {
+    putAsset("asset-x", {
+      buffer: {} as AudioBuffer,
+      peaks: { min: new Float32Array(4), max: new Float32Array(4), length: 4 },
+    });
+    const track: Track = {
+      id: "aud",
+      name: "AUD",
+      color: "#34d8ff",
+      io: "A1",
+      type: "audio",
+      clips: [{ id: "ac1", bar: 0, len: 4, name: "loop.wav", src: "asset-x" }],
+    };
+    const { container } = render(<TrackLane track={track} />);
+    expect(container.querySelector('canvas[data-waveform="asset-x"]')).not.toBeNull();
+    clearAssets();
   });
 
   it("selects a clip on a plain pointer-down (no shift)", () => {

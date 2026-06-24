@@ -7,6 +7,7 @@ import { BEATS_PER_BAR, TOTAL_BARS } from "../../lib/constants";
 import { deviceDescriptorForItem, getDragItem, hasDragItem, trackTypeForItem } from "../../lib/dnd";
 import { barsAt, snap, startDrag } from "../../lib/timeline";
 import { AutomationLane } from "./AutomationLane";
+import { WaveformCanvas } from "./WaveformCanvas";
 import { SEND_ROW_H } from "./TrackHeader";
 import type { Clip, Track } from "../../types";
 
@@ -30,7 +31,7 @@ export function TrackLane({ track }: Readonly<{ track: Track }>) {
   const id = track.id;
   const {
     selected, showGrid, vibrant, dimmed, selClip, selClips, autoOpen, sendsOpen,
-    selectClip, toggleClipSelected, addNodeDevice, setTrackInstrument,
+    selectClip, toggleClipSelected, addNodeDevice, setTrackInstrument, importAudioFile,
     moveClip, moveClipToTrack, setClipBars, resizeClip, setClipRegion, removeClip, removeSelectedClips,
     duplicateClip, duplicateSelectedClips, openEditor,
     copyClip, cutClip, pasteClip, playhead,
@@ -51,6 +52,7 @@ export function TrackLane({ track }: Readonly<{ track: Track }>) {
         toggleClipSelected: s.toggleClipSelected,
         addNodeDevice: s.addNodeDevice,
         setTrackInstrument: s.setTrackInstrument,
+        importAudioFile: s.importAudioFile,
         moveClip: s.moveClip,
         moveClipToTrack: s.moveClipToTrack,
         setClipBars: s.setClipBars,
@@ -183,8 +185,24 @@ export function TrackLane({ track }: Readonly<{ track: Track }>) {
     laneStyle.backgroundSize = "calc(100% / 32) 100%, calc(100% / 8) 100%";
   }
 
+  const dropBar = (e: React.DragEvent<HTMLDivElement>): number => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const frac = rect.width > 0 ? (e.clientX - rect.left) / rect.width : 0;
+    return Math.max(0, Math.min(TOTAL_BARS - 1, Math.floor(frac * TOTAL_BARS)));
+  };
+
   const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
     setOver(false);
+    // OS audio files dropped from the desktop → decode and place as audio clips.
+    const audioFiles = Array.from(e.dataTransfer.files ?? []).filter((f) =>
+      f.type.startsWith("audio/"),
+    );
+    if (audioFiles.length) {
+      e.preventDefault();
+      const bar = dropBar(e);
+      for (const f of audioFiles) void importAudioFile(f, id, bar);
+      return;
+    }
     const item = getDragItem(e.dataTransfer);
     if (!item) return;
     e.preventDefault();
@@ -193,10 +211,7 @@ export function TrackLane({ track }: Readonly<{ track: Track }>) {
       return;
     }
     // Instrument / sample / MIDI → load onto this track at the dropped bar.
-    const rect = e.currentTarget.getBoundingClientRect();
-    const frac = rect.width > 0 ? (e.clientX - rect.left) / rect.width : 0;
-    const bar = Math.max(0, Math.min(TOTAL_BARS - 1, Math.floor(frac * TOTAL_BARS)));
-    setTrackInstrument(id, { name: item.name, type: trackTypeForItem(item) }, bar);
+    setTrackInstrument(id, { name: item.name, type: trackTypeForItem(item) }, dropBar(e));
   };
 
   return (
@@ -206,7 +221,8 @@ export function TrackLane({ track }: Readonly<{ track: Track }>) {
         data-track-id={id}
         style={laneStyle}
         onDragOver={(e) => {
-          if (!hasDragItem(e.dataTransfer)) return;
+          const hasFiles = Array.from(e.dataTransfer.types).includes("Files");
+          if (!hasDragItem(e.dataTransfer) && !hasFiles) return;
           e.preventDefault();
           e.dataTransfer.dropEffect = "copy";
           setOver(true);
@@ -269,7 +285,9 @@ export function TrackLane({ track }: Readonly<{ track: Track }>) {
             >
               {c.name}
             </div>
-            {isMidi ? (
+            {c.src ? (
+              <WaveformCanvas src={c.src} color={track.color} />
+            ) : isMidi ? (
               <div style={{ position: "absolute", left: 6, right: 4, top: 17, bottom: 5 }}>
                 {notes.map((n, i) => (
                   <div

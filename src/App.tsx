@@ -4,6 +4,7 @@ import { useMixerGraph } from "./hooks/useMixerGraph";
 import { useEngineBridge } from "./hooks/useEngineBridge";
 import { useSessionPersistence } from "./hooks/useSessionPersistence";
 import { useResponsiveLayout } from "./hooks/useResponsiveLayout";
+import { useGlobalKeys } from "./hooks/useGlobalKeys";
 import { TransportBar } from "./components/TransportBar";
 import { Browser } from "./components/Browser";
 import { Arrange } from "./components/arrange/Arrange";
@@ -18,6 +19,7 @@ export function App() {
   useEngineBridge();
   useSessionPersistence();
   useResponsiveLayout();
+  useGlobalKeys();
   const theme = useDawStore((s) => s.theme);
 
   return (

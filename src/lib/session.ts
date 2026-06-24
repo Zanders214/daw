@@ -15,8 +15,10 @@
  */
 import { useDawStore, type DawState } from "../store/useDawStore";
 import { applySessionToEngine } from "./engineSync";
+import { clearHistory } from "./history";
 import { engine, engineActive } from "./engine";
 import type {
+  AudioAsset,
   AutomationParam,
   AutoPoint,
   DeviceKey,
@@ -28,14 +30,18 @@ import type { NodeRacks, TrackInfos } from "./engine";
 
 // v2: automation envelopes drive engine params (Phase 5). v3: the arrangement
 // structure (tracks/groups) and per-node device racks are stored, so add/remove
-// track and arbitrary plugin chains persist. v1/v2 sessions load unchanged —
-// missing structure fields fall back to the seed defaults in `hydrateSession`.
-export const SESSION_VERSION = 3;
+// track and arbitrary plugin chains persist. v4: imported audio-asset metadata
+// (clips carry a `src` id; decoded buffers stay in lib/assetStore). Older
+// sessions load unchanged — missing fields fall back to defaults in
+// `hydrateSession`.
+export const SESSION_VERSION = 4;
 
 export interface SessionUi {
   /** Arrangement structure (omitted in v1/v2 sessions → seed defaults apply). */
   tracks?: Track[];
   groups?: Group[];
+  /** Imported audio-asset metadata (v4+; decoded buffers are not persisted). */
+  assets?: Record<string, AudioAsset>;
   nodeRacks?: NodeRacks;
   bpm: number;
   loop: boolean;
@@ -90,6 +96,7 @@ export function serializeSession(s: DawState): SessionUi {
   return {
     tracks: s.tracks,
     groups: s.groups,
+    assets: s.assets,
     nodeRacks: s.nodeRacks,
     bpm: s.bpm,
     loop: s.loop,
@@ -144,11 +151,13 @@ export function buildSession(name: string): SessionData {
   };
 }
 
-/** Hydrate the store from a loaded session and push it to the engine. */
+/** Hydrate the store from a loaded session and push it to the engine. Resets the
+ *  undo history so you can't undo across a project load. */
 export function applySession(data: SessionData): void {
   if (!data?.ui) return;
   useDawStore.getState().hydrateSession(data.ui);
   applySessionToEngine(useDawStore.getState());
+  clearHistory();
 }
 
 /** Apply global preferences to the store (and audio device to the engine). */

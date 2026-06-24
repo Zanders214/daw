@@ -104,6 +104,7 @@ describe("serializeSession — full field contract", () => {
     expect(Object.keys(ui).sort()).toEqual(
       [
         "arms",
+        "assets",
         "autoData",
         "autoLanes",
         "autoParam",
@@ -254,6 +255,40 @@ describe("buildSession + applySession — round-trip", () => {
     const before = get().bpm;
     expect(() => applySession(undefined as unknown as SessionData)).not.toThrow();
     expect(get().bpm).toBe(before);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// v4: imported audio-asset metadata + clip src round-trip.
+// ---------------------------------------------------------------------------
+describe("audio assets (v4)", () => {
+  it("round-trips assets and clip src through serialize → hydrate", () => {
+    const asset = { id: "asset1", name: "vox.wav", duration: 2, sampleRate: 48000, channels: 2 };
+    useDawStore.setState({
+      assets: { asset1: asset },
+      tracks: [
+        { id: "t1", name: "T1", color: "#fff", io: "A1", type: "audio", clips: [{ id: "c1", bar: 4, len: 2, name: "vox.wav", src: "asset1" }] },
+      ],
+    });
+
+    const ui = serializeSession(get());
+    expect(ui.assets).toEqual({ asset1: asset });
+
+    // Wipe, then hydrate from the serialized payload.
+    useDawStore.setState({ assets: {}, tracks: [] });
+    get().hydrateSession(ui);
+
+    expect(get().assets.asset1).toEqual(asset);
+    const clip = get().tracks[0].clips[0];
+    expect(clip.src).toBe("asset1");
+  });
+
+  it("a v3-style session without assets still loads (assets default to empty)", () => {
+    const ui = { bpm: 100, assets: undefined } as unknown as SessionUi;
+    useDawStore.setState({ assets: {} });
+    applySession({ version: 3, name: "v3", ui });
+    expect(get().bpm).toBe(100);
+    expect(get().assets).toEqual({});
   });
 });
 

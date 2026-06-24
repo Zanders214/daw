@@ -32,12 +32,14 @@ function uid(prefix: string, seq: number): string {
 
 let groupSeq = 0;
 let noteSeq = 0;
+let assetSeq = 0;
 
 export const newInstanceId = (): string => uid("dev", ++instanceSeq);
 export const newTrackId = (): string => uid("trk", ++trackSeq);
 export const newClipId = (): string => uid("clip", ++clipSeq);
 export const newGroupId = (): string => uid("g", ++groupSeq);
 export const newNoteId = (): string => uid("note", ++noteSeq);
+export const newAssetId = (): string => uid("asset", ++assetSeq);
 
 /** Serialize a browser item onto a drag event. */
 export function setDragItem(dt: DataTransfer, item: BrowserItem): void {

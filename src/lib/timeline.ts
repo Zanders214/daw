@@ -5,6 +5,7 @@
  * column share that width, so one mapping serves both.
  */
 import { TOTAL_BARS, TOTAL_BEATS } from "./constants";
+import { beginTransaction, endTransaction } from "./history";
 
 /** Pointer clientX → beats within a full-width timeline element. */
 export const beatsAt = (clientX: number, rect: DOMRect): number =>
@@ -19,11 +20,15 @@ export const snap = (value: number, step: number): number =>
   step > 0 ? Math.round(value / step) * step : value;
 
 /** Run `onMove` for the duration of a pointer drag via global listeners, cleaning
- *  up on pointerup (mirrors AutomationLane's drag idiom). */
+ *  up on pointerup (mirrors AutomationLane's drag idiom). The whole gesture is
+ *  wrapped in one undo-history transaction, so a multi-step drag (which fires
+ *  many store updates) collapses into a single undo entry. */
 export function startDrag(onMove: (ev: PointerEvent) => void): void {
+  beginTransaction();
   const up = () => {
     globalThis.removeEventListener("pointermove", onMove);
     globalThis.removeEventListener("pointerup", up);
+    endTransaction();
   };
   globalThis.addEventListener("pointermove", onMove);
   globalThis.addEventListener("pointerup", up);
