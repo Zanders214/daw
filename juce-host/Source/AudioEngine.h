@@ -5,6 +5,7 @@
 #include "GroupBus.h"
 #include "DeviceRack.h"
 #include "AutomationStore.h"
+#include "MasterBus.h"
 #include <array>
 #include <atomic>
 #include <vector>
@@ -110,10 +111,8 @@ public:
     /** { nodeId: { key: base64, ... } } full state, for session save. */
     juce::var buildNodeRackStates();
 
-    void setMasterVolume (float v) { masterVolume.store (juce::jlimit (0.0f, 2.0f, v)); }
-    float getMasterVolume() const { return masterVolume.load(); }
-    void setMasterPan (float v) { masterPan.store (juce::jlimit (0.0f, 1.0f, v)); }
-    float getMasterPan() const { return masterPan.load(); }
+    /** The master FX chain + master volume / pan (slots, plugins, editors). */
+    MasterBus& masterBus() { return master; }
 
     // Parameter automation. The web pushes a breakpoint envelope per (nodeId,
     // paramId); the engine resolves the write target once here (message thread)
@@ -130,24 +129,6 @@ public:
     /** Per-track source info { id: { loaded, name, path } } for the tracks event. */
     juce::var buildTrackInfo() const;
 
-    // Plugin chain (slot 0..2). Takes ownership of the instance.
-    void installPlugin (int slot, std::unique_ptr<juce::AudioPluginInstance> instance);
-    void removePlugin (int slot);
-    bool hasPlugin (int slot) const;
-    juce::String getPluginName (int slot) const;
-    void setBypassed (int slot, bool b);
-    bool isBypassed (int slot) const { return (slot >= 0 && slot < 3) && masterChain.bypassed[(size_t) slot].load(); }
-    void setParam (int slot, const juce::String& paramId, float value01) const;
-    juce::var listParams (int slot) const;
-
-    /** Full opaque plugin state as base64 (for session persistence). */
-    juce::String getPluginState (int slot) const;
-    /** Restore opaque plugin state from base64; false if the slot is empty/invalid. */
-    bool setPluginState (int slot, const juce::String& base64) const;
-
-    void openEditor (int slot);
-    void closeEditor (int slot);
-
     // AudioIODeviceCallback
     void audioDeviceIOCallbackWithContext (const float* const* inputChannelData,
                                            int numInputChannels,
@@ -159,8 +140,6 @@ public:
     void audioDeviceStopped() override;
 
 private:
-    void prepareSlot (int slot) const;
-    juce::AudioPluginInstance* getInstance (int slot) const;
     TrackChannel& ensureTrack (const juce::String& id);
     GroupBus& ensureGroup (const juce::String& id);
     void recomputeAnySolo();
@@ -175,12 +154,9 @@ private:
     void renderLegacySource (const float* const* inputChannelData, int numInputChannels, int numSamples);
     /** Step 2: sum the multitrack mixer (tracks -> groups -> returns) into scratch. */
     void mixTracks (int numSamples);
-    /** Step 3: run the master FX chain in series over scratch. */
-    void processMasterChain();
     /** Step 7: advance the beat clock and handle loop/totalBeats wrapping. */
     void advanceTransport (int numSamples);
 
-    static constexpr int numSlots = 3;
     static constexpr double totalBeats = 128.0;
 
     juce::AudioDeviceManager deviceManager;
@@ -196,15 +172,8 @@ private:
         std::atomic<bool> fileLoaded { false };
     } source;
 
-    // Master FX chain. `chainLock` guards `chain`; the audio callback try-locks
-    // it. Members stay in their original construction order.
-    struct MasterChain
-    {
-        juce::CriticalSection chainLock;
-        std::array<std::unique_ptr<juce::AudioPluginInstance>, numSlots> chain;
-        std::array<std::atomic<bool>, numSlots> bypassed { { {false}, {false}, {false} } };
-        std::array<std::unique_ptr<juce::DocumentWindow>, numSlots> editorWindows;
-    } masterChain;
+    // Master FX chain + master volume / pan.
+    MasterBus master;
 
     // Mixer (multitrack). The message thread owns the channels; the audio
     // thread iterates them under a try-lock (same contract as chainLock).
@@ -229,8 +198,6 @@ private:
         std::array<std::atomic<float>, numSends> returnLevel { { {0.0f}, {0.0f} } };
     } sendReturn;
 
-    std::atomic<float> masterVolume { 1.0f };
-    std::atomic<float> masterPan { 0.5f };
     AutomationStore automation;
 
     // Transport state. Grouped to keep the field count down; members stay in

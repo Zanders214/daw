@@ -24,15 +24,8 @@ void AudioEngine::initialise()
 void AudioEngine::shutdown()
 {
     deviceManager.removeAudioCallback (this);
-    for (int i = 0; i < numSlots; ++i)
-        closeEditor (i);
-
-    {
-        const ScopedLock sl (masterChain.chainLock);
-        for (const auto& p : masterChain.chain)
-            if (p != nullptr)
-                p->releaseResources();
-    }
+    master.closeAllEditors();
+    master.releaseResources();
 
     {
         const ScopedLock sl (tracksLock);
@@ -361,8 +354,8 @@ AutomationStore::Target AudioEngine::resolveAutoTarget (const String& nodeId, co
 
     if (nodeId == "master")
     {
-        if (paramId == "mvol") return f32 (&masterVolume, 0.0f, 2.0f);
-        if (paramId == "mpan") return f32 (&masterPan,    0.0f, 1.0f);
+        if (paramId == "mvol") return f32 (master.volumeParam(), 0.0f, 2.0f);
+        if (paramId == "mpan") return f32 (master.panParam(),    0.0f, 1.0f);
         return t;
     }
     if (nodeId.startsWith ("return-"))
@@ -527,171 +520,6 @@ var AudioEngine::buildTrackInfo() const
     return var (obj.get());
 }
 
-// ---- plugin chain ----
-AudioPluginInstance* AudioEngine::getInstance (int slot) const
-{
-    if (slot < 0 || slot >= numSlots) return nullptr;
-    return masterChain.chain[(size_t) slot].get();
-}
-
-void AudioEngine::prepareSlot (int slot) const
-{
-    if (auto* inst = getInstance (slot))
-    {
-        inst->enableAllBuses();
-        inst->setPlayConfigDetails (2, 2, currentSampleRate, currentBlockSize);
-        inst->prepareToPlay (currentSampleRate, currentBlockSize);
-    }
-}
-
-void AudioEngine::installPlugin (int slot, std::unique_ptr<AudioPluginInstance> instance)
-{
-    if (slot < 0 || slot >= numSlots)
-        return;
-
-    {
-        const ScopedLock sl (masterChain.chainLock);
-        if (masterChain.chain[(size_t) slot] != nullptr)
-            masterChain.chain[(size_t) slot]->releaseResources();
-        masterChain.chain[(size_t) slot] = std::move (instance);
-    }
-    prepareSlot (slot);
-}
-
-void AudioEngine::removePlugin (int slot)
-{
-    if (slot < 0 || slot >= numSlots)
-        return;
-    closeEditor (slot);
-    const ScopedLock sl (masterChain.chainLock);
-    if (masterChain.chain[(size_t) slot] != nullptr)
-        masterChain.chain[(size_t) slot]->releaseResources();
-    masterChain.chain[(size_t) slot].reset();
-}
-
-bool AudioEngine::hasPlugin (int slot) const { return getInstance (slot) != nullptr; }
-
-String AudioEngine::getPluginName (int slot) const
-{
-    const auto* inst = getInstance (slot);
-    return inst != nullptr ? inst->getName() : String();
-}
-
-void AudioEngine::setBypassed (int slot, bool b)
-{
-    if (slot >= 0 && slot < numSlots)
-        masterChain.bypassed[(size_t) slot].store (b);
-}
-
-void AudioEngine::setParam (int slot, const String& paramId, float value01) const
-{
-    const auto* inst = getInstance (slot);
-    if (inst == nullptr)
-        return;
-
-    const auto& params = inst->getParameters();
-
-    // Resolve by numeric index first, then by (partial) name match.
-    int index = paramId.containsOnly ("0123456789") ? paramId.getIntValue() : -1;
-    if (index < 0)
-        for (int i = 0; i < params.size(); ++i)
-            if (params[i]->getName (64).containsIgnoreCase (paramId))
-                { index = i; break; }
-
-    if (isPositiveAndBelow (index, params.size()))
-        params[index]->setValueNotifyingHost (jlimit (0.0f, 1.0f, value01));
-}
-
-var AudioEngine::listParams (int slot) const
-{
-    Array<var> out;
-    if (const auto* inst = getInstance (slot))
-    {
-        const auto& params = inst->getParameters();
-        for (int i = 0; i < params.size(); ++i)
-        {
-            DynamicObject::Ptr obj = new DynamicObject();
-            obj->setProperty ("id", String (i));
-            obj->setProperty ("name", params[i]->getName (64));
-            obj->setProperty ("value", params[i]->getValue());
-            obj->setProperty ("text", params[i]->getText (params[i]->getValue(), 0));
-            out.add (var (obj.get()));
-        }
-    }
-    return out;
-}
-
-String AudioEngine::getPluginState (int slot) const
-{
-    auto* inst = getInstance (slot);
-    if (inst == nullptr)
-        return {};
-
-    // Guard against a concurrent processBlock (audio thread try-locks chainLock).
-    const ScopedLock sl (masterChain.chainLock);
-    juce::MemoryBlock mb;
-    inst->getStateInformation (mb);
-    return mb.toBase64Encoding();
-}
-
-bool AudioEngine::setPluginState (int slot, const String& base64) const
-{
-    auto* inst = getInstance (slot);
-    if (inst == nullptr || base64.isEmpty())
-        return false;
-
-    juce::MemoryBlock mb;
-    if (! mb.fromBase64Encoding (base64) || mb.isEmpty())
-        return false;
-
-    const ScopedLock sl (masterChain.chainLock);
-    inst->setStateInformation (mb.getData(), (int) mb.getSize());
-    return true;
-}
-
-void AudioEngine::openEditor (int slot)
-{
-    auto* inst = getInstance (slot);
-    if (inst == nullptr)
-        return;
-
-    if (masterChain.editorWindows[(size_t) slot] != nullptr)
-    {
-        masterChain.editorWindows[(size_t) slot]->toFront (true);
-        return;
-    }
-
-    auto window = std::make_unique<PluginEditorWindow> (inst->getName());
-    if (inst->hasEditor())
-    {
-        if (auto* editor = inst->createEditorIfNeeded())
-            window->setContentNonOwned (editor, true);
-        else
-            window->setContentOwned (new GenericAudioProcessorEditor (*inst), true);
-    }
-    else
-    {
-        window->setContentOwned (new GenericAudioProcessorEditor (*inst), true);
-    }
-
-    window->onCloseCallback = [this, slot] { closeEditor (slot); };
-    window->setResizable (true, false);
-    window->centreWithSize (window->getWidth(), window->getHeight());
-    window->setVisible (true);
-    masterChain.editorWindows[(size_t) slot] = std::move (window);
-}
-
-void AudioEngine::closeEditor (int slot)
-{
-    if (slot < 0 || slot >= numSlots)
-        return;
-    if (masterChain.editorWindows[(size_t) slot] != nullptr)
-    {
-        masterChain.editorWindows[(size_t) slot]->clearContentComponent();
-        masterChain.editorWindows[(size_t) slot].reset();
-    }
-}
-
 // ---- audio callback ----
 void AudioEngine::audioDeviceAboutToStart (AudioIODevice* device)
 {
@@ -701,11 +529,7 @@ void AudioEngine::audioDeviceAboutToStart (AudioIODevice* device)
 
     source.transportSource.prepareToPlay (currentBlockSize, currentSampleRate);
 
-    {
-        const ScopedLock sl (masterChain.chainLock);
-        for (int i = 0; i < numSlots; ++i)
-            prepareSlot (i);
-    }
+    master.prepare (currentSampleRate, currentBlockSize);
     {
         const ScopedLock sl (tracksLock);
         for (auto* t : tracks)
@@ -723,12 +547,7 @@ void AudioEngine::audioDeviceAboutToStart (AudioIODevice* device)
 void AudioEngine::audioDeviceStopped()
 {
     source.transportSource.releaseResources();
-    {
-        const ScopedLock sl (masterChain.chainLock);
-        for (const auto& p : masterChain.chain)
-            if (p != nullptr)
-                p->releaseResources();
-    }
+    master.releaseResources();
     {
         const ScopedLock sl (tracksLock);
         for (auto* t : tracks)
@@ -812,23 +631,6 @@ void AudioEngine::mixTracks (int numSamples)
     }
 }
 
-void AudioEngine::processMasterChain()
-{
-    // Run the master FX chain in series (try-lock so loads never block audio).
-    const ScopedTryLock stl (masterChain.chainLock);
-    if (! stl.isLocked())
-        return;
-
-    midi.clear();
-    for (int i = 0; i < numSlots; ++i)
-    {
-        auto* inst = masterChain.chain[(size_t) i].get();
-        if (inst == nullptr || masterChain.bypassed[(size_t) i].load())
-            continue;
-        inst->processBlock (scratch, midi);
-    }
-}
-
 void AudioEngine::advanceTransport (int numSamples)
 {
     // Advance the beat clock, wrapping within the loop region when looping.
@@ -896,18 +698,9 @@ void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputCha
     // 2) Sum the multitrack mixer (tracks -> groups -> returns) into scratch.
     mixTracks (numSamples);
 
-    // 3) Run the master FX chain in series (try-lock so loads never block audio).
-    processMasterChain();
-
-    // 4) Master volume.
-    scratch.applyGain (masterVolume.load());
-
-    // 4b) Master pan (stereo balance; unity at center).
-    if (const float mpan = masterPan.load(); scratch.getNumChannels() >= 2 && ! approximatelyEqual (mpan, 0.5f))
-    {
-        scratch.applyGain (0, 0, numSamples, mpan <= 0.5f ? 1.0f : (1.0f - mpan) * 2.0f);
-        scratch.applyGain (1, 0, numSamples, mpan >= 0.5f ? 1.0f : mpan * 2.0f);
-    }
+    // 3) Run the master FX chain in series, then apply master volume + pan.
+    master.process (scratch, midi);
+    master.applyMasterGainAndPan (scratch, numSamples);
 
     // 5) Meter (decaying peak).
     float peak = 0.0f;

@@ -27,7 +27,7 @@ void EngineController::start()
 
     pluginHost.scanDefaultLocations ([this] (int slot, File f)
     {
-        if (! audioEngine.hasPlugin (slot) && pluginHost.getSlotPath (slot).isEmpty())
+        if (! audioEngine.masterBus().hasPlugin (slot) && pluginHost.getSlotPath (slot).isEmpty())
             loadSlotFromPath (slot, f.getFullPathName());
     });
 
@@ -60,7 +60,7 @@ var EngineController::buildState()
     obj->setProperty ("loopStart", audioEngine.getLoopStart());
     obj->setProperty ("loopEnd", audioEngine.getLoopEnd());
     obj->setProperty ("tempo", audioEngine.getTempo());
-    obj->setProperty ("masterVolume", (double) audioEngine.getMasterVolume());
+    obj->setProperty ("masterVolume", (double) audioEngine.masterBus().getMasterVolume());
     return var (obj.get());
 }
 
@@ -76,8 +76,8 @@ void EngineController::emitPluginStatuses()
     for (int slot = 0; slot < PluginHost::numSlots; ++slot)
     {
         DynamicObject::Ptr s = new DynamicObject();
-        s->setProperty ("loaded", audioEngine.hasPlugin (slot));
-        s->setProperty ("name", audioEngine.getPluginName (slot));
+        s->setProperty ("loaded", audioEngine.masterBus().hasPlugin (slot));
+        s->setProperty ("name", audioEngine.masterBus().getPluginName (slot));
         s->setProperty ("path", pluginHost.getSlotPath (slot));
         obj->setProperty (PluginHost::slotKey (slot), var (s.get()));
     }
@@ -165,13 +165,13 @@ void EngineController::loadSlotFromPath (int slot, const String& path)
         {
             if (inst != nullptr)
             {
-                audioEngine.installPlugin (slot, std::move (inst));
+                audioEngine.masterBus().installPlugin (slot, std::move (inst));
                 pluginHost.setSlotPath (slot, path);
                 pluginHost.saveConfig();
 
                 // Apply any session state that arrived before this slot was ready.
                 if (const auto pending = sessions.consumePending (slot); pending.isNotEmpty())
-                    audioEngine.setPluginState (slot, pending);
+                    audioEngine.masterBus().setPluginState (slot, pending);
             }
             else
             {
@@ -291,8 +291,8 @@ std::optional<var> EngineController::handleMixer (const String& name, const Arra
     if (name == "mixerSetTrackSolo")    { audioEngine.setTrackSolo (arg (0).toString(), (bool) arg (1)); return var(); }
     if (name == "mixerSetTrackArm")     { audioEngine.setTrackArm  (arg (0).toString(), (bool) arg (1)); return var(); }
     if (name == "mixerSetTrackGroup")   { audioEngine.setTrackGroup (arg (0).toString(), arg (1).toString()); return var(); }
-    if (name == "mixerSetMasterVolume") { audioEngine.setMasterVolume ((float) (double) arg (0)); return var(); }
-    if (name == "mixerSetMasterPan")    { audioEngine.setMasterPan ((float) (double) arg (0)); return var(); }
+    if (name == "mixerSetMasterVolume") { audioEngine.masterBus().setMasterVolume ((float) (double) arg (0)); return var(); }
+    if (name == "mixerSetMasterPan")    { audioEngine.masterBus().setMasterPan ((float) (double) arg (0)); return var(); }
     return std::nullopt;
 }
 
@@ -426,13 +426,13 @@ std::optional<var> EngineController::handleDeviceChain (const String& name, cons
     const auto arg = [&args] (int i) { return i < args.size() ? args[i] : var(); };
     const auto slotOf = [&arg] { return PluginHost::slotIndex (arg (0).toString()); };
 
-    if (name == "deviceSetBypass")  { audioEngine.setBypassed (slotOf(), (bool) arg (1)); return var(); }
-    if (name == "deviceSetParam")   { audioEngine.setParam (slotOf(), arg (1).toString(), (float) (double) arg (2)); return var(); }
-    if (name == "deviceOpenEditor") { audioEngine.openEditor (slotOf()); return var(); }
-    if (name == "deviceCloseEditor"){ audioEngine.closeEditor (slotOf()); return var(); }
-    if (name == "deviceListParams") { return audioEngine.listParams (slotOf()); }
+    if (name == "deviceSetBypass")  { audioEngine.masterBus().setBypassed (slotOf(), (bool) arg (1)); return var(); }
+    if (name == "deviceSetParam")   { audioEngine.masterBus().setParam (slotOf(), arg (1).toString(), (float) (double) arg (2)); return var(); }
+    if (name == "deviceOpenEditor") { audioEngine.masterBus().openEditor (slotOf()); return var(); }
+    if (name == "deviceCloseEditor"){ audioEngine.masterBus().closeEditor (slotOf()); return var(); }
+    if (name == "deviceListParams") { return audioEngine.masterBus().listParams (slotOf()); }
 
-    if (name == "pluginsScan")    { pluginHost.scanDefaultLocations ([this] (int slot, File f) { if (! audioEngine.hasPlugin (slot)) loadSlotFromPath (slot, f.getFullPathName()); }); return var(); }
+    if (name == "pluginsScan")    { pluginHost.scanDefaultLocations ([this] (int slot, File f) { if (! audioEngine.masterBus().hasPlugin (slot)) loadSlotFromPath (slot, f.getFullPathName()); }); return var(); }
     if (name == "pluginsAssign")  { loadSlotFromPath (slotOf(), arg (1).toString()); return var(); }
     if (name == "pluginsPickFile"){ pickPluginFile (slotOf()); return var(); }
     if (name == "pluginsList")    { return pluginHost.listAllPlugins(); }

@@ -12,7 +12,7 @@ var SessionManager::buildEnginePayload()
 {
     DynamicObject::Ptr plugins = new DynamicObject();
     for (int slot = 0; slot < PluginHost::numSlots; ++slot)
-        plugins->setProperty (PluginHost::slotKey (slot), audioEngine.getPluginState (slot));
+        plugins->setProperty (PluginHost::slotKey (slot), audioEngine.masterBus().getPluginState (slot));
 
     DynamicObject::Ptr engineObj = new DynamicObject();
     engineObj->setProperty ("plugins", var (plugins.get()));
@@ -85,8 +85,8 @@ void SessionManager::restoreMasterPlugins (const DynamicObject& obj)
         if (b64.isEmpty())
             continue;
         // Apply now if the instance exists; otherwise defer until it loads.
-        if (audioEngine.hasPlugin (slot))
-            audioEngine.setPluginState (slot, b64);
+        if (audioEngine.masterBus().hasPlugin (slot))
+            audioEngine.masterBus().setPluginState (slot, b64);
         else
             pendingPluginState[(size_t) slot] = b64;
     }
