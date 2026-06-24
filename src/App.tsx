@@ -3,6 +3,7 @@ import { useTransportLoop } from "./hooks/useTransportLoop";
 import { useMixerGraph } from "./hooks/useMixerGraph";
 import { useEngineBridge } from "./hooks/useEngineBridge";
 import { useSessionPersistence } from "./hooks/useSessionPersistence";
+import { useResponsiveLayout } from "./hooks/useResponsiveLayout";
 import { TransportBar } from "./components/TransportBar";
 import { Browser } from "./components/Browser";
 import { Arrange } from "./components/arrange/Arrange";
@@ -16,6 +17,7 @@ export function App() {
   useMixerGraph();
   useEngineBridge();
   useSessionPersistence();
+  useResponsiveLayout();
   const theme = useDawStore((s) => s.theme);
 
   return (
