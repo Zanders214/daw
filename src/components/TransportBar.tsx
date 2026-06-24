@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useDawStore } from "../store/useDawStore";
+import { undo, redo } from "../lib/history";
 import { Wordmark, GlowButton, Meter } from "../design-system";
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
@@ -151,6 +152,8 @@ export function TransportBar() {
     openSessions,
     currentSessionName,
     setBpm,
+    undoDepth,
+    redoDepth,
   } = useDawStore(
     useShallow((s) => ({
       playing: s.playing,
@@ -168,6 +171,8 @@ export function TransportBar() {
       openSessions: s.openSessions,
       currentSessionName: s.currentSessionName,
       setBpm: s.setBpm,
+      undoDepth: s.undoDepth,
+      redoDepth: s.redoDepth,
     })),
   );
 
@@ -310,6 +315,30 @@ export function TransportBar() {
           {currentSessionName ?? "SESSIONS"}
         </span>
       </button>
+
+      {divider}
+
+      {/* undo / redo */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <button
+          type="button"
+          onClick={undo}
+          disabled={undoDepth === 0}
+          title="Undo (⌘/Ctrl+Z)"
+          style={{ ...sideBtn, width: 36, height: 36, fontSize: 16, color: "var(--text-2)", opacity: undoDepth === 0 ? 0.35 : 1, cursor: undoDepth === 0 ? "default" : "pointer" }}
+        >
+          ↺
+        </button>
+        <button
+          type="button"
+          onClick={redo}
+          disabled={redoDepth === 0}
+          title="Redo (⌘/Ctrl+Shift+Z)"
+          style={{ ...sideBtn, width: 36, height: 36, fontSize: 16, color: "var(--text-2)", opacity: redoDepth === 0 ? 0.35 : 1, cursor: redoDepth === 0 ? "default" : "pointer" }}
+        >
+          ↻
+        </button>
+      </div>
 
       {divider}
 

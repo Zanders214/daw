@@ -90,9 +90,14 @@ export class FakeAnalyserNode extends FakeAudioNode {
 export class FakeAudioScheduledSourceNode extends FakeAudioNode {
   started = false;
   stopped = false;
+  /** Args from the last start() call (for offset / scheduling assertions). */
+  startWhen?: number;
+  startOffset?: number;
   onended: (() => void) | null = null;
-  start(_t?: number): void {
+  start(when?: number, offset?: number): void {
     this.started = true;
+    this.startWhen = when;
+    this.startOffset = offset;
   }
   stop(_t?: number): void {
     this.stopped = true;
@@ -121,6 +126,9 @@ export class FakeAudioBuffer {
   }
   getChannelData(ch: number): Float32Array {
     return this.channels[ch];
+  }
+  get duration(): number {
+    return this.sampleRate > 0 ? this.length / this.sampleRate : 0;
   }
 }
 
@@ -163,6 +171,16 @@ export class FakeAudioContext {
   }
   createBuffer(channels: number, length: number, sampleRate: number): FakeAudioBuffer {
     return new FakeAudioBuffer(channels, length, sampleRate);
+  }
+  /** Decode bytes into a deterministic 1-second stereo buffer with a small
+   *  non-zero signal so waveform/peak code has something to chew on. */
+  async decodeAudioData(_bytes: ArrayBuffer): Promise<FakeAudioBuffer> {
+    const buf = new FakeAudioBuffer(2, this.sampleRate, this.sampleRate);
+    for (let c = 0; c < buf.numberOfChannels; c++) {
+      const data = buf.getChannelData(c);
+      for (let i = 0; i < data.length; i++) data[i] = Math.sin((i / data.length) * Math.PI * 8) * 0.5;
+    }
+    return buf;
   }
 }
 

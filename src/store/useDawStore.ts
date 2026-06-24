@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type {
+  AudioAsset,
   AutomationParam,
   AutoPoint,
   BrowserTab,
@@ -28,6 +29,8 @@ import { getAutoPts } from "../lib/automation";
 import { engine, engineActive } from "../lib/engine";
 import type { EngineState, TrackInfos, DeviceInfo, NodeDevice, NodeRacks } from "../lib/engine";
 import { applySessionToEngine } from "../lib/engineSync";
+import { clearHistory } from "../lib/history";
+import { decodeAudioFile } from "../lib/audioImport";
 import type { PrefsData, SessionUi } from "../lib/session";
 
 type Bools = Record<string, boolean>;
@@ -241,6 +244,8 @@ export interface DawState {
   // ---- arrangement structure (source of truth; seeded from the demo project) ----
   tracks: Track[];
   groups: Group[];
+  /** Imported audio asset metadata (decoded buffers live in lib/assetStore). */
+  assets: Record<string, AudioAsset>;
 
   // ---- per-track state ----
   mutes: Bools;
@@ -320,6 +325,9 @@ export interface DawState {
   nodeRacks: NodeRacks; // per-node insert FX contents (engine-driven)
   master: number; // master meter level 0..1
   reel: number; // tape-reel rotation in degrees
+  /** Undo/redo stack depths (mirrored from the history module for button state). */
+  undoDepth: number;
+  redoDepth: number;
 
   // ---- actions ----
   togglePlay: () => void;
@@ -345,6 +353,13 @@ export interface DawState {
   /** Load an instrument/sample onto a track (sets name/type) and drop a clip. */
   setTrackInstrument: (id: string, item: { name: string; type: TrackType }, atBar?: number) => void;
   addClip: (trackId: string, clip: Clip) => void;
+  /** Register audio asset metadata (decoded buffer/peaks live in lib/assetStore). */
+  addAsset: (asset: AudioAsset) => void;
+  /** Drop audio asset metadata by id. */
+  removeAsset: (id: string) => void;
+  /** Decode an audio File and drop it as a new clip on `trackId` at `atBar`
+   *  (browser path; the decoded buffer is cached in lib/assetStore). */
+  importAudioFile: (file: File, trackId: string, atBar: number) => Promise<void>;
   /** Move a clip's start bar (clamped to the grid). */
   moveClip: (trackId: string, clipId: string, bar: number) => void;
   /** Resize a clip's length in bars (clamped to >=MIN and within the grid). */
@@ -491,6 +506,8 @@ export interface DawState {
   setMeterLevels: (levels: Nums, groupLevels: Nums, returnLevels: number[], master: number) => void;
   /** Apply engine-pushed state (playhead / meters / reel) when hosted. */
   setEngineState: (p: EngineState) => void;
+  /** Mirror the history module's stack depths (for undo/redo button state). */
+  setHistoryDepths: (undoDepth: number, redoDepth: number) => void;
 }
 
 export const useDawStore = create<DawState>((set, get) => ({
@@ -508,6 +525,7 @@ export const useDawStore = create<DawState>((set, get) => ({
 
   tracks: seedTracks(),
   groups: seedGroups(),
+  assets: {},
 
   mutes: {},
   solos: {},
@@ -572,6 +590,8 @@ export const useDawStore = create<DawState>((set, get) => ({
   nodeRacks: {},
   master: 0.04,
   reel: 0,
+  undoDepth: 0,
+  redoDepth: 0,
 
   togglePlay: () => {
     const playing = !get().playing;
@@ -677,6 +697,19 @@ export const useDawStore = create<DawState>((set, get) => ({
     set((s) => ({
       tracks: s.tracks.map((t) => (t.id === trackId ? { ...t, clips: [...t.clips, clip] } : t)),
     })),
+  addAsset: (asset) => set((s) => ({ assets: { ...s.assets, [asset.id]: asset } })),
+  removeAsset: (id) => set((s) => ({ assets: omit(s.assets, id) })),
+  importAudioFile: async (file, trackId, atBar) => {
+    const res = await decodeAudioFile(file, get().bpm, atBar);
+    if (!res) return;
+    // One atomic update so undo treats "import audio clip" as a single step.
+    set((s) => ({
+      assets: { ...s.assets, [res.asset.id]: res.asset },
+      tracks: s.tracks.map((t) =>
+        t.id === trackId ? { ...t, clips: [...t.clips, res.clip] } : t,
+      ),
+    }));
+  },
   moveClip: (trackId, clipId, bar) =>
     set((s) => ({
       tracks: mapClip(s.tracks, trackId, clipId, (c) => ({
@@ -964,6 +997,7 @@ export const useDawStore = create<DawState>((set, get) => ({
     set((s) => ({
       tracks: ui.tracks ?? s.tracks,
       groups: ui.groups ?? s.groups,
+      assets: ui.assets ?? s.assets,
       nodeRacks: ui.nodeRacks ?? s.nodeRacks,
       bpm: ui.bpm ?? s.bpm,
       loop: ui.loop ?? s.loop,
@@ -1008,6 +1042,7 @@ export const useDawStore = create<DawState>((set, get) => ({
     set({
       tracks: seedTracks(),
       groups: seedGroups(),
+      assets: {},
       nodeRacks: {},
       bpm: 124,
       loop: true,
@@ -1037,6 +1072,7 @@ export const useDawStore = create<DawState>((set, get) => ({
       currentSessionName: null,
     });
     applySessionToEngine(get());
+    clearHistory();
   },
 
   toggleGroup: (gid) =>
@@ -1283,4 +1319,6 @@ export const useDawStore = create<DawState>((set, get) => ({
       loopEnd: p.loopEnd ?? s.loopEnd,
       masterVolume: p.masterVolume ?? s.masterVolume,
     })),
+
+  setHistoryDepths: (undoDepth, redoDepth) => set({ undoDepth, redoDepth }),
 }));

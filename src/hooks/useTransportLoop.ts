@@ -3,6 +3,7 @@ import { useDawStore } from "../store/useDawStore";
 import { click, silence, triggerNote } from "../lib/audio";
 import { engineActive } from "../lib/engine";
 import { buildSchedule, notesInWindow, type SchedNote } from "../lib/playback";
+import { AudioClipScheduler, buildAudioSchedule, type AudioClipSched } from "../lib/audioPlayback";
 import { getTrackInput, readLevels } from "../lib/mixerGraph";
 import type { Track } from "../types";
 
@@ -19,10 +20,13 @@ export function useTransportLoop() {
   const lastBeat = useRef(-1);
   const wasPlaying = useRef(false);
   const schedule = useRef<SchedNote[]>([]);
+  const audioSchedule = useRef<AudioClipSched[]>([]);
   const schedSrc = useRef<Track[] | null>(null);
+  const audioScheduler = useRef(new AudioClipScheduler());
 
   useEffect(() => {
     if (engineActive()) return;
+    const audio = audioScheduler.current;
     let raf = 0;
     let last = performance.now();
     const loop = (t: number) => {
@@ -37,9 +41,10 @@ export function useTransportLoop() {
       if (s.playing && s.metronome && beat !== lastBeat.current) click(beat % 4 === 0);
       lastBeat.current = beat;
 
-      // Rebuild the note schedule only when the song structure changes.
+      // Rebuild the note + audio-clip schedules only when the song changes.
       if (s.tracks !== schedSrc.current) {
         schedule.current = buildSchedule(s.tracks);
+        audioSchedule.current = buildAudioSchedule(s.tracks);
         schedSrc.current = s.tracks;
       }
 
@@ -61,6 +66,17 @@ export function useTransportLoop() {
       }
       wasPlaying.current = s.playing;
 
+      // Audio clips: start/stop real buffer sources as the playhead enters/leaves
+      // them (routes into the same per-track mixer input as the MIDI voices).
+      audio.tick({
+        sched: audioSchedule.current,
+        prevBeat: prevPh,
+        nextBeat: s.playhead,
+        playing: s.playing,
+        bpm: s.bpm,
+        destFor: getTrackInput,
+      });
+
       // Real meters tapped from the mixer graph (peak-hold smoothed in the store).
       const lv = readLevels();
       if (lv) s.setMeterLevels(lv.tracks, lv.groups, lv.returns, lv.master);
@@ -68,6 +84,9 @@ export function useTransportLoop() {
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      audio.stopAll();
+    };
   }, []);
 }

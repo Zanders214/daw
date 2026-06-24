@@ -11,6 +11,31 @@ export interface Clip {
   name: string;
   /** Edited MIDI notes. When absent, a pattern is generated for display. */
   notes?: Note[];
+  /** Audio asset id (see AudioAsset). Present on audio clips backed by a real
+   *  decoded file; absent on MIDI/drum clips. */
+  src?: string;
+  /** Playback start offset into the source buffer, in seconds (for trims). */
+  offset?: number;
+  /** Per-clip linear gain (default 1). */
+  gain?: number;
+}
+
+/**
+ * Metadata for an imported audio file. The decoded `AudioBuffer` and computed
+ * waveform peaks are kept out of the store (in `lib/assetStore`) — only this
+ * serializable descriptor lives in app state / saved sessions. `path` is set
+ * when the source came from the native host's file picker (so the C++ engine
+ * can reload it); browser imports have no path and are session-only.
+ */
+export interface AudioAsset {
+  id: string;
+  name: string;
+  /** Duration in seconds. */
+  duration: number;
+  sampleRate: number;
+  channels: number;
+  /** Native filesystem path, when hosted; absent for browser imports. */
+  path?: string;
 }
 
 /** An editable MIDI note within a clip. */
