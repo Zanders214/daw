@@ -120,6 +120,36 @@ describe("triggerNote", () => {
   });
 });
 
+describe("scheduleVoice", () => {
+  it("schedules start/stop at the given `when` (offline-render timing)", () => {
+    const ctx = A.ensureAudio() as unknown as FakeAudioContext;
+    const dest = ctx.createGain();
+    const src = A.scheduleVoice(
+      ctx as unknown as BaseAudioContext,
+      dest as unknown as AudioNode,
+      { pitch: 60, durationSec: 0.5, gain: 0.8, drum: false },
+      10, // start 10s into the offline timeline
+    ) as unknown as FakeOscillatorNode;
+    expect(src).not.toBeNull();
+    expect(src.started).toBe(true);
+    expect(src.startWhen).toBe(10);
+    // stop = when + dur + release tail (0.5 + 0.1)
+    expect(src.stopped).toBe(true);
+  });
+
+  it("returns null for a silent voice (gain <= 0)", () => {
+    const ctx = A.ensureAudio() as unknown as FakeAudioContext;
+    const dest = ctx.createGain();
+    const src = A.scheduleVoice(
+      ctx as unknown as BaseAudioContext,
+      dest as unknown as AudioNode,
+      { pitch: 60, durationSec: 0.5, gain: 0, drum: false },
+      0,
+    );
+    expect(src).toBeNull();
+  });
+});
+
 describe("silence", () => {
   it("stops every ringing voice and clears the set", () => {
     const ctx = A.ensureAudio() as unknown as FakeAudioContext;

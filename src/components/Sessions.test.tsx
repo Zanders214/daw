@@ -1,9 +1,18 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, within, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Sessions } from "./Sessions";
 import { useDawStore } from "../store/useDawStore";
+
+// The WAV bounce is exercised end-to-end in bounce.test.ts; here we only verify
+// the button wires render → download, so mock both.
+vi.mock("../lib/bounce", () => ({
+  bounceToWav: vi.fn(async () => new Blob(["x"], { type: "audio/wav" })),
+}));
+vi.mock("../lib/download", () => ({ downloadBlob: vi.fn() }));
+import { bounceToWav } from "../lib/bounce";
+import { downloadBlob } from "../lib/download";
 
 // Sessions persists via sessionBackend. Under happy-dom with no window.__JUCE__,
 // that resolves to the localStorage browser backend, so save/list/open/delete go
@@ -54,6 +63,20 @@ describe("Sessions", () => {
     await waitFor(() =>
       expect(screen.getByText("No saved sessions yet.")).toBeInTheDocument(),
     );
+  });
+
+  it("bounces to WAV and downloads it when the bounce button is clicked", async () => {
+    useDawStore.setState({ sessionsOpen: true, currentSessionName: "My Jam" });
+    render(<Sessions />);
+
+    const btn = screen.getByRole("button", { name: /BOUNCE TO WAV/i });
+    fireEvent.click(btn);
+
+    await waitFor(() => expect(bounceToWav).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(downloadBlob).toHaveBeenCalledTimes(1));
+    const downloadMock = downloadBlob as unknown as { mock: { calls: unknown[][] } };
+    expect(downloadMock.mock.calls[0][1]).toBe("My Jam.wav");
+    await waitFor(() => expect(screen.getByText(/Bounced/)).toBeInTheDocument());
   });
 
   it("shows the current session name in the subtitle and as the SAVE caption", () => {

@@ -184,9 +184,27 @@ export class FakeAudioContext {
   }
 }
 
+/** Offline render context: builds nodes like the live one, and `startRendering`
+ *  resolves to a buffer of the requested size (so the bounce renderer + WAV
+ *  encoder can run end-to-end under the fake). */
+export class FakeOfflineAudioContext extends FakeAudioContext {
+  readonly length: number;
+  readonly numberOfChannels: number;
+  constructor(numberOfChannels: number, length: number, sampleRate: number) {
+    super();
+    (this as { sampleRate: number }).sampleRate = sampleRate;
+    this.numberOfChannels = numberOfChannels;
+    this.length = length;
+  }
+  startRendering(): Promise<FakeAudioBuffer> {
+    return Promise.resolve(new FakeAudioBuffer(this.numberOfChannels, this.length, this.sampleRate));
+  }
+}
+
 /** The global names the modules touch via `instanceof` / `new`. */
 const GLOBALS: Record<string, unknown> = {
   AudioContext: FakeAudioContext,
+  OfflineAudioContext: FakeOfflineAudioContext,
   BiquadFilterNode: FakeBiquadFilterNode,
   GainNode: FakeGainNode,
   StereoPannerNode: FakeStereoPannerNode,
