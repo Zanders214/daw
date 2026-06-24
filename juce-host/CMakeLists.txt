@@ -40,6 +40,7 @@ target_sources(ZandersDAW PRIVATE
     Source/MainComponent.cpp
     Source/WebUI.cpp
     Source/EngineController.cpp
+    Source/SessionManager.cpp
     Source/AudioEngine.cpp
     Source/TrackChannel.cpp
     Source/PluginHost.cpp
