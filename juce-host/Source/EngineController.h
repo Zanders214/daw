@@ -6,6 +6,7 @@
 #include "AudioEngine.h"
 #include "PluginHost.h"
 #include "SessionStore.h"
+#include "SessionManager.h"
 
 /**
  * EngineController — orchestrates AudioEngine + PluginHost and bridges them to
@@ -62,28 +63,15 @@ private:
         durationSec } so the web can place an audio clip carrying a disk path. */
     void pickClipFile (const juce::String& trackId, double bar);
 
-    // Session persistence. The `ui` payload is owned by the web; this class adds
-    // the `engine` payload (full plugin state) and does the file I/O.
-    juce::var buildSession (const juce::String& name, const juce::var& uiPayload);
-    juce::var buildEnginePayload(); // full plugin state, keyed by slot, base64-encoded
-    void applyEnginePayload (const juce::var& enginePayload);
-    // applyEnginePayload helpers — one per restore phase (tracks → master → nodes).
-    void restoreTracks (const juce::DynamicObject& obj);
-    void restoreMasterPlugins (const juce::DynamicObject& obj);
-    void restoreNodeRacks (const juce::DynamicObject& obj);
-    void sessionExport (const juce::String& name, const juce::var& uiPayload);
-    void sessionImport();
-
     AudioEngine audioEngine;
     PluginHost pluginHost;
     SessionStore sessionStore;
+    // Session save/load/import/export (built on audioEngine + emit/nodeDeviceAdd).
+    SessionManager sessions;
     juce::WebBrowserComponent* web = nullptr;
 
     double reel = 0.0;
     juce::uint32 lastTimeMs = 0;
-
-    // Plugin state awaiting its slot to finish loading (startup restore ordering).
-    std::array<juce::String, PluginHost::numSlots> pendingPluginState;
 
     std::unique_ptr<juce::FileChooser> chooser;
 
