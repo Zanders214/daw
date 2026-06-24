@@ -7,8 +7,8 @@
  * The `DawState` import is type-only so this stays a runtime leaf (no import
  * cycle with the store, which imports this module for `newSession`).
  */
-import { engine, engineActive } from "./engine";
-import { DEFAULT_VOLUME } from "./constants";
+import { engine, engineActive, type ClipAssign } from "./engine";
+import { DEFAULT_VOLUME, BEATS_PER_BAR } from "./constants";
 import type { DeviceKey } from "../types";
 import type { DawState } from "../store/useDawStore";
 
@@ -37,9 +37,29 @@ export function applySessionToEngine(s: DawState): void {
     engine.mixer.setTrackSolo(t.id, !!s.solos[t.id]);
     engine.mixer.setTrackArm(t.id, !!s.arms[t.id]);
 
-    const tf = s.trackFiles[t.id];
-    if (tf?.loaded && tf.path) engine.track.assignFile(t.id, tf.path);
-    else engine.track.clearFile(t.id);
+    // Per-clip audio: push every clip whose asset carries a disk path (only
+    // those are playable natively — browser-only in-memory imports have none).
+    const clips: ClipAssign[] = [];
+    for (const c of t.clips) {
+      const path = c.src ? s.assets[c.src]?.path : undefined;
+      if (!path) continue;
+      clips.push({
+        clipId: c.id,
+        path,
+        startBeat: c.bar * BEATS_PER_BAR,
+        lenBeats: c.len * BEATS_PER_BAR,
+        offsetSec: c.offset ?? 0,
+        gain: c.gain ?? 1,
+      });
+    }
+    if (clips.length > 0) {
+      engine.track.setClips(t.id, clips);
+    } else {
+      // Back-compat: a track-level file with no path-bearing clips.
+      const tf = s.trackFiles[t.id];
+      if (tf?.loaded && tf.path) engine.track.assignFile(t.id, tf.path);
+      else engine.track.clearFile(t.id);
+    }
 
     const snd = s.sends[t.id] ?? [];
     engine.mixer.setTrackSend(t.id, 0, snd[0] ?? 0);

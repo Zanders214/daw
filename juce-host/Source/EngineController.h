@@ -58,6 +58,9 @@ private:
     void pickNodeDeviceFile (const juce::String& nodeId, const juce::String& instanceId);
     void pickSourceFile();
     void pickTrackFile (const juce::String& trackId);
+    /** Async chooser → emits `engineClipImported` { trackId, bar, path, name,
+        durationSec } so the web can place an audio clip carrying a disk path. */
+    void pickClipFile (const juce::String& trackId, double bar);
 
     // Session persistence. The `ui` payload is owned by the web; this class adds
     // the `engine` payload (full plugin state) and does the file I/O.

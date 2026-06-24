@@ -23,14 +23,14 @@ import {
   TOTAL_BARS,
   TOTAL_BEATS,
 } from "../lib/constants";
-import { newClipId, newGroupId, newInstanceId, newNoteId, newTrackId, TRACK_COLORS } from "../lib/dnd";
+import { newAssetId, newClipId, newGroupId, newInstanceId, newNoteId, newTrackId, TRACK_COLORS } from "../lib/dnd";
 import { notesFromPattern } from "../lib/notes";
 import { getAutoPts } from "../lib/automation";
 import { engine, engineActive } from "../lib/engine";
-import type { EngineState, TrackInfos, DeviceInfo, NodeDevice, NodeRacks } from "../lib/engine";
+import type { EngineState, TrackInfos, DeviceInfo, NodeDevice, NodeRacks, ImportedClip } from "../lib/engine";
 import { applySessionToEngine } from "../lib/engineSync";
 import { clearHistory } from "../lib/history";
-import { decodeAudioFile } from "../lib/audioImport";
+import { decodeAudioFile, durationToBars } from "../lib/audioImport";
 import type { PrefsData, SessionUi } from "../lib/session";
 
 type Bools = Record<string, boolean>;
@@ -360,6 +360,10 @@ export interface DawState {
   /** Decode an audio File and drop it as a new clip on `trackId` at `atBar`
    *  (browser path; the decoded buffer is cached in lib/assetStore). */
   importAudioFile: (file: File, trackId: string, atBar: number) => Promise<void>;
+  /** Open the native chooser (hosted) to add an audio clip to a track at `atBar`. */
+  pickClipFile: (trackId: string, atBar: number) => void;
+  /** Apply a clip chosen via the native chooser (engineClipImported event). */
+  addImportedClip: (p: ImportedClip) => void;
   /** Move a clip's start bar (clamped to the grid). */
   moveClip: (trackId: string, clipId: string, bar: number) => void;
   /** Resize a clip's length in bars (clamped to >=MIN and within the grid). */
@@ -709,6 +713,32 @@ export const useDawStore = create<DawState>((set, get) => ({
         t.id === trackId ? { ...t, clips: [...t.clips, res.clip] } : t,
       ),
     }));
+  },
+  pickClipFile: (trackId, atBar) => {
+    if (engineActive()) engine.track.pickClipFile(trackId, atBar);
+  },
+  addImportedClip: (p) => {
+    // A native-chooser audio file → an asset carrying its disk path + a clip
+    // sized from the file's duration. The path lets the engine play it per-clip.
+    const id = newAssetId();
+    const len = durationToBars(p.durationSec, get().bpm);
+    const asset: AudioAsset = {
+      id,
+      name: p.name,
+      duration: p.durationSec,
+      sampleRate: 0,
+      channels: 0,
+      path: p.path,
+    };
+    set((s) => ({
+      assets: { ...s.assets, [id]: asset },
+      tracks: s.tracks.map((t) =>
+        t.id === p.trackId
+          ? { ...t, clips: [...t.clips, { id: newClipId(), bar: p.bar, len, name: p.name, src: id }] }
+          : t,
+      ),
+    }));
+    applySessionToEngine(get());
   },
   moveClip: (trackId, clipId, bar) =>
     set((s) => ({

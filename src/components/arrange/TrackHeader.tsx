@@ -2,7 +2,8 @@ import { useShallow } from "zustand/react/shallow";
 import { useDawStore } from "../../store/useDawStore";
 import { Meter, Slider, Dial } from "../../design-system";
 import { AutomationChips, TRACK_AUTO_PARAMS } from "./AutomationLane";
-import { DEFAULT_VOLUME } from "../../lib/constants";
+import { DEFAULT_VOLUME, BEATS_PER_BAR } from "../../lib/constants";
+import { engineActive } from "../../lib/engine";
 import type { Track } from "../../types";
 
 // Stable fallback so the sends selector doesn't return a new array each render
@@ -93,6 +94,7 @@ export function TrackHeader({ track }: Readonly<{ track: Track }>) {
     setVolume,
     setPan,
     pickTrackFile,
+    pickClipFile,
     clearTrackFile,
     removeTrack,
   } = useDawStore(
@@ -117,10 +119,14 @@ export function TrackHeader({ track }: Readonly<{ track: Track }>) {
       setVolume: s.setVolume,
       setPan: s.setPan,
       pickTrackFile: s.pickTrackFile,
+      pickClipFile: s.pickClipFile,
       clearTrackFile: s.clearTrackFile,
       removeTrack: s.removeTrack,
     })),
   );
+  // Hosted only: the native chooser places an audio clip carrying a disk path
+  // (the engine plays clips by path; browser drag-in import is the web path).
+  const hosted = engineActive();
 
   const volDb = vol <= 0.001 ? "-∞" : (20 * Math.log10(vol)).toFixed(1) + " dB";
   const panMag =
@@ -236,6 +242,31 @@ export function TrackHeader({ track }: Readonly<{ track: Track }>) {
           >
             ♪
           </button>
+          {hosted && (
+            <button
+              type="button"
+              title="Add an audio clip at the playhead"
+              onClick={(e) => {
+                e.stopPropagation();
+                pickClipFile(id, Math.floor(useDawStore.getState().playhead / BEATS_PER_BAR));
+              }}
+              style={{
+                width: 22,
+                height: 22,
+                borderRadius: 6,
+                fontSize: 11,
+                lineHeight: 1,
+                cursor: "pointer",
+                flex: "none",
+                fontFamily: "var(--font-display)",
+                background: "var(--layer-2)",
+                color: "var(--text-3)",
+                border: "1px solid var(--layer-5)",
+              }}
+            >
+              ＋
+            </button>
+          )}
           {fileLoaded && (
             <button
               type="button"

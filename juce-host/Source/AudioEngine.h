@@ -68,6 +68,8 @@ public:
     void setTrackSolo (const juce::String& id, bool soloed);
     void setTrackArm  (const juce::String& id, bool armed);
     bool assignTrackFile (const juce::String& id, const juce::File& file);
+    /** Replace a track's clip timeline (per-clip audio playback). */
+    void setTrackClips (const juce::String& id, const std::vector<TrackChannel::ClipSpec>& clips);
     void clearTrackFile  (const juce::String& id) const;
 
     // Explicit track lifecycle (the UI is the authority; ensureTrack stays a

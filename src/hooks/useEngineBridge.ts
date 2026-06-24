@@ -24,6 +24,7 @@ export function useEngineBridge() {
         applySession({ version: SESSION_VERSION, name: p.name ?? "Imported", ui: p.ui as SessionUi });
         useDawStore.getState().setCurrentSessionName(p.name ?? null);
       },
+      onClipImported: (p) => useDawStore.getState().addImportedClip(p),
     });
 
     // Sync current UI state down to the freshly-connected engine.
