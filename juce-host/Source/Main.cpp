@@ -32,8 +32,11 @@ public:
 class ZandersDawApplication : public JUCEApplication
 {
 public:
-    String getApplicationName() override    { return "Zanders DAW"; }
-    String getApplicationVersion() override { return "0.1.0"; }
+    // NB: the return type must stay `const String` to match the base
+    // JUCEApplicationBase virtuals (GCC rejects a non-const covariant return).
+    // SonarCloud cpp:S5951 flags this const as pointless, but it is required.
+    const String getApplicationName() override    { return "Zanders DAW"; }
+    const String getApplicationVersion() override { return "0.1.0"; }
     bool moreThanOneInstanceAllowed() override     { return false; }
 
     void initialise (const String&) override
