@@ -70,6 +70,8 @@ public:
     bool assignTrackFile (const juce::String& id, const juce::File& file);
     /** Replace a track's clip timeline (per-clip audio playback). */
     void setTrackClips (const juce::String& id, const std::vector<TrackChannel::ClipSpec>& clips);
+    /** Replace a track's MIDI notes (voiced by the track's built-in synth). */
+    void setTrackMidiNotes (const juce::String& id, std::vector<TrackChannel::MidiNoteSpec> notes);
     void clearTrackFile  (const juce::String& id) const;
 
     // Explicit track lifecycle (the UI is the authority; ensureTrack stays a

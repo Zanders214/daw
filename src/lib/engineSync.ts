@@ -7,8 +7,9 @@
  * The `DawState` import is type-only so this stays a runtime leaf (no import
  * cycle with the store, which imports this module for `newSession`).
  */
-import { engine, engineActive, type ClipAssign } from "./engine";
+import { engine, engineActive, type ClipAssign, type MidiNoteAssign } from "./engine";
 import { DEFAULT_VOLUME, BEATS_PER_BAR } from "./constants";
+import { buildSchedule } from "./playback";
 import type { DeviceKey } from "../types";
 import type { DawState } from "../store/useDawStore";
 
@@ -25,6 +26,20 @@ export function applySessionToEngine(s: DawState): void {
   // Which group (if any) each track belongs to — pushed via trackCreate below.
   const groupOf: Record<string, string> = {};
   s.groups.forEach((g) => g.tracks.forEach((tid) => (groupOf[tid] = g.id)));
+
+  // Flatten every clip's notes to absolute beats, grouped per track. Audio tracks
+  // are excluded — they play via setClips; only midi/drum tracks are voiced by the
+  // engine's built-in synth. (buildSchedule mirrors the browser transport.)
+  const notesByTrack: Record<string, MidiNoteAssign[]> = {};
+  for (const n of buildSchedule(s.tracks)) {
+    if (n.type === "audio") continue;
+    (notesByTrack[n.trackId] ??= []).push({
+      absBeat: n.absBeat,
+      durBeat: n.durBeat,
+      pitch: n.pitch,
+      velocity: n.velocity,
+    });
+  }
 
   // Recreate every track the engine may not know about, then re-assert its mix
   // state + audio file so the engine matches the UI exactly (explicit false
@@ -60,6 +75,10 @@ export function applySessionToEngine(s: DawState): void {
       if (tf?.loaded && tf.path) engine.track.assignFile(t.id, tf.path);
       else engine.track.clearFile(t.id);
     }
+
+    // Per-track MIDI: voice non-audio tracks' notes via the engine's built-in
+    // synth (empty for audio tracks, which clears any prior notes).
+    engine.track.setMidiNotes(t.id, notesByTrack[t.id] ?? []);
 
     const snd = s.sends[t.id] ?? [];
     engine.mixer.setTrackSend(t.id, 0, snd[0] ?? 0);

@@ -337,6 +337,52 @@ describe("applySessionToEngine — per-clip audio", () => {
 });
 
 // ---------------------------------------------------------------------------
+// engineSync — per-track MIDI notes (built-in synth)
+// ---------------------------------------------------------------------------
+describe("applySessionToEngine — per-track MIDI", () => {
+  let invokes: Invoke[];
+  beforeEach(() => { invokes = installBackend(); });
+  afterEach(removeBackend);
+
+  const withTracks = (tracks: Track[]): DawState =>
+    ({ ...useDawStore.getState(), tracks, groups: [], trackFiles: {}, assets: {} } as DawState);
+
+  it("pushes a MIDI track's notes as absolute beats and clears audio tracks", () => {
+    const midi: Track = {
+      id: "m", name: "M", color: "#1", io: "A1", type: "midi",
+      clips: [{ id: "c1", bar: 2, len: 1, name: "x", notes: [
+        { id: "n1", start: 0, len: 1, pitch: 60, velocity: 0.5 },
+        { id: "n2", start: 2, len: 0.5, pitch: 64 }, // velocity defaults to 0.8
+      ] }],
+    };
+    const audio: Track = {
+      id: "a", name: "A", color: "#2", io: "A2", type: "audio",
+      clips: [{ id: "c2", bar: 0, len: 2, name: "loop", src: "as" }],
+    };
+    applySessionToEngine(withTracks([midi, audio]));
+
+    const sets = byName(invokes, "trackSetMidiNotes");
+    const m = sets.find((i) => i.params[0] === "m");
+    expect(m?.params[1]).toEqual([
+      { absBeat: 2 * BEATS_PER_BAR + 0, durBeat: 1, pitch: 60, velocity: 0.5 },
+      { absBeat: 2 * BEATS_PER_BAR + 2, durBeat: 0.5, pitch: 64, velocity: 0.8 },
+    ]);
+    // Audio tracks are voiced by setClips, not the synth → empty MIDI.
+    expect(sets.find((i) => i.params[0] === "a")?.params[1]).toEqual([]);
+  });
+
+  it("voices a drum track's generated pattern (non-empty notes)", () => {
+    const drum: Track = {
+      id: "d", name: "D", color: "#3", io: "A3", type: "drum",
+      clips: [{ id: "c1", bar: 0, len: 2, name: "beat" }], // no notes → generated pattern
+    };
+    applySessionToEngine(withTracks([drum]));
+    const set = byName(invokes, "trackSetMidiNotes").find((i) => i.params[0] === "d");
+    expect((set?.params[1] as unknown[]).length).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // notes.ts — note / midi / beat math (functions not covered by notes.test.ts)
 // ---------------------------------------------------------------------------
 

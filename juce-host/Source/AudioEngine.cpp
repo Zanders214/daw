@@ -483,6 +483,13 @@ void AudioEngine::setTrackClips (const String& id, const std::vector<TrackChanne
     ch.setClips (audioFormatManager, readThread, clips);
 }
 
+void AudioEngine::setTrackMidiNotes (const String& id, std::vector<TrackChannel::MidiNoteSpec> notes)
+{
+    auto& ch = ensureTrack (id);
+    const ScopedLock sl (tracksLock);
+    ch.setMidiNotes (std::move (notes));
+}
+
 void AudioEngine::clearTrackFile (const String& id) const
 {
     const ScopedLock sl (tracksLock);

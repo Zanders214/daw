@@ -23,7 +23,7 @@ vi.mock("../lib/engine", () => {
       add: vi.fn(), remove: vi.fn(), setBypass: vi.fn(), openEditor: vi.fn(),
       closeEditor: vi.fn(), pickFile: vi.fn(), listParams: vi.fn(),
     }),
-    track: grp({ create: vi.fn(), delete: vi.fn(), assignFile: vi.fn(), pickFile: vi.fn(), clearFile: vi.fn() }),
+    track: grp({ create: vi.fn(), delete: vi.fn(), assignFile: vi.fn(), setClips: vi.fn(), setMidiNotes: vi.fn(), pickFile: vi.fn(), pickClipFile: vi.fn(), clearFile: vi.fn() }),
     device: grp({
       setBypass: vi.fn(), setParam: vi.fn(), openEditor: vi.fn(), closeEditor: vi.fn(), listParams: vi.fn(),
     }),

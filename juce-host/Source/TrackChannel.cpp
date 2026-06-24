@@ -46,6 +46,12 @@ int TrackChannel::setClips (AudioFormatManager& formatManager,
     return loaded;
 }
 
+void TrackChannel::setMidiNotes (std::vector<MidiNoteSpec> notes)
+{
+    // Callers hold tracksLock. The audio thread reads `midiNotes` each block.
+    midiNotes = std::move (notes);
+}
+
 bool TrackChannel::loadFile (AudioFormatManager& formatManager,
                              TimeSliceThread& readThread,
                              const File& file)
@@ -73,6 +79,7 @@ void TrackChannel::prepare (double sampleRate, int blockSize)
     clipScratch.setSize  (2, blockSize, false, false, true);
     for (auto& cp : clips)
         cp->transport.prepareToPlay (blockSize, sampleRate);
+    synth.prepare (sampleRate);
     inserts.prepare (sampleRate, blockSize);
 }
 
@@ -90,6 +97,7 @@ void TrackChannel::resyncClips()
         cp->transport.stop();
         cp->active = false;
     }
+    synth.panic(); // kill any sounding MIDI voices so a seek/loop/pause doesn't hang
 }
 
 void TrackChannel::renderInto (AudioBuffer<float>& bus,
@@ -97,7 +105,7 @@ void TrackChannel::renderInto (AudioBuffer<float>& bus,
                                int numSamples, bool audible,
                                double blockStartBeats, double bpm, bool playing)
 {
-    if (clips.empty())
+    if (clips.empty() && midiNotes.empty())
     {
         decayMeter();
         return;
@@ -142,7 +150,34 @@ void TrackChannel::renderInto (AudioBuffer<float>& bus,
         }
     }
 
-    if (! audible || ! anyActive)
+    // MIDI: schedule this block's note-on/off into the built-in synth and render
+    // it (adds on top of the clip audio). Done regardless of audibility so voices
+    // advance in sync; the audibility gate below discards the result if needed.
+    const bool hasMidi = ! midiNotes.empty();
+    if (hasMidi)
+    {
+        synthMidi.clear();
+        if (playing && preparedSampleRate > 0.0)
+        {
+            const double blockEndBeats = blockStartBeats + (numSamples / preparedSampleRate) / spb;
+            const auto sampleAt = [&] (double beat)
+            {
+                return (int) jlimit (0.0, (double) (numSamples - 1),
+                                     (beat - blockStartBeats) * spb * preparedSampleRate);
+            };
+            for (const auto& note : midiNotes)
+            {
+                if (note.absBeat >= blockStartBeats && note.absBeat < blockEndBeats)
+                    synthMidi.addEvent (MidiMessage::noteOn (1, note.pitch, note.velocity), sampleAt (note.absBeat));
+                const double offBeat = note.absBeat + note.durBeat;
+                if (offBeat >= blockStartBeats && offBeat < blockEndBeats)
+                    synthMidi.addEvent (MidiMessage::noteOff (1, note.pitch), sampleAt (offBeat));
+            }
+        }
+        synth.renderInto (trackScratch, synthMidi, numSamples);
+    }
+
+    if (! audible || (! anyActive && ! hasMidi))
     {
         decayMeter();
         return;

@@ -5,6 +5,7 @@
 #include <memory>
 #include <vector>
 #include "DeviceRack.h"
+#include "TrackSynth.h"
 
 class GroupBus;
 
@@ -50,6 +51,16 @@ public:
         float  gain       { 1.0f };
     };
 
+    /** One MIDI note placed on the timeline (absolute beats), built on the
+        message thread and voiced by the built-in per-track synth. */
+    struct MidiNoteSpec
+    {
+        double absBeat  { 0.0 };
+        double durBeat  { 0.0 };
+        int    pitch    { 60 };
+        float  velocity { 0.8f };
+    };
+
     // ---- message thread: source + lifecycle ----
     /** Replace this track's clips. Each spec's file is opened through an
         AudioTransportSource (sample-rate corrected + read-ahead). Returns the
@@ -57,6 +68,8 @@ public:
     int setClips (juce::AudioFormatManager& formatManager,
                   juce::TimeSliceThread& readThread,
                   const std::vector<ClipSpec>& specs);
+    /** Replace this track's MIDI notes (voiced by the built-in synth). */
+    void setMidiNotes (std::vector<MidiNoteSpec> notes);
     /** Load a single file spanning the whole timeline (back-compat shim over
         setClips). Returns false if unreadable. */
     bool loadFile (juce::AudioFormatManager& formatManager,
@@ -124,7 +137,11 @@ private:
     juce::String id;
     std::vector<std::unique_ptr<ClipPlayer>> clips;
 
-    juce::AudioBuffer<float> trackScratch;  // summed clips for this block
+    std::vector<MidiNoteSpec> midiNotes;    // timeline notes for the built-in synth
+    TrackSynth synth;                       // voices this track's MIDI clips
+    juce::MidiBuffer synthMidi;             // per-block note events fed to the synth
+
+    juce::AudioBuffer<float> trackScratch;  // summed clips + synth for this block
     juce::AudioBuffer<float> clipScratch;   // one clip's pull
     juce::MidiBuffer rackMidi;              // empty MIDI for the insert chain
     double preparedSampleRate { 0.0 };
