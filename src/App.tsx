@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { useDawStore } from "./store/useDawStore";
 import { useTransportLoop } from "./hooks/useTransportLoop";
 import { useMixerGraph } from "./hooks/useMixerGraph";
@@ -19,21 +18,11 @@ export function App() {
   useSessionPersistence();
   const theme = useDawStore((s) => s.theme);
 
-  // The DAW is authored at a fixed 1920×1080; scale it uniformly to the window.
-  const [scale, setScale] = useState(1);
-  useEffect(() => {
-    const fit = () => setScale(Math.min(globalThis.innerWidth / 1920, globalThis.innerHeight / 1080));
-    fit();
-    globalThis.addEventListener("resize", fit);
-    return () => globalThis.removeEventListener("resize", fit);
-  }, []);
-
   return (
     <div
       className="zd-stage"
       data-theme={theme}
       style={{
-        transform: `scale(${scale})`,
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",

@@ -39,16 +39,16 @@ afterEach(() => {
 });
 
 describe("App", () => {
-  it("renders the scaled stage shell with the active theme attribute", () => {
+  it("renders the fluid stage shell with the active theme attribute", () => {
     useDawStore.setState({ theme: "midnight" });
     const { container } = render(<App />);
 
     const stage = container.querySelector(".zd-stage") as HTMLElement;
     expect(stage).toBeInTheDocument();
     expect(stage.getAttribute("data-theme")).toBe("midnight");
-    // The fixed 1920×1080 stage is scaled uniformly to the (jsdom default)
-    // window via a CSS transform.
-    expect(stage.style.transform).toMatch(/^scale\(/);
+    // The stage fills the window fluidly rather than scaling a fixed canvas,
+    // so it must not carry a uniform scale transform.
+    expect(stage.style.transform).toBe("");
   });
 
   it("renders the transport bar wordmark and primary transport controls", () => {
