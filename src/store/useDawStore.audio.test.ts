@@ -57,4 +57,25 @@ describe("useDawStore — audio assets", () => {
     S.useDawStore.getState().newSession();
     expect(S.useDawStore.getState().assets).toEqual({});
   });
+
+  it("addImportedClip (hosted chooser result) adds a path-bearing asset + clip", () => {
+    const st = S.useDawStore.getState();
+    const trackId = st.tracks[0].id;
+    const before = st.tracks[0].clips.length;
+
+    // 2s @ 124bpm → ~1.033 bars (durationToBars).
+    st.addImportedClip({ trackId, bar: 5, path: "/h/loop.wav", name: "loop.wav", durationSec: 2 });
+
+    const track = S.useDawStore.getState().tracks.find((t) => t.id === trackId)!;
+    expect(track.clips.length).toBe(before + 1);
+    const clip = track.clips[track.clips.length - 1];
+    expect(clip.bar).toBe(5);
+    expect(clip.src).toBeDefined();
+    expect(clip.len).toBeGreaterThan(0);
+
+    const asset = S.useDawStore.getState().assets[clip.src!];
+    expect(asset).toBeDefined();
+    expect(asset.path).toBe("/h/loop.wav");
+    expect(asset.duration).toBe(2);
+  });
 });

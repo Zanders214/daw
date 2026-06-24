@@ -38,7 +38,7 @@ void AudioEngine::shutdown()
         const ScopedLock sl (tracksLock);
         for (auto* t : tracks)
         {
-            t->stop();
+            t->resyncClips();
             t->clearFile();
             t->releaseResources();
         }
@@ -66,20 +66,11 @@ void AudioEngine::setPlaying (bool shouldPlay)
         else            transportSource.stop();
     }
 
+    // Drop clips out of their playing state; the audio callback re-enters each one
+    // at the right offset on the next block (handles both play and pause).
     const ScopedLock sl (tracksLock);
-    const double secs = beatsToSeconds (playheadBeats.load());
     for (auto* t : tracks)
-    {
-        if (shouldPlay)
-        {
-            t->setPositionSeconds (secs);
-            t->start();
-        }
-        else
-        {
-            t->stop();
-        }
-    }
+        t->resyncClips();
 }
 
 void AudioEngine::stop()
@@ -91,10 +82,7 @@ void AudioEngine::stop()
 
     const ScopedLock sl (tracksLock);
     for (auto* t : tracks)
-    {
-        t->stop();
-        t->setPositionSeconds (0.0);
-    }
+        t->resyncClips();
 }
 
 void AudioEngine::setPosition (double beats)
@@ -102,10 +90,9 @@ void AudioEngine::setPosition (double beats)
     const double b = jlimit (0.0, totalBeats, beats);
     playheadBeats.store (b);
 
-    const double secs = beatsToSeconds (b);
     const ScopedLock sl (tracksLock);
     for (auto* t : tracks)
-        t->setPositionSeconds (secs);
+        t->resyncClips();
 }
 
 // ---- source ----
@@ -239,7 +226,7 @@ void AudioEngine::destroyTrack (const String& id)
 
     {
         const ScopedLock sl (tracksLock);
-        doomed->stop();
+        doomed->resyncClips();
         doomed->clearFile();
         doomed->releaseResources();
         trackById.remove (id);
@@ -485,13 +472,15 @@ bool AudioEngine::assignTrackFile (const String& id, const File& file)
 {
     auto& ch = ensureTrack (id);
     const ScopedLock sl (tracksLock); // serialize the source swap against the audio thread
-    const bool ok = ch.loadFile (audioFormatManager, readThread, file);
-    if (ok && playing.load())
-    {
-        ch.setPositionSeconds (beatsToSeconds (playheadBeats.load()));
-        ch.start();
-    }
-    return ok;
+    // The next audio block enters the (full-span) clip at the current playhead.
+    return ch.loadFile (audioFormatManager, readThread, file);
+}
+
+void AudioEngine::setTrackClips (const String& id, const std::vector<TrackChannel::ClipSpec>& clips)
+{
+    auto& ch = ensureTrack (id);
+    const ScopedLock sl (tracksLock);
+    ch.setClips (audioFormatManager, readThread, clips);
 }
 
 void AudioEngine::clearTrackFile (const String& id) const
@@ -797,6 +786,11 @@ void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputCha
             const bool trackSoloing = anySolo.load() > 0;
             const bool groupSoloing = anyGroupSolo.load() > 0;
 
+            // Block-start playhead drives which clip(s) each track plays this block.
+            const double blockBeats = playheadBeats.load();
+            const double bpmNow = tempo.load();
+            const bool playingNow = playing.load();
+
             for (auto* t : tracks)
             {
                 auto* g = t->group.load();
@@ -804,7 +798,8 @@ void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputCha
                 const bool groupOK = (g == nullptr) ? (! groupSoloing)
                                                     : (! g->mute.load() && (! groupSoloing || g->solo.load()));
                 AudioBuffer<float>& dest = (g != nullptr) ? g->getBuffer() : scratch;
-                t->renderInto (dest, sendBuses.data(), numSends, numSamples, trackOK && groupOK);
+                t->renderInto (dest, sendBuses.data(), numSends, numSamples, trackOK && groupOK,
+                               blockBeats, bpmNow, playingNow);
             }
 
             for (auto* g : groups)
@@ -885,16 +880,16 @@ void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputCha
         }
         playheadBeats.store (beats);
 
-        // On a wrap, re-seek the sources so audio stays aligned to the loop.
+        // On a wrap, drop clips out of their playing state so the next block
+        // re-enters them at the new (looped) playhead — no drift.
         if (wrapped)
         {
-            const double secs = beats * 60.0 / jmax (1.0, bpm);
             const ScopedTryLock stl (tracksLock);
             if (stl.isLocked())
                 for (auto* t : tracks)
-                    t->setPositionSeconds (secs);
+                    t->resyncClips();
             if (inputMode == "file" && fileLoaded.load())
-                transportSource.setPosition (secs);
+                transportSource.setPosition (beatsToSeconds (beats));
         }
     }
 }

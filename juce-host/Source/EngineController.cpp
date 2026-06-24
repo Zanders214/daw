@@ -217,6 +217,35 @@ void EngineController::pickTrackFile (const String& trackId)
         });
 }
 
+void EngineController::pickClipFile (const String& trackId, double bar)
+{
+    chooser = std::make_unique<FileChooser> ("Choose audio for a clip", File(),
+                                             "*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg");
+    chooser->launchAsync (FileBrowserComponent::openMode | FileBrowserComponent::canSelectFiles,
+        [this, trackId, bar] (const FileChooser& fc)
+        {
+            const auto result = fc.getResult();
+            if (! result.exists())
+                return;
+
+            // Read the header for duration so the web can size the clip.
+            AudioFormatManager fm;
+            fm.registerBasicFormats();
+            double durationSec = 0.0;
+            if (std::unique_ptr<AudioFormatReader> reader { fm.createReaderFor (result) })
+                if (reader->sampleRate > 0.0)
+                    durationSec = (double) reader->lengthInSamples / reader->sampleRate;
+
+            DynamicObject::Ptr o = new DynamicObject();
+            o->setProperty ("trackId", trackId);
+            o->setProperty ("bar", bar);
+            o->setProperty ("path", result.getFullPathName());
+            o->setProperty ("name", result.getFileName());
+            o->setProperty ("durationSec", durationSec);
+            emit ("engineClipImported", var (o.get()));
+        });
+}
+
 // ---- session persistence ----
 
 var EngineController::buildEnginePayload()
@@ -494,15 +523,38 @@ std::optional<var> EngineController::handleNodeDevice (const String& name, const
 }
 
 // ---- per-track audio source ----
+/** Parse a JS clip array ([{ clipId, path, startBeat, lenBeats, offsetSec, gain }])
+    into engine clip specs, skipping entries without a file path. */
+static std::vector<TrackChannel::ClipSpec> parseClips (const var& v)
+{
+    std::vector<TrackChannel::ClipSpec> out;
+    if (auto* arr = v.getArray())
+        for (const auto& e : *arr)
+        {
+            TrackChannel::ClipSpec s;
+            s.clipId    = e.getProperty ("clipId", var()).toString();
+            s.filePath  = e.getProperty ("path", var()).toString();
+            s.startBeat = (double) e.getProperty ("startBeat", 0.0);
+            s.lenBeats  = (double) e.getProperty ("lenBeats", 0.0);
+            s.offsetSec = (double) e.getProperty ("offsetSec", 0.0);
+            s.gain      = (float) (double) e.getProperty ("gain", 1.0);
+            if (s.filePath.isNotEmpty())
+                out.push_back (std::move (s));
+        }
+    return out;
+}
+
 std::optional<var> EngineController::handleTrackSource (const String& name, const Array<var>& args)
 {
     const auto arg = [&args] (int i) { return i < args.size() ? args[i] : var(); };
 
-    if (name == "trackCreate")     { audioEngine.createTrack (arg (0).toString(), arg (1).toString(), arg (2).toString(), arg (3).toString(), arg (4).toString()); emitTrackInfo(); return var(); }
-    if (name == "trackDelete")     { audioEngine.destroyTrack (arg (0).toString()); emitTrackInfo(); emitNodeRacks(); return var(); }
-    if (name == "trackAssignFile") { audioEngine.assignTrackFile (arg (0).toString(), File (arg (1).toString())); emitTrackInfo(); return var(); }
-    if (name == "trackClearFile")  { audioEngine.clearTrackFile (arg (0).toString()); emitTrackInfo(); return var(); }
-    if (name == "trackPickFile")   { pickTrackFile (arg (0).toString()); return var(); }
+    if (name == "trackCreate")      { audioEngine.createTrack (arg (0).toString(), arg (1).toString(), arg (2).toString(), arg (3).toString(), arg (4).toString()); emitTrackInfo(); return var(); }
+    if (name == "trackDelete")      { audioEngine.destroyTrack (arg (0).toString()); emitTrackInfo(); emitNodeRacks(); return var(); }
+    if (name == "trackAssignFile")  { audioEngine.assignTrackFile (arg (0).toString(), File (arg (1).toString())); emitTrackInfo(); return var(); }
+    if (name == "trackSetClips")    { audioEngine.setTrackClips (arg (0).toString(), parseClips (arg (1))); emitTrackInfo(); return var(); }
+    if (name == "trackClearFile")   { audioEngine.clearTrackFile (arg (0).toString()); emitTrackInfo(); return var(); }
+    if (name == "trackPickFile")    { pickTrackFile (arg (0).toString()); return var(); }
+    if (name == "trackPickClipFile"){ pickClipFile (arg (0).toString(), (double) arg (1)); return var(); }
     return std::nullopt;
 }
 

@@ -279,6 +279,64 @@ describe("applySessionToEngine — engine active", () => {
 });
 
 // ---------------------------------------------------------------------------
+// engineSync — per-clip audio (trackSetClips vs the legacy track-file fallback)
+// ---------------------------------------------------------------------------
+describe("applySessionToEngine — per-clip audio", () => {
+  let invokes: Invoke[];
+  beforeEach(() => { invokes = installBackend(); });
+  afterEach(removeBackend);
+
+  const withTrack = (track: Track, assets: DawState["assets"]): DawState =>
+    ({ ...useDawStore.getState(), tracks: [track], groups: [], trackFiles: {}, assets } as DawState);
+
+  it("pushes path-bearing clips via trackSetClips (beats) and skips the file fallback", () => {
+    const track: Track = {
+      id: "ta", name: "A", color: "#111", io: "A1", type: "audio",
+      clips: [
+        { id: "c1", bar: 2, len: 4, name: "loop", src: "as1" },
+        { id: "c2", bar: 0, len: 2, name: "midi" }, // no src → not an audio clip
+      ],
+    };
+    applySessionToEngine(
+      withTrack(track, { as1: { id: "as1", name: "loop.wav", duration: 2, sampleRate: 0, channels: 0, path: "/x/loop.wav" } }),
+    );
+    const sc = byName(invokes, "trackSetClips");
+    expect(sc).toHaveLength(1);
+    expect(sc[0].params[0]).toBe("ta");
+    expect(sc[0].params[1]).toEqual([
+      { clipId: "c1", path: "/x/loop.wav", startBeat: 2 * BEATS_PER_BAR, lenBeats: 4 * BEATS_PER_BAR, offsetSec: 0, gain: 1 },
+    ]);
+    expect(byName(invokes, "trackAssignFile")).toHaveLength(0);
+    expect(byName(invokes, "trackClearFile")).toHaveLength(0);
+  });
+
+  it("carries clip offset + gain through to the engine", () => {
+    const track: Track = {
+      id: "tc", name: "C", color: "#333", io: "A3", type: "audio",
+      clips: [{ id: "c1", bar: 1, len: 3, name: "x", src: "as", offset: 0.5, gain: 0.4 }],
+    };
+    applySessionToEngine(
+      withTrack(track, { as: { id: "as", name: "a.wav", duration: 5, sampleRate: 0, channels: 0, path: "/a.wav" } }),
+    );
+    expect(byName(invokes, "trackSetClips")[0].params[1]).toEqual([
+      { clipId: "c1", path: "/a.wav", startBeat: BEATS_PER_BAR, lenBeats: 3 * BEATS_PER_BAR, offsetSec: 0.5, gain: 0.4 },
+    ]);
+  });
+
+  it("skips clips whose asset has no path and falls back to clearFile", () => {
+    const track: Track = {
+      id: "tb", name: "B", color: "#222", io: "A2", type: "audio",
+      clips: [{ id: "c1", bar: 0, len: 2, name: "x", src: "noPath" }],
+    };
+    applySessionToEngine(
+      withTrack(track, { noPath: { id: "noPath", name: "m.wav", duration: 1, sampleRate: 0, channels: 0 } }),
+    );
+    expect(byName(invokes, "trackSetClips")).toHaveLength(0);
+    expect(byName(invokes, "trackClearFile").map((i) => i.params[0])).toContain("tb");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // notes.ts — note / midi / beat math (functions not covered by notes.test.ts)
 // ---------------------------------------------------------------------------
 

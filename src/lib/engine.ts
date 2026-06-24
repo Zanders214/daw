@@ -194,7 +194,12 @@ export const engine = {
       call("trackCreate", id, name, type, color, group),
     delete: (id: string) => call("trackDelete", id),
     assignFile: (id: string, path: string) => call("trackAssignFile", id, path),
+    /** Replace a track's clip timeline (per-clip audio playback). */
+    setClips: (id: string, clips: ClipAssign[]) => call("trackSetClips", id, clips),
     pickFile: (id: string) => call("trackPickFile", id),
+    /** Open a native chooser to add an audio clip at `bar`; the chosen file
+     *  arrives via the engineClipImported event. */
+    pickClipFile: (id: string, bar: number) => call("trackPickClipFile", id, bar),
     clearFile: (id: string) => call("trackClearFile", id),
   },
   device: {
@@ -233,10 +238,29 @@ export const engine = {
   },
 };
 
+/** One clip pushed to the engine's per-track timeline (positions in beats). */
+export interface ClipAssign {
+  clipId: string;
+  path: string;
+  startBeat: number;
+  lenBeats: number;
+  offsetSec: number;
+  gain: number;
+}
+
 /** Payload of the engineSessionImported event (native Import dialog result). */
 export interface ImportedSession {
   name?: string;
   ui: unknown;
+}
+
+/** Payload of the engineClipImported event (native clip-file chooser result). */
+export interface ImportedClip {
+  trackId: string;
+  bar: number;
+  path: string;
+  name: string;
+  durationSec: number;
 }
 
 export interface EngineHandlers {
@@ -246,6 +270,7 @@ export interface EngineHandlers {
   onTracks?: (t: TrackInfos) => void;
   onNodeRacks?: (r: NodeRacks) => void;
   onSessionImported?: (p: ImportedSession) => void;
+  onClipImported?: (p: ImportedClip) => void;
   onReady?: (info: unknown) => void;
 }
 
@@ -261,6 +286,7 @@ export function subscribeEngine(h: EngineHandlers): () => void {
   if (h.onTracks) add("engineTracks", (p) => h.onTracks!(p as TrackInfos));
   if (h.onNodeRacks) add("engineNodeRacks", (p) => h.onNodeRacks!(p as NodeRacks));
   if (h.onSessionImported) add("engineSessionImported", (p) => h.onSessionImported!(p as ImportedSession));
+  if (h.onClipImported) add("engineClipImported", (p) => h.onClipImported!(p as ImportedClip));
   if (h.onReady) add("engineReady", (p) => h.onReady!(p));
   return () => {
     if (b.removeEventListener) tokens.forEach((t) => b.removeEventListener!(t));
