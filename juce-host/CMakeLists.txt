@@ -42,6 +42,7 @@ target_sources(ZandersDAW PRIVATE
     Source/EngineController.cpp
     Source/SessionManager.cpp
     Source/MasterBus.cpp
+    Source/Mixer.cpp
     Source/AudioEngine.cpp
     Source/TrackChannel.cpp
     Source/PluginHost.cpp

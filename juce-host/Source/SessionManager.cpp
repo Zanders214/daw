@@ -16,8 +16,8 @@ var SessionManager::buildEnginePayload()
 
     DynamicObject::Ptr engineObj = new DynamicObject();
     engineObj->setProperty ("plugins", var (plugins.get()));
-    engineObj->setProperty ("tracks", audioEngine.buildTrackList());
-    engineObj->setProperty ("nodes", audioEngine.buildNodeRackStates());
+    engineObj->setProperty ("tracks", audioEngine.mixer().buildTrackList());
+    engineObj->setProperty ("nodes", audioEngine.mixer().buildNodeRackStates());
     return var (engineObj.get());
 }
 
@@ -62,13 +62,13 @@ void SessionManager::restoreTracks (const DynamicObject& obj)
         if (id.isEmpty())
             continue;
 
-        audioEngine.createTrack (id, t->getProperty ("name").toString(),
+        audioEngine.mixer().createTrack (id, t->getProperty ("name").toString(),
                                  t->getProperty ("type").toString(),
                                  t->getProperty ("color").toString(),
                                  t->getProperty ("group").toString());
         const auto fp = t->getProperty ("filePath").toString();
         if (fp.isNotEmpty() && File (fp).existsAsFile())
-            audioEngine.assignTrackFile (id, File (fp));
+            audioEngine.mixer().assignTrackFile (id, File (fp));
     }
 }
 

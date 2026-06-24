@@ -54,9 +54,9 @@ var EngineController::buildState()
     obj->setProperty ("playing", audioEngine.isPlaying());
     obj->setProperty ("master", (double) audioEngine.getMasterLevel());
     obj->setProperty ("reel", reel);
-    obj->setProperty ("levels", audioEngine.buildTrackLevels());
-    obj->setProperty ("groupLevels", audioEngine.buildGroupLevels());
-    obj->setProperty ("returnLevels", audioEngine.buildReturnLevels());
+    obj->setProperty ("levels", audioEngine.mixer().buildTrackLevels());
+    obj->setProperty ("groupLevels", audioEngine.mixer().buildGroupLevels());
+    obj->setProperty ("returnLevels", audioEngine.mixer().buildReturnLevels());
     obj->setProperty ("loopStart", audioEngine.getLoopStart());
     obj->setProperty ("loopEnd", audioEngine.getLoopEnd());
     obj->setProperty ("tempo", audioEngine.getTempo());
@@ -86,18 +86,18 @@ void EngineController::emitPluginStatuses()
 
 void EngineController::emitTrackInfo()
 {
-    emit ("engineTracks", audioEngine.buildTrackInfo());
+    emit ("engineTracks", audioEngine.mixer().buildTrackInfo());
 }
 
 void EngineController::emitNodeRacks()
 {
-    emit ("engineNodeRacks", audioEngine.buildNodeRacks());
+    emit ("engineNodeRacks", audioEngine.mixer().buildNodeRacks());
 }
 
 void EngineController::nodeDeviceAdd (const String& nodeId, const String& id, const String& kind,
                                      const String& path, const String& stateB64)
 {
-    auto* rack = audioEngine.ensureNodeRack (nodeId);
+    auto* rack = audioEngine.mixer().ensureNodeRack (nodeId);
     if (rack == nullptr || id.isEmpty())
         return;
 
@@ -122,7 +122,7 @@ void EngineController::nodeDeviceAdd (const String& nodeId, const String& id, co
         File (resolved), audioEngine.getSampleRate(), audioEngine.getBlockSize(),
         [this, nodeId, id, stateB64] (std::unique_ptr<AudioPluginInstance> inst, const String& error)
         {
-            if (auto* r = audioEngine.rackForNode (nodeId))
+            if (auto* r = audioEngine.mixer().rackForNode (nodeId))
             {
                 if (inst != nullptr)
                 {
@@ -216,7 +216,7 @@ void EngineController::pickTrackFile (const String& trackId)
             const auto result = fc.getResult();
             if (result.exists())
             {
-                audioEngine.assignTrackFile (trackId, result);
+                audioEngine.mixer().assignTrackFile (trackId, result);
                 emitTrackInfo();
             }
         });
@@ -285,12 +285,12 @@ std::optional<var> EngineController::handleMixer (const String& name, const Arra
 {
     const auto arg = [&args] (int i) { return i < args.size() ? args[i] : var(); };
 
-    if (name == "mixerSetTrackVolume")  { audioEngine.setTrackGain (arg (0).toString(), (float) (double) arg (1)); return var(); }
-    if (name == "mixerSetTrackPan")     { audioEngine.setTrackPan  (arg (0).toString(), (float) (double) arg (1)); return var(); }
-    if (name == "mixerSetTrackMute")    { audioEngine.setTrackMute (arg (0).toString(), (bool) arg (1)); return var(); }
-    if (name == "mixerSetTrackSolo")    { audioEngine.setTrackSolo (arg (0).toString(), (bool) arg (1)); return var(); }
-    if (name == "mixerSetTrackArm")     { audioEngine.setTrackArm  (arg (0).toString(), (bool) arg (1)); return var(); }
-    if (name == "mixerSetTrackGroup")   { audioEngine.setTrackGroup (arg (0).toString(), arg (1).toString()); return var(); }
+    if (name == "mixerSetTrackVolume")  { audioEngine.mixer().setTrackGain (arg (0).toString(), (float) (double) arg (1)); return var(); }
+    if (name == "mixerSetTrackPan")     { audioEngine.mixer().setTrackPan  (arg (0).toString(), (float) (double) arg (1)); return var(); }
+    if (name == "mixerSetTrackMute")    { audioEngine.mixer().setTrackMute (arg (0).toString(), (bool) arg (1)); return var(); }
+    if (name == "mixerSetTrackSolo")    { audioEngine.mixer().setTrackSolo (arg (0).toString(), (bool) arg (1)); return var(); }
+    if (name == "mixerSetTrackArm")     { audioEngine.mixer().setTrackArm  (arg (0).toString(), (bool) arg (1)); return var(); }
+    if (name == "mixerSetTrackGroup")   { audioEngine.mixer().setTrackGroup (arg (0).toString(), arg (1).toString()); return var(); }
     if (name == "mixerSetMasterVolume") { audioEngine.masterBus().setMasterVolume ((float) (double) arg (0)); return var(); }
     if (name == "mixerSetMasterPan")    { audioEngine.masterBus().setMasterPan ((float) (double) arg (0)); return var(); }
     return std::nullopt;
@@ -301,13 +301,13 @@ std::optional<var> EngineController::handleGroupSends (const String& name, const
 {
     const auto arg = [&args] (int i) { return i < args.size() ? args[i] : var(); };
 
-    if (name == "groupSetGain") { audioEngine.setGroupGain (arg (0).toString(), (float) (double) arg (1)); return var(); }
-    if (name == "groupSetPan")  { audioEngine.setGroupPan  (arg (0).toString(), (float) (double) arg (1)); return var(); }
-    if (name == "groupSetMute") { audioEngine.setGroupMute (arg (0).toString(), (bool) arg (1)); return var(); }
-    if (name == "groupSetSolo") { audioEngine.setGroupSolo (arg (0).toString(), (bool) arg (1)); return var(); }
+    if (name == "groupSetGain") { audioEngine.mixer().setGroupGain (arg (0).toString(), (float) (double) arg (1)); return var(); }
+    if (name == "groupSetPan")  { audioEngine.mixer().setGroupPan  (arg (0).toString(), (float) (double) arg (1)); return var(); }
+    if (name == "groupSetMute") { audioEngine.mixer().setGroupMute (arg (0).toString(), (bool) arg (1)); return var(); }
+    if (name == "groupSetSolo") { audioEngine.mixer().setGroupSolo (arg (0).toString(), (bool) arg (1)); return var(); }
 
-    if (name == "mixerSetTrackSend") { audioEngine.setTrackSend (arg (0).toString(), (int) arg (1), (float) (double) arg (2)); return var(); }
-    if (name == "returnSetGain")     { audioEngine.setReturnGain ((int) arg (0), (float) (double) arg (1)); return var(); }
+    if (name == "mixerSetTrackSend") { audioEngine.mixer().setTrackSend (arg (0).toString(), (int) arg (1), (float) (double) arg (2)); return var(); }
+    if (name == "returnSetGain")     { audioEngine.mixer().setReturnGain ((int) arg (0), (float) (double) arg (1)); return var(); }
     return std::nullopt;
 }
 
@@ -326,11 +326,11 @@ std::optional<var> EngineController::handleAutomation (const String& name, const
                 pts.push_back ({ (double) pv.getProperty ("t", 0.0),
                                  (float) (double) pv.getProperty ("v", 0.0) });
         }
-        audioEngine.setAutomation (arg (0).toString(), arg (1).toString(), std::move (pts));
+        audioEngine.mixer().setAutomation (arg (0).toString(), arg (1).toString(), std::move (pts));
         return var();
     }
-    if (name == "automationClear")    { audioEngine.clearAutomation (arg (0).toString(), arg (1).toString()); return var(); }
-    if (name == "automationClearAll") { audioEngine.clearAllAutomation(); return var(); }
+    if (name == "automationClear")    { audioEngine.mixer().clearAutomation (arg (0).toString(), arg (1).toString()); return var(); }
+    if (name == "automationClearAll") { audioEngine.mixer().clearAllAutomation(); return var(); }
     return std::nullopt;
 }
 
@@ -355,7 +355,7 @@ std::optional<var> EngineController::handleNodeDevice (const String& name, const
     if (name == "nodeDevicePickFile")   { pickNodeDeviceFile (arg (0).toString(), arg (1).toString()); return var(); }
 
     // remove / set-bypass / open / close editor all act on the same (rack, instance id).
-    auto* r = audioEngine.rackForNode (arg (0).toString());
+    auto* r = audioEngine.mixer().rackForNode (arg (0).toString());
     const String inst = arg (1).toString();
     if (name == "nodeDeviceRemove")      { if (r != nullptr) { r->remove (inst); }                    emitNodeRacks(); return var(); }
     if (name == "nodeDeviceSetBypass")   { if (r != nullptr) { r->setBypass (inst, (bool) arg (2)); } emitNodeRacks(); return var(); }
@@ -409,12 +409,12 @@ std::optional<var> EngineController::handleTrackSource (const String& name, cons
 {
     const auto arg = [&args] (int i) { return i < args.size() ? args[i] : var(); };
 
-    if (name == "trackCreate")      { audioEngine.createTrack (arg (0).toString(), arg (1).toString(), arg (2).toString(), arg (3).toString(), arg (4).toString()); emitTrackInfo(); return var(); }
-    if (name == "trackDelete")      { audioEngine.destroyTrack (arg (0).toString()); emitTrackInfo(); emitNodeRacks(); return var(); }
-    if (name == "trackAssignFile")  { audioEngine.assignTrackFile (arg (0).toString(), File (arg (1).toString())); emitTrackInfo(); return var(); }
-    if (name == "trackSetClips")    { audioEngine.setTrackClips (arg (0).toString(), parseClips (arg (1))); emitTrackInfo(); return var(); }
-    if (name == "trackSetMidiNotes"){ audioEngine.setTrackMidiNotes (arg (0).toString(), parseMidiNotes (arg (1))); return var(); }
-    if (name == "trackClearFile")   { audioEngine.clearTrackFile (arg (0).toString()); emitTrackInfo(); return var(); }
+    if (name == "trackCreate")      { audioEngine.mixer().createTrack (arg (0).toString(), arg (1).toString(), arg (2).toString(), arg (3).toString(), arg (4).toString()); emitTrackInfo(); return var(); }
+    if (name == "trackDelete")      { audioEngine.mixer().destroyTrack (arg (0).toString()); emitTrackInfo(); emitNodeRacks(); return var(); }
+    if (name == "trackAssignFile")  { audioEngine.mixer().assignTrackFile (arg (0).toString(), File (arg (1).toString())); emitTrackInfo(); return var(); }
+    if (name == "trackSetClips")    { audioEngine.mixer().setTrackClips (arg (0).toString(), parseClips (arg (1))); emitTrackInfo(); return var(); }
+    if (name == "trackSetMidiNotes"){ audioEngine.mixer().setTrackMidiNotes (arg (0).toString(), parseMidiNotes (arg (1))); return var(); }
+    if (name == "trackClearFile")   { audioEngine.mixer().clearTrackFile (arg (0).toString()); emitTrackInfo(); return var(); }
     if (name == "trackPickFile")    { pickTrackFile (arg (0).toString()); return var(); }
     if (name == "trackPickClipFile"){ pickClipFile (arg (0).toString(), (double) arg (1)); return var(); }
     return std::nullopt;
@@ -490,7 +490,7 @@ std::optional<var> EngineController::handleSession (const String& name, const Ar
 var EngineController::nodeDeviceListParams (const String& nodeId, const String& instanceId)
 {
     Array<var> out;
-    const auto* r = audioEngine.rackForNode (nodeId);
+    const auto* r = audioEngine.mixer().rackForNode (nodeId);
     if (const auto* inst = r != nullptr ? r->get (instanceId) : nullptr)
     {
         const auto& params = inst->getParameters();
