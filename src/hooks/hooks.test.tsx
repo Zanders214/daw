@@ -43,6 +43,7 @@ import { useTransportLoop } from "./useTransportLoop";
 import { useMixerGraph } from "./useMixerGraph";
 import { useSessionPersistence } from "./useSessionPersistence";
 import { useEngineBridge } from "./useEngineBridge";
+import { useResponsiveLayout, NARROW_W, SHORT_H } from "./useResponsiveLayout";
 import { useDawStore } from "../store/useDawStore";
 import { startAutosave } from "../lib/autosave";
 import { applyPrefs, applySession } from "../lib/session";
@@ -358,5 +359,92 @@ describe("useEngineBridge", () => {
     unmount();
     // subscribeEngine's unsub removes one token per registered handler (4 here).
     expect(backend.removeEventListener).toHaveBeenCalled();
+  });
+});
+
+// ===========================================================================
+// useResponsiveLayout
+// ===========================================================================
+describe("useResponsiveLayout", () => {
+  const setViewport = (w: number, h: number) => {
+    Object.defineProperty(globalThis, "innerWidth", { value: w, configurable: true, writable: true });
+    Object.defineProperty(globalThis, "innerHeight", { value: h, configurable: true, writable: true });
+  };
+  const resize = () => globalThis.dispatchEvent(new Event("resize"));
+
+  // A roomy window where both panels comfortably fit.
+  beforeEach(() => setViewport(1920, 1080));
+  afterEach(() => setViewport(1920, 1080));
+
+  it("leaves both panels open at a comfortable size", () => {
+    renderHook(() => useResponsiveLayout());
+    expect(useDawStore.getState().browserOpen).toBe(true);
+    expect(useDawStore.getState().rackOpen).toBe(true);
+  });
+
+  it("auto-collapses the browser when mounted in a narrow window", () => {
+    setViewport(NARROW_W - 1, 1080);
+    renderHook(() => useResponsiveLayout());
+    expect(useDawStore.getState().browserOpen).toBe(false);
+    expect(useDawStore.getState().rackOpen).toBe(true);
+  });
+
+  it("auto-collapses the device rack when mounted in a short window", () => {
+    setViewport(1920, SHORT_H - 1);
+    renderHook(() => useResponsiveLayout());
+    expect(useDawStore.getState().rackOpen).toBe(false);
+    expect(useDawStore.getState().browserOpen).toBe(true);
+  });
+
+  it("restores the browser it collapsed once the window widens again", () => {
+    setViewport(NARROW_W - 1, 1080);
+    renderHook(() => useResponsiveLayout());
+    expect(useDawStore.getState().browserOpen).toBe(false);
+
+    setViewport(1920, 1080);
+    resize();
+    expect(useDawStore.getState().browserOpen).toBe(true);
+  });
+
+  it("does not reopen a browser the user closed themselves", () => {
+    // User prefers the browser closed in a wide window.
+    useDawStore.setState({ browserOpen: false });
+    renderHook(() => useResponsiveLayout());
+
+    // Narrowing must not flip their preference back on...
+    setViewport(NARROW_W - 1, 1080);
+    resize();
+    expect(useDawStore.getState().browserOpen).toBe(false);
+
+    // ...and neither must widening (we never auto-collapsed it, so nothing to restore).
+    setViewport(1920, 1080);
+    resize();
+    expect(useDawStore.getState().browserOpen).toBe(false);
+  });
+
+  it("does not fight a manual reopen made while the window is still narrow", () => {
+    setViewport(NARROW_W - 1, 1080);
+    renderHook(() => useResponsiveLayout());
+    expect(useDawStore.getState().browserOpen).toBe(false);
+
+    // User explicitly reopens the browser despite the narrow window.
+    useDawStore.getState().toggleBrowser();
+    expect(useDawStore.getState().browserOpen).toBe(true);
+
+    // Widening should leave their choice intact rather than toggling it again.
+    setViewport(1920, 1080);
+    resize();
+    expect(useDawStore.getState().browserOpen).toBe(true);
+  });
+
+  it("detaches its resize listener on unmount", () => {
+    const { unmount } = renderHook(() => useResponsiveLayout());
+    unmount();
+
+    // After unmount, crossing the breakpoint must not mutate the store.
+    useDawStore.setState({ browserOpen: true });
+    setViewport(NARROW_W - 1, 1080);
+    resize();
+    expect(useDawStore.getState().browserOpen).toBe(true);
   });
 });
