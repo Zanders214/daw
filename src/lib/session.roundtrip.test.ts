@@ -43,6 +43,7 @@ describe("serializeSession — full field contract", () => {
       loopEnd: 200,
       volumes: { lead: 0.8 },
       pans: { lead: 0.25 },
+      trackHeights: { lead: 160 },
       mutes: { kick: true },
       solos: { bass: true },
       arms: { lead: true },
@@ -78,6 +79,7 @@ describe("serializeSession — full field contract", () => {
     expect(ui.loopEnd).toBe(200);
     expect(ui.volumes).toEqual({ lead: 0.8 });
     expect(ui.pans).toEqual({ lead: 0.25 });
+    expect(ui.trackHeights).toEqual({ lead: 160 });
     expect(ui.mutes).toEqual({ kick: true });
     expect(ui.solos).toEqual({ bass: true });
     expect(ui.arms).toEqual({ lead: true });
@@ -131,6 +133,7 @@ describe("serializeSession — full field contract", () => {
         "solos",
         "tracks",
         "trackFiles",
+        "trackHeights",
         "volumes",
       ].sort(),
     );
@@ -145,6 +148,8 @@ describe("serializePrefs — full field contract", () => {
     useDawStore.setState({
       theme: "midnight",
       tracksRight: true,
+      browserWidth: 340,
+      rackHeight: 420,
       showGrid: false,
       vibrantClips: true,
       sampleRate: 48,
@@ -158,6 +163,8 @@ describe("serializePrefs — full field contract", () => {
     expect(p).toEqual({
       theme: "midnight",
       tracksRight: true,
+      browserWidth: 340,
+      rackHeight: 420,
       showGrid: false,
       vibrantClips: true,
       sampleRate: 48,

@@ -5,6 +5,7 @@ import { LIBRARY } from "../../data/seed";
 import type { Group, Track } from "../../types";
 import type { NodeDevice } from "../../lib/engine";
 import { deviceDescriptorForItem, getDragItem, hasDragItem } from "../../lib/dnd";
+import { startUiResize } from "../../lib/uiDrag";
 import { ZandersEQ } from "./ZandersEQ";
 import { ZandersTapeStop } from "./ZandersTapeStop";
 import { ZandersPreDrop } from "./ZandersPreDrop";
@@ -214,16 +215,29 @@ function NodeRack({ nodeId }: Readonly<{ nodeId: string }>) {
 }
 
 export function DeviceChain() {
-  const { rackOpen, selNode, toggleRack, deviceCount, tracks, groups } = useDawStore(
+  const { rackOpen, rackHeight, selNode, toggleRack, setRackHeight, deviceCount, tracks, groups } = useDawStore(
     useShallow((s) => ({
       rackOpen: s.rackOpen,
+      rackHeight: s.rackHeight,
       selNode: s.selTrack,
       toggleRack: s.toggleRack,
+      setRackHeight: s.setRackHeight,
       deviceCount: s.selTrack === "master" ? 3 : (s.nodeRacks[s.selTrack]?.length ?? 0),
       tracks: s.tracks,
       groups: s.groups,
     })),
   );
+  const [resizing, setResizing] = useState(false);
+
+  // Drag the top edge to resize; suppress the open/close height transition for
+  // the gesture so the rack tracks the pointer instead of easing behind it.
+  const onResizeDown = (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    const startY = e.clientY;
+    const startH = rackHeight;
+    setResizing(true);
+    startUiResize((ev) => setRackHeight(startH + (startY - ev.clientY)), "row-resize", () => setResizing(false));
+  };
 
   const isMaster = selNode === "master";
   const def = nodeDef(selNode, tracks, groups);
@@ -233,16 +247,33 @@ export function DeviceChain() {
   return (
     <div
       style={{
-        height: rackOpen ? 300 : 44,
+        position: "relative",
+        height: rackOpen ? rackHeight : 44,
         flex: "none",
         borderTop: "1px solid var(--layer-3)",
         background: "var(--app-surface)",
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
-        transition: "height var(--dur-base) var(--ease)",
+        transition: resizing ? "none" : "height var(--dur-base) var(--ease)",
       }}
     >
+      {rackOpen && (
+        <div
+          onPointerDown={onResizeDown}
+          title="Drag to resize the device chain"
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 6,
+            cursor: "row-resize",
+            touchAction: "none",
+            zIndex: 5,
+          }}
+        />
+      )}
       <div
         style={{
           height: 42,

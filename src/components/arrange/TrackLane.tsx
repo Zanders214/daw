@@ -3,7 +3,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useDawStore } from "../../store/useDawStore";
 import { hexA } from "../../lib/color";
 import { clipPreview } from "../../lib/notes";
-import { BEATS_PER_BAR, TOTAL_BARS } from "../../lib/constants";
+import { BEATS_PER_BAR, TOTAL_BARS, DEFAULT_TRACK_H } from "../../lib/constants";
 import { deviceDescriptorForItem, getDragItem, hasDragItem, trackTypeForItem } from "../../lib/dnd";
 import { barsAt, snap, startDrag } from "../../lib/timeline";
 import { AutomationLane } from "./AutomationLane";
@@ -30,7 +30,7 @@ const shiftSnapshot = (snapshot: ClipSnapshot[], delta: number) =>
 export function TrackLane({ track }: Readonly<{ track: Track }>) {
   const id = track.id;
   const {
-    selected, showGrid, vibrant, dimmed, selClip, selClips, autoOpen, sendsOpen,
+    selected, showGrid, vibrant, dimmed, trackHeight, selClip, selClips, autoOpen, sendsOpen,
     selectClip, toggleClipSelected, addNodeDevice, setTrackInstrument, importAudioFile,
     moveClip, moveClipToTrack, setClipBars, resizeClip, setClipRegion, removeClip, removeSelectedClips,
     duplicateClip, duplicateSelectedClips, openEditor,
@@ -44,6 +44,7 @@ export function TrackLane({ track }: Readonly<{ track: Track }>) {
         showGrid: s.showGrid,
         vibrant: s.vibrantClips,
         dimmed: !audible,
+        trackHeight: s.trackHeights[id] ?? DEFAULT_TRACK_H,
         selClip: s.selClip,
         selClips: s.selClips,
         autoOpen: !!s.autoLanes[id],
@@ -173,7 +174,8 @@ export function TrackLane({ track }: Readonly<{ track: Track }>) {
   const restingBg = selected ? "rgba(94,147,255,0.05)" : "transparent";
   const laneStyle: React.CSSProperties = {
     position: "relative",
-    height: 108,
+    height: trackHeight,
+    boxSizing: "border-box", // match the header row's border-box so rows stay aligned
     borderBottom: "1px solid var(--layer-2)",
     backgroundColor: over ? hexA(track.color, 0.12) : restingBg,
     outline: over ? `1px dashed ${track.color}` : "none",
