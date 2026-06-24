@@ -418,8 +418,7 @@ var EngineController::handle (const String& name, const Array<var>& args)
     if (auto r = handleTrackSource (name, args)) return *r;
     if (auto r = handleDeviceChain (name, args)) return *r;
     if (auto r = handleAudioSource (name, args)) return *r;
-    if (auto r = handleSession     (name, args)) return *r;
-    return {};
+    return handleSession (name, args).value_or (var());
 }
 
 // ---- transport ----
@@ -528,7 +527,7 @@ std::optional<var> EngineController::handleNodeDevice (const String& name, const
 static std::vector<TrackChannel::ClipSpec> parseClips (const var& v)
 {
     std::vector<TrackChannel::ClipSpec> out;
-    if (auto* arr = v.getArray())
+    if (const auto* arr = v.getArray())
         for (const auto& e : *arr)
         {
             TrackChannel::ClipSpec s;
@@ -549,7 +548,7 @@ static std::vector<TrackChannel::ClipSpec> parseClips (const var& v)
 static std::vector<TrackChannel::MidiNoteSpec> parseMidiNotes (const var& v)
 {
     std::vector<TrackChannel::MidiNoteSpec> out;
-    if (auto* arr = v.getArray())
+    if (const auto* arr = v.getArray())
         for (const auto& e : *arr)
         {
             TrackChannel::MidiNoteSpec s;
@@ -649,8 +648,7 @@ var EngineController::nodeDeviceListParams (const String& nodeId, const String& 
 {
     Array<var> out;
     const auto* r = audioEngine.rackForNode (nodeId);
-    const auto* inst = r != nullptr ? r->get (instanceId) : nullptr;
-    if (inst != nullptr)
+    if (const auto* inst = r != nullptr ? r->get (instanceId) : nullptr)
     {
         const auto& params = inst->getParameters();
         for (int i = 0; i < params.size(); ++i)

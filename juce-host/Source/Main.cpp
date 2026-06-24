@@ -32,8 +32,8 @@ public:
 class ZandersDawApplication : public JUCEApplication
 {
 public:
-    const String getApplicationName() override    { return "Zanders DAW"; }
-    const String getApplicationVersion() override { return "0.1.0"; }
+    String getApplicationName() override    { return "Zanders DAW"; }
+    String getApplicationVersion() override { return "0.1.0"; }
     bool moreThanOneInstanceAllowed() override     { return false; }
 
     void initialise (const String&) override
