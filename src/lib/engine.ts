@@ -196,6 +196,8 @@ export const engine = {
     assignFile: (id: string, path: string) => call("trackAssignFile", id, path),
     /** Replace a track's clip timeline (per-clip audio playback). */
     setClips: (id: string, clips: ClipAssign[]) => call("trackSetClips", id, clips),
+    /** Replace a track's MIDI notes (voiced by the engine's built-in synth). */
+    setMidiNotes: (id: string, notes: MidiNoteAssign[]) => call("trackSetMidiNotes", id, notes),
     pickFile: (id: string) => call("trackPickFile", id),
     /** Open a native chooser to add an audio clip at `bar`; the chosen file
      *  arrives via the engineClipImported event. */
@@ -246,6 +248,14 @@ export interface ClipAssign {
   lenBeats: number;
   offsetSec: number;
   gain: number;
+}
+
+/** One MIDI note pushed to a track's engine synth (positions in absolute beats). */
+export interface MidiNoteAssign {
+  absBeat: number;
+  durBeat: number;
+  pitch: number;
+  velocity: number;
 }
 
 /** Payload of the engineSessionImported event (native Import dialog result). */

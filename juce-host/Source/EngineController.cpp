@@ -544,6 +544,25 @@ static std::vector<TrackChannel::ClipSpec> parseClips (const var& v)
     return out;
 }
 
+/** Parse a JS note array ([{ absBeat, durBeat, pitch, velocity }]) into engine
+    MIDI note specs, skipping zero-length notes. */
+static std::vector<TrackChannel::MidiNoteSpec> parseMidiNotes (const var& v)
+{
+    std::vector<TrackChannel::MidiNoteSpec> out;
+    if (auto* arr = v.getArray())
+        for (const auto& e : *arr)
+        {
+            TrackChannel::MidiNoteSpec s;
+            s.absBeat  = (double) e.getProperty ("absBeat", 0.0);
+            s.durBeat  = (double) e.getProperty ("durBeat", 0.0);
+            s.pitch    = (int) e.getProperty ("pitch", 60);
+            s.velocity = (float) (double) e.getProperty ("velocity", 0.8);
+            if (s.durBeat > 0.0)
+                out.push_back (s);
+        }
+    return out;
+}
+
 std::optional<var> EngineController::handleTrackSource (const String& name, const Array<var>& args)
 {
     const auto arg = [&args] (int i) { return i < args.size() ? args[i] : var(); };
@@ -552,6 +571,7 @@ std::optional<var> EngineController::handleTrackSource (const String& name, cons
     if (name == "trackDelete")      { audioEngine.destroyTrack (arg (0).toString()); emitTrackInfo(); emitNodeRacks(); return var(); }
     if (name == "trackAssignFile")  { audioEngine.assignTrackFile (arg (0).toString(), File (arg (1).toString())); emitTrackInfo(); return var(); }
     if (name == "trackSetClips")    { audioEngine.setTrackClips (arg (0).toString(), parseClips (arg (1))); emitTrackInfo(); return var(); }
+    if (name == "trackSetMidiNotes"){ audioEngine.setTrackMidiNotes (arg (0).toString(), parseMidiNotes (arg (1))); return var(); }
     if (name == "trackClearFile")   { audioEngine.clearTrackFile (arg (0).toString()); emitTrackInfo(); return var(); }
     if (name == "trackPickFile")    { pickTrackFile (arg (0).toString()); return var(); }
     if (name == "trackPickClipFile"){ pickClipFile (arg (0).toString(), (double) arg (1)); return var(); }
