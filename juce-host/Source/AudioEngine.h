@@ -42,18 +42,18 @@ public:
     void setPlaying (bool shouldPlay);
     void stop();
     void setPosition (double beats);
-    void setLooping (bool b) { looping.store (b); }
-    void setRecording (bool b) { recording.store (b); }
-    void setTempo (double bpm) { tempo.store (juce::jmax (20.0, bpm)); }
-    bool isPlaying() const { return playing.load(); }
-    double getPlayheadBeats() const { return playheadBeats.load(); }
-    float getMasterLevel() const { return masterLevel.load(); }
-    double getTempo() const { return tempo.load(); }
+    void setLooping (bool b) { transport.looping.store (b); }
+    void setRecording (bool b) { transport.recording.store (b); }
+    void setTempo (double bpm) { transport.tempo.store (juce::jmax (20.0, bpm)); }
+    bool isPlaying() const { return transport.playing.load(); }
+    double getPlayheadBeats() const { return transport.playheadBeats.load(); }
+    float getMasterLevel() const { return transport.masterLevel.load(); }
+    double getTempo() const { return transport.tempo.load(); }
 
     // Loop region (beats)
     void setLoopRegion (double startBeats, double endBeats);
-    double getLoopStart() const { return loopStartBeats.load(); }
-    double getLoopEnd() const { return loopEndBeats.load(); }
+    double getLoopStart() const { return transport.loopStartBeats.load(); }
+    double getLoopEnd() const { return transport.loopEndBeats.load(); }
 
     // Source (legacy single-stream path; kept for back-compat)
     bool loadAudioFile (const juce::File& file);
@@ -136,7 +136,7 @@ public:
     bool hasPlugin (int slot) const;
     juce::String getPluginName (int slot) const;
     void setBypassed (int slot, bool b);
-    bool isBypassed (int slot) const { return (slot >= 0 && slot < 3) && bypassed[(size_t) slot].load(); }
+    bool isBypassed (int slot) const { return (slot >= 0 && slot < 3) && masterChain.bypassed[(size_t) slot].load(); }
     void setParam (int slot, const juce::String& paramId, float value01) const;
     juce::var listParams (int slot) const;
 
@@ -169,23 +169,42 @@ private:
     /** Resolve a (nodeId, paramId) to the atomic it writes (message thread). */
     AutomationStore::Target resolveAutoTarget (const juce::String& nodeId, const juce::String& paramId);
 
+    // Audio-callback helpers (extracted from audioDeviceIOCallbackWithContext to
+    // keep the per-block path readable). Each runs on the audio thread.
+    /** Step 1: pull the legacy single source (file player or input monitor). */
+    void renderLegacySource (const float* const* inputChannelData, int numInputChannels, int numSamples);
+    /** Step 2: sum the multitrack mixer (tracks -> groups -> returns) into scratch. */
+    void mixTracks (int numSamples);
+    /** Step 3: run the master FX chain in series over scratch. */
+    void processMasterChain();
+    /** Step 7: advance the beat clock and handle loop/totalBeats wrapping. */
+    void advanceTransport (int numSamples);
+
     static constexpr int numSlots = 3;
     static constexpr double totalBeats = 128.0;
 
     juce::AudioDeviceManager deviceManager;
 
-    // Source
-    juce::AudioFormatManager audioFormatManager;
-    std::unique_ptr<juce::AudioFormatReaderSource> readerSource;
-    juce::AudioTransportSource transportSource;
-    juce::String inputMode { "file" };
-    std::atomic<bool> fileLoaded { false };
+    // Source (legacy single-stream path). Grouped to keep the engine's field
+    // count manageable; members stay in their original construction order.
+    struct Source
+    {
+        juce::AudioFormatManager audioFormatManager;
+        std::unique_ptr<juce::AudioFormatReaderSource> readerSource;
+        juce::AudioTransportSource transportSource;
+        juce::String inputMode { "file" };
+        std::atomic<bool> fileLoaded { false };
+    } source;
 
-    // Plugin chain
-    juce::CriticalSection chainLock;
-    std::array<std::unique_ptr<juce::AudioPluginInstance>, numSlots> chain;
-    std::array<std::atomic<bool>, numSlots> bypassed { { {false}, {false}, {false} } };
-    std::array<std::unique_ptr<juce::DocumentWindow>, numSlots> editorWindows;
+    // Master FX chain. `chainLock` guards `chain`; the audio callback try-locks
+    // it. Members stay in their original construction order.
+    struct MasterChain
+    {
+        juce::CriticalSection chainLock;
+        std::array<std::unique_ptr<juce::AudioPluginInstance>, numSlots> chain;
+        std::array<std::atomic<bool>, numSlots> bypassed { { {false}, {false}, {false} } };
+        std::array<std::unique_ptr<juce::DocumentWindow>, numSlots> editorWindows;
+    } masterChain;
 
     // Mixer (multitrack). The message thread owns the channels; the audio
     // thread iterates them under a try-lock (same contract as chainLock).
@@ -199,23 +218,34 @@ private:
     juce::HashMap<juce::String, GroupBus*> groupById;
     std::atomic<int> anySolo { 0 };          // cached count of soloed tracks
     std::atomic<int> anyGroupSolo { 0 };     // cached count of soloed groups
-    std::array<juce::AudioBuffer<float>, numSends> sendBuses;
-    std::array<DeviceRack, numSends> returnRacks;
-    std::array<std::atomic<float>, numSends> returnGain  { { {1.0f}, {1.0f} } };
-    std::array<std::atomic<float>, numSends> returnLevel { { {0.0f}, {0.0f} } };
+
+    // Aux sends / returns (fixed count). Grouped to keep the field count down;
+    // members stay in their original construction order.
+    struct SendReturn
+    {
+        std::array<juce::AudioBuffer<float>, numSends> sendBuses;
+        std::array<DeviceRack, numSends> returnRacks;
+        std::array<std::atomic<float>, numSends> returnGain  { { {1.0f}, {1.0f} } };
+        std::array<std::atomic<float>, numSends> returnLevel { { {0.0f}, {0.0f} } };
+    } sendReturn;
+
     std::atomic<float> masterVolume { 1.0f };
     std::atomic<float> masterPan { 0.5f };
     AutomationStore automation;
 
-    // Transport state
-    std::atomic<bool> playing { false };
-    std::atomic<bool> looping { true };
-    std::atomic<bool> recording { false };
-    std::atomic<double> tempo { 124.0 };
-    std::atomic<double> playheadBeats { 0.0 };
-    std::atomic<float> masterLevel { 0.0f };
-    std::atomic<double> loopStartBeats { 0.0 };
-    std::atomic<double> loopEndBeats { totalBeats };
+    // Transport state. Grouped to keep the field count down; members stay in
+    // their original construction order.
+    struct Transport
+    {
+        std::atomic<bool> playing { false };
+        std::atomic<bool> looping { true };
+        std::atomic<bool> recording { false };
+        std::atomic<double> tempo { 124.0 };
+        std::atomic<double> playheadBeats { 0.0 };
+        std::atomic<float> masterLevel { 0.0f };
+        std::atomic<double> loopStartBeats { 0.0 };
+        std::atomic<double> loopEndBeats { totalBeats };
+    } transport;
 
     double currentSampleRate { 44100.0 };
     int currentBlockSize { 512 };

@@ -43,7 +43,7 @@ describe("useDawStore — audio assets", () => {
     await st.importAudioFile(fakeFile("loop.wav"), trackId, 3);
 
     const track = S.useDawStore.getState().tracks.find((t) => t.id === trackId)!;
-    expect(track.clips.length).toBe(before + 1);
+    expect(track.clips).toHaveLength(before + 1);
     const clip = track.clips[track.clips.length - 1];
     expect(clip.src).toBeDefined();
     expect(clip.bar).toBe(3);
@@ -67,7 +67,7 @@ describe("useDawStore — audio assets", () => {
     st.addImportedClip({ trackId, bar: 5, path: "/h/loop.wav", name: "loop.wav", durationSec: 2 });
 
     const track = S.useDawStore.getState().tracks.find((t) => t.id === trackId)!;
-    expect(track.clips.length).toBe(before + 1);
+    expect(track.clips).toHaveLength(before + 1);
     const clip = track.clips[track.clips.length - 1];
     expect(clip.bar).toBe(5);
     expect(clip.src).toBeDefined();

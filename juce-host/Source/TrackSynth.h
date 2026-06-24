@@ -26,7 +26,7 @@ public:
     }
 
     /** Render `numSamples` (driven by `midi`) ADDED into `buffer`. */
-    void renderInto (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi, int numSamples)
+    void renderInto (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer& midi, int numSamples)
     {
         synth.renderNextBlock (buffer, midi, 0, numSamples);
     }
@@ -79,8 +79,8 @@ private:
             }
         }
 
-        void pitchWheelMoved (int) override {}
-        void controllerMoved (int, int) override {}
+        void pitchWheelMoved (int) override { /* no-op: this toy synth ignores pitch-bend */ }
+        void controllerMoved (int, int) override { /* no-op: this toy synth ignores MIDI CCs */ }
 
         using juce::SynthesiserVoice::renderNextBlock; // keep the double overload visible
 
@@ -91,11 +91,11 @@ private:
 
             // one-pole lowpass coefficient for ~3.5 kHz (matches audio.ts).
             const double cutoff = 3500.0;
-            const float a = (float) std::exp (-2.0 * juce::MathConstants<double>::pi * cutoff / getSampleRate());
+            const auto a = (float) std::exp (-2.0 * juce::MathConstants<double>::pi * cutoff / getSampleRate());
 
             for (int n = 0; n < numSamples; ++n)
             {
-                const float saw = (float) (2.0 * phase - 1.0); // naive saw in [-1,1]
+                const auto saw = (float) (2.0 * phase - 1.0); // naive saw in [-1,1]
                 phase += phaseInc;
                 if (phase >= 1.0) phase -= 1.0;
 
@@ -103,7 +103,9 @@ private:
                 const float s = lpState * adsr.getNextSample() * level * 0.22f; // 0.22 ~ web peak
 
                 for (int ch = 0; ch < out.getNumChannels(); ++ch)
+                {
                     out.addSample (ch, startSample + n, s);
+                }
 
                 if (! adsr.isActive())
                 {

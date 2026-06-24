@@ -4,6 +4,13 @@
  * deps; pure DataView writes so it unit-tests without Web Audio.
  */
 
+/** Convert a single sample in [-1,1] (clamped) to a signed 16-bit integer. */
+function sampleToInt16(sample: number): number {
+  const s = Math.min(Math.max(sample, -1), 1);
+  const v = Math.round(s < 0 ? s * 0x8000 : s * 0x7fff);
+  return Math.min(Math.max(v, -0x8000), 0x7fff);
+}
+
 /** Encode an AudioBuffer as a 16-bit PCM WAV Blob (audio/wav). */
 export function encodeWav(buffer: AudioBuffer): Blob {
   const numCh = buffer.numberOfChannels;
@@ -18,7 +25,7 @@ export function encodeWav(buffer: AudioBuffer): Blob {
   let p = 0;
   const u16 = (v: number) => { view.setUint16(p, v, true); p += 2; };
   const u32 = (v: number) => { view.setUint32(p, v, true); p += 4; };
-  const str = (s: string) => { for (let i = 0; i < s.length; i++) view.setUint8(p++, s.charCodeAt(i)); };
+  const str = (s: string) => { for (let i = 0; i < s.length; i++) view.setUint8(p++, s.codePointAt(i)!); };
 
   // RIFF header
   str("RIFF"); u32(36 + dataBytes); str("WAVE");
@@ -34,10 +41,7 @@ export function encodeWav(buffer: AudioBuffer): Blob {
   for (let c = 0; c < numCh; c++) channels.push(buffer.getChannelData(c));
   for (let i = 0; i < frames; i++) {
     for (let c = 0; c < numCh; c++) {
-      let s = channels[c][i];
-      s = s < -1 ? -1 : s > 1 ? 1 : s;
-      const v = Math.round(s < 0 ? s * 0x8000 : s * 0x7fff);
-      view.setInt16(p, v < -0x8000 ? -0x8000 : v > 0x7fff ? 0x7fff : v, true);
+      view.setInt16(p, sampleToInt16(channels[c][i]), true);
       p += 2;
     }
   }

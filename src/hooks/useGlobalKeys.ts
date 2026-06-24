@@ -28,7 +28,7 @@ export function useGlobalKeys(): void {
       if (isRedo) redo();
       else undo();
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    globalThis.addEventListener("keydown", onKey);
+    return () => globalThis.removeEventListener("keydown", onKey);
   }, []);
 }

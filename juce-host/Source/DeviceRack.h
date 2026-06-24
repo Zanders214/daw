@@ -69,7 +69,7 @@ public:
     }
 
     /** Fill a placeholder with its loaded instance (prepares it). */
-    void fill (const juce::String& id, std::unique_ptr<juce::AudioPluginInstance> inst)
+    void fill (const juce::String& id, std::unique_ptr<juce::AudioPluginInstance> inst) const
     {
         if (inst == nullptr)
             return;
@@ -86,7 +86,7 @@ public:
     }
 
     /** Mark a device as unresolved (external plugin file missing). */
-    void markMissing (const juce::String& id)
+    void markMissing (const juce::String& id) const
     {
         const juce::ScopedLock sl (lock);
         if (auto* d = findLocked (id))
@@ -111,7 +111,7 @@ public:
     bool has (const juce::String& id) const { const juce::ScopedLock sl (lock); return findLocked (id) != nullptr; }
     int  size() const { const juce::ScopedLock sl (lock); return devices.size(); }
 
-    void setBypass (const juce::String& id, bool b)
+    void setBypass (const juce::String& id, bool b) const
     {
         const juce::ScopedLock sl (lock);
         if (auto* d = findLocked (id))
@@ -142,7 +142,7 @@ public:
         d->editor = PluginEditorWindow::openFor (*d->instance, [this, id] { closeEditor (id); });
     }
 
-    void closeEditor (const juce::String& id)
+    void closeEditor (const juce::String& id) const
     {
         const juce::ScopedLock sl (lock);
         if (auto* d = findLocked (id); d != nullptr && d->editor != nullptr)
@@ -152,7 +152,7 @@ public:
         }
     }
 
-    void closeAllEditors()
+    void closeAllEditors() const
     {
         const juce::ScopedLock sl (lock);
         for (auto* d : devices)
@@ -198,7 +198,7 @@ public:
     }
 
     // ---- audio thread ----
-    void process (juce::AudioBuffer<float>& buf, juce::MidiBuffer& midi)
+    void process (juce::AudioBuffer<float>& buf, juce::MidiBuffer& midi) const
     {
         const juce::ScopedTryLock stl (lock);
         if (! stl.isLocked())
@@ -212,7 +212,7 @@ public:
         try-lock; no-op if the device/index is empty or a load is in progress. Uses
         setValue (not setValueNotifyingHost) — called every block, so it must not
         flood host-notification listeners. */
-    void setParamValue (const juce::String& id, int paramIndex, float value01)
+    void setParamValue (const juce::String& id, int paramIndex, float value01) const
     {
         const juce::ScopedTryLock stl (lock);
         if (! stl.isLocked())

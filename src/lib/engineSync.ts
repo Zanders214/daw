@@ -33,7 +33,8 @@ export function applySessionToEngine(s: DawState): void {
   const notesByTrack: Record<string, MidiNoteAssign[]> = {};
   for (const n of buildSchedule(s.tracks)) {
     if (n.type === "audio") continue;
-    (notesByTrack[n.trackId] ??= []).push({
+    notesByTrack[n.trackId] ??= [];
+    notesByTrack[n.trackId].push({
       absBeat: n.absBeat,
       durBeat: n.durBeat,
       pitch: n.pitch,
