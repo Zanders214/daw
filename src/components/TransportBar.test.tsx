@@ -2,6 +2,8 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { TransportBar } from "./TransportBar";
+import { Settings } from "./Settings";
+import { Sessions } from "./Sessions";
 import { useDawStore } from "../store/useDawStore";
 
 // Snapshot the slice of store state this component reads/mutates so tests stay
@@ -156,6 +158,28 @@ describe("TransportBar", () => {
 
     fireEvent.click(screen.getByText("SESSIONS"));
     expect(useDawStore.getState().sessionsOpen).toBe(true);
+  });
+
+  // End-to-end of the dead-button fix: clicking the toolbar control must reveal
+  // the panel and leave it open (the opening click must not dismiss it).
+  it("opening Settings from the toolbar reveals the panel and keeps it open", () => {
+    useDawStore.setState({ settingsOpen: false });
+    render(<><TransportBar /><Settings /></>);
+
+    expect(screen.queryByText("Zanders Studio · session preferences")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    expect(useDawStore.getState().settingsOpen).toBe(true);
+    expect(screen.getByText("Zanders Studio · session preferences")).toBeInTheDocument();
+  });
+
+  it("opening Sessions from the toolbar reveals the panel and keeps it open", () => {
+    useDawStore.setState({ sessionsOpen: false, currentSessionName: null });
+    render(<><TransportBar /><Sessions /></>);
+
+    fireEvent.click(screen.getByText("SESSIONS"));
+    expect(useDawStore.getState().sessionsOpen).toBe(true);
+    // The "Sessions" panel heading is now present (distinct from the toolbar button).
+    expect(screen.getByText("Untitled session")).toBeInTheDocument();
   });
 
   it("rewind resets the playhead to zero", () => {

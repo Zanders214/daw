@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { Settings } from "./Settings";
 import { useDawStore } from "../store/useDawStore";
@@ -312,5 +312,16 @@ describe("Settings", () => {
     const backdrop = container.firstElementChild as HTMLElement;
     fireEvent.keyDown(backdrop, { key: "Escape" });
     expect(useDawStore.getState().settingsOpen).toBe(false);
+  });
+
+  // Regression: outside-click dismissal must live on the backdrop, NOT a
+  // document-level click listener — such a listener catches the very click that
+  // opened the panel (the toolbar button is outside it) and closes it instantly.
+  it("registers no document-level click listener while open", () => {
+    const addSpy = vi.spyOn(document, "addEventListener");
+    openSettings();
+    render(<Settings />);
+    expect(addSpy.mock.calls.filter(([type]) => type === "click")).toHaveLength(0);
+    addSpy.mockRestore();
   });
 });
