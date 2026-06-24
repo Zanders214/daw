@@ -3,6 +3,8 @@ import { useShallow } from "zustand/react/shallow";
 import { useDawStore } from "../store/useDawStore";
 import { applySession, buildSession } from "../lib/session";
 import { sessionBackend, type SessionListItem } from "../lib/sessionStore";
+import { bounceToWav } from "../lib/bounce";
+import { downloadBlob } from "../lib/download";
 
 const BTN_VARIANTS: Record<"primary" | "neutral" | "ghost", React.CSSProperties> = {
   primary: { background: "var(--accent-soft)", color: "var(--accent)", border: "1px solid var(--accent-line)", boxShadow: "0 0 12px var(--accent-glow)" },
@@ -67,6 +69,7 @@ export function Sessions() {
   const [list, setList] = useState<SessionListItem[]>([]);
   const [name, setName] = useState("");
   const [status, setStatus] = useState("");
+  const [bouncing, setBouncing] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
   const refresh = useCallback(async () => {
@@ -139,6 +142,23 @@ export function Sessions() {
     if (n === current) setCurrent(null);
     setStatus(`Deleted “${n}”`);
     await refresh();
+  };
+
+  // Render the arrangement (or loop region) to a WAV and download it. Works in
+  // the plain browser — no native host needed.
+  const bounce = async () => {
+    setBouncing(true);
+    setStatus("Rendering…");
+    const fileName = `${current ?? "Untitled"}.wav`;
+    try {
+      const blob = await bounceToWav(useDawStore.getState());
+      downloadBlob(blob, fileName);
+      setStatus(`Bounced “${fileName}”`);
+    } catch {
+      setStatus("Bounce failed");
+    } finally {
+      setBouncing(false);
+    }
   };
 
   return (
@@ -228,6 +248,13 @@ export function Sessions() {
             </button>
             <button type="button" style={btn("neutral")} onClick={() => { newSession(); setStatus("New session"); }}>
               NEW
+            </button>
+          </div>
+
+          {/* bounce to WAV — pure browser-side, always available */}
+          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+            <button type="button" style={btn("neutral")} disabled={bouncing} onClick={() => void bounce()}>
+              {bouncing ? "⏳ RENDERING…" : "⤓ BOUNCE TO WAV"}
             </button>
           </div>
 

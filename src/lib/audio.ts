@@ -47,30 +47,40 @@ export function noteHz(pitch: number): number {
 // Currently-ringing source nodes, so Stop can cut them cleanly.
 const voices = new Set<AudioScheduledSourceNode>();
 
-interface TriggerOpts {
+/** A single synth voice's parameters (no routing/context). */
+export interface VoiceOpts {
   pitch: number;
   durationSec: number;
   /** Output gain (velocity); track/group/master gain + pan live in the mixer graph. */
   gain: number;
   /** Percussive noise voice (drum tracks) vs a pitched oscillator. */
   drum: boolean;
+}
+
+interface TriggerOpts extends VoiceOpts {
   /** Where the voice connects — a track input node from the mixer graph, or the
    *  context destination as a fallback. */
   destination?: AudioNode;
 }
 
-/** Play one note on the shared AudioContext: a noise burst for drums, else a
- *  lowpassed sawtooth, through an attack/decay envelope, into `destination`
- *  (a mixer-graph track input, or the output as a fallback). */
-export function triggerNote({ pitch, durationSec, gain, drum, destination }: TriggerOpts): void {
-  const ctx = ensureAudio();
-  if (!ctx || gain <= 0) return;
-  const t = ctx.currentTime;
+/** Build + schedule one synth voice on `ctx`, starting at absolute time `when`:
+ *  a noise burst for drums, else a lowpassed sawtooth, through an attack/decay
+ *  envelope, into `destination`. Returns the source node (or null if silent).
+ *  Used by both the live transport (when = now) and the offline bounce renderer
+ *  (when = the note's offline start time) so the synth is identical in both. */
+export function scheduleVoice(
+  ctx: BaseAudioContext,
+  destination: AudioNode,
+  { pitch, durationSec, gain, drum }: VoiceOpts,
+  when: number,
+): AudioScheduledSourceNode | null {
+  if (gain <= 0) return null;
+  const t = when;
   const dur = Math.max(0.05, durationSec);
   const peak = Math.min(1, gain) * (drum ? 0.5 : 0.22);
 
   const env = ctx.createGain();
-  env.connect(destination ?? ctx.destination);
+  env.connect(destination);
 
   // Attack then exponential decay to the note end (+ short release tail).
   env.gain.setValueAtTime(0.0001, t);
@@ -104,10 +114,20 @@ export function triggerNote({ pitch, durationSec, gain, drum, destination }: Tri
     src = osc;
   }
 
-  voices.add(src);
-  src.onended = () => voices.delete(src);
   src.start(t);
   src.stop(t + dur + 0.1);
+  return src;
+}
+
+/** Play one note now on the shared (live) AudioContext, registering it so Stop /
+ *  pause can cut it. Thin wrapper over `scheduleVoice`. */
+export function triggerNote(opts: TriggerOpts): void {
+  const ctx = ensureAudio();
+  if (!ctx) return;
+  const src = scheduleVoice(ctx, opts.destination ?? ctx.destination, opts, ctx.currentTime);
+  if (!src) return;
+  voices.add(src);
+  src.onended = () => voices.delete(src);
 }
 
 /** Stop every ringing voice immediately (Stop / pause). */

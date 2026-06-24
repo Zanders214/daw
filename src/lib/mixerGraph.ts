@@ -69,7 +69,7 @@ export function mixSignature(s: DawState): string {
 
 // ---- the graph (needs an AudioContext) ----
 
-interface FxChain { input: AudioNode; output: AudioNode; nodes: AudioNode[] }
+export interface FxChain { input: AudioNode; output: AudioNode; nodes: AudioNode[] }
 
 interface NodeStrip {
   /** Head: voices (tracks) or summed children connect here; also the FX-chain input. */
@@ -94,8 +94,9 @@ const groups = new Map<string, NodeStrip>();
 
 const num = (v: number, d: number) => (Number.isFinite(v) ? v : d);
 
-/** Build one device approximation as an {input,output} pair. */
-function buildDevice(c: AudioContext, kind: string, preAmount?: number): FxChain {
+/** Build one device approximation as an {input,output} pair. Exported so the
+ *  offline bounce renderer applies the exact same eq/tape/pre shaping. */
+export function buildDevice(c: BaseAudioContext, kind: string, preAmount?: number): FxChain {
   if (kind === "eq") {
     const low = c.createBiquadFilter();
     low.type = "lowshelf"; low.frequency.value = 120; low.gain.value = 3;
@@ -120,8 +121,9 @@ function buildDevice(c: AudioContext, kind: string, preAmount?: number): FxChain
   return { input: g, output: g, nodes: [g] };
 }
 
-/** Series-connect a list of device kinds into one FX chain (pass-through if empty). */
-function buildChain(c: AudioContext, kinds: { kind: string; preAmount?: number }[]): FxChain {
+/** Series-connect a list of device kinds into one FX chain (pass-through if empty).
+ *  Exported for reuse by the offline bounce renderer. */
+export function buildChain(c: BaseAudioContext, kinds: { kind: string; preAmount?: number }[]): FxChain {
   if (kinds.length === 0) {
     const g = c.createGain();
     return { input: g, output: g, nodes: [g] };
@@ -178,7 +180,9 @@ function ensureGraph(c: AudioContext) {
   for (const r of returns) r.gain.connect(m.input);
 }
 
-function makeImpulse(c: AudioContext, seconds: number): AudioBuffer {
+/** A decaying-noise impulse response for the reverb return. Exported so the
+ *  offline bounce renderer builds an identical reverb tail. */
+export function makeImpulse(c: BaseAudioContext, seconds: number): AudioBuffer {
   const len = Math.max(1, Math.floor(c.sampleRate * seconds));
   const buf = c.createBuffer(2, len, c.sampleRate);
   for (let ch = 0; ch < 2; ch++) {
