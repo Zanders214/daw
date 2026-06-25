@@ -159,6 +159,9 @@ export function Sessions() {
       onClick={(e) => {
         if (e.target === e.currentTarget) close();
       }}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") close();
+      }}
       style={{
         position: "absolute",
         inset: 0,

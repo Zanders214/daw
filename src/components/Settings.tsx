@@ -196,6 +196,9 @@ export function Settings() {
       onClick={(e) => {
         if (e.target === e.currentTarget) s.closeSettings();
       }}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") s.closeSettings();
+      }}
       style={{
         position: "absolute",
         inset: 0,
