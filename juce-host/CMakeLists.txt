@@ -155,3 +155,21 @@ if(ZD_BUILD_SANITIZE)
         endif()
     endif()
 endif()
+
+option(ZD_BUILD_BENCH "Build the perf_bench micro-benchmark (fetches nanobench)" OFF)
+
+if(ZD_BUILD_BENCH)
+    include(FetchContent)
+    FetchContent_Declare(nanobench
+        GIT_REPOSITORY https://github.com/martinus/nanobench.git
+        GIT_TAG        v4.3.11
+        GIT_SHALLOW    TRUE)
+    FetchContent_MakeAvailable(nanobench)
+
+    juce_add_console_app(perf_bench PRODUCT_NAME "perf_bench")
+    target_sources(perf_bench PRIVATE tests/perf_bench.cpp ${ZD_ENGINE_SOURCES})
+    zd_configure_engine_console(perf_bench)
+    # perf_bench.cpp defines ANKERL_NANOBENCH_IMPLEMENT itself, so just add the
+    # header include dir — do NOT link the nanobench library target (duplicate symbols).
+    target_include_directories(perf_bench PRIVATE ${nanobench_SOURCE_DIR}/src/include)
+endif()
