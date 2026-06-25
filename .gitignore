@@ -19,6 +19,9 @@ build/
 coverage/
 clippy-report.json
 
+# nanobench perf output (perf_bench writes this in the CWD)
+bench_result.json
+
 # Logs
 *.log
 npm-debug.log*
