@@ -7,6 +7,7 @@ vi.mock("../lib/history", () => ({ undo: vi.fn(), redo: vi.fn() }));
 
 import { useGlobalKeys } from "./useGlobalKeys";
 import { undo, redo } from "../lib/history";
+import { useDawStore } from "../store/useDawStore";
 
 function Harness() {
   useGlobalKeys();
@@ -14,12 +15,14 @@ function Harness() {
 }
 
 beforeEach(() => {
+  useDawStore.setState({ playing: false });
   render(<Harness />);
 });
 
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  useDawStore.setState({ playing: false });
 });
 
 const key = (init: KeyboardEventInit) =>
@@ -55,5 +58,34 @@ describe("useGlobalKeys", () => {
     input.dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true }));
     expect(undo).not.toHaveBeenCalled();
     input.remove();
+  });
+
+  it("Space toggles play/pause when nothing interactive is focused", () => {
+    expect(useDawStore.getState().playing).toBe(false);
+    key({ key: " " });
+    expect(useDawStore.getState().playing).toBe(true);
+    key({ key: " " });
+    expect(useDawStore.getState().playing).toBe(false);
+  });
+
+  it("Space is ignored while typing in a text field", () => {
+    const input = document.createElement("input");
+    document.body.appendChild(input);
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true }));
+    expect(useDawStore.getState().playing).toBe(false);
+    input.remove();
+  });
+
+  it("Space activates a focused button instead of toggling transport", () => {
+    const btn = document.createElement("button");
+    document.body.appendChild(btn);
+    btn.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true }));
+    expect(useDawStore.getState().playing).toBe(false);
+    btn.remove();
+  });
+
+  it("modified Space (e.g. Ctrl+Space) does not toggle transport", () => {
+    key({ key: " ", ctrlKey: true });
+    expect(useDawStore.getState().playing).toBe(false);
   });
 });
