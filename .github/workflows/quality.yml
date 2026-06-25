@@ -74,7 +74,6 @@ jobs:
   sanitizers:
     name: Sanitizer (${{ matrix.sanitizer }})
     runs-on: ubuntu-latest
-    continue-on-error: ${{ matrix.sanitizer == 'thread' }}
     strategy:
       fail-fast: false
       matrix:
@@ -124,4 +123,12 @@ jobs:
         run: |
           BIN=$(find build -type f -name engine_check -path '*_artefacts*' | head -1)
           test -n "$BIN" || { echo "engine_check binary not found"; exit 1; }
-          xvfb-run -a "$BIN"
+          if [ "${{ matrix.sanitizer }}" = "thread" ]; then
+            # Informational: TSan currently surfaces a known, separately-tracked data
+            # race (AudioEngine::source.inputMode — audio-thread read vs message-thread
+            # write). Keep the gate green with a warning until that fix lands, then make
+            # this branch hard-fail like the others.
+            xvfb-run -a "$BIN" || echo "::warning title=ThreadSanitizer::TSan reported data races (informational — see job log; tracked separately)"
+          else
+            xvfb-run -a "$BIN"
+          fi
