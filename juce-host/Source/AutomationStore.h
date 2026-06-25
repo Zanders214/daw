@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include "DeviceRack.h"
+#include "RtSafety.h"
 #include <atomic>
 #include <map>
 #include <vector>
@@ -108,8 +109,10 @@ private:
     };
 
     /** Linear interpolation matching the JS `valAt`: clamp before the first /
-        after the last point, lerp between the bracketing points. */
-    static float valueAt (const std::vector<Point>& pts, double t)
+        after the last point, lerp between the bracketing points. Pure read-only
+        math over an already-built vector: real-time-safe, annotated for RTSan
+        (the enclosing apply() is not — it takes a try-lock). */
+    static float valueAt (const std::vector<Point>& pts, double t) noexcept ZD_RT_NONBLOCKING
     {
         if (pts.empty())
             return 0.0f;

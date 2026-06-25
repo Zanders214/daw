@@ -142,15 +142,20 @@ void AudioEngine::setLoopRegion (double startBeats, double endBeats)
 }
 
 // ---- audio callback ----
-void AudioEngine::audioDeviceAboutToStart (AudioIODevice* device)
+void AudioEngine::prepareOffline (double sr, int bs)
 {
-    currentSampleRate = device->getCurrentSampleRate();
-    currentBlockSize  = device->getCurrentBufferSizeSamples();
+    currentSampleRate = sr;
+    currentBlockSize  = bs;
     scratch.setSize (2, currentBlockSize, false, false, true);
 
     source.transportSource.prepareToPlay (currentBlockSize, currentSampleRate);
     master.prepare (currentSampleRate, currentBlockSize);
     mix.prepare (currentSampleRate, currentBlockSize);
+}
+
+void AudioEngine::audioDeviceAboutToStart (AudioIODevice* device)
+{
+    prepareOffline (device->getCurrentSampleRate(), device->getCurrentBufferSizeSamples());
 }
 
 void AudioEngine::audioDeviceStopped()

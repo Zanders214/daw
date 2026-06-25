@@ -1,6 +1,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "RtSafety.h"
 #include <array>
 #include <atomic>
 
@@ -26,8 +27,9 @@ public:
 
     /** Audio thread: run the chain in series over `buffer` (try-lock). */
     void process (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi);
-    /** Audio thread: apply master volume then master pan (balance) to `buffer`. */
-    void applyMasterGainAndPan (juce::AudioBuffer<float>& buffer, int numSamples) const;
+    /** Audio thread: apply master volume then master pan (balance) to `buffer`.
+        Leaf DSP (atomic loads + applyGain): real-time-safe, annotated for RTSan. */
+    void applyMasterGainAndPan (juce::AudioBuffer<float>& buffer, int numSamples) const noexcept ZD_RT_NONBLOCKING;
 
     // Plugin chain (slot 0..2). Takes ownership of the instance.
     void installPlugin (int slot, std::unique_ptr<juce::AudioPluginInstance> instance);

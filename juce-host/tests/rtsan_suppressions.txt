@@ -1,0 +1,13 @@
+# RealtimeSanitizer suppressions for rt_check (RTSAN_OPTIONS=suppressions=...).
+#
+# Keep this tiny. Each line hides a known, unavoidable third-party call from the
+# gate; anything not listed stays a hard failure. The harness is MIDI-only and the
+# annotations sit on leaf DSP we own, so this is expected to stay EMPTY.
+#
+# If you later annotate a frame that crosses a framework lock (e.g. wrap the whole
+# audio callback, or feed audio-file clips through juce::BufferingAudioSource), add
+# a narrowly-scoped entry here rather than widening an annotation. Format:
+#   call-stack-contains:<pattern>
+#   function-name-matches:<pattern>
+#
+# (No suppressions currently needed.)

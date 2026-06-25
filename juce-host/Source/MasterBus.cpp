@@ -54,7 +54,7 @@ void MasterBus::process (AudioBuffer<float>& buffer, MidiBuffer& midi)
     }
 }
 
-void MasterBus::applyMasterGainAndPan (AudioBuffer<float>& buffer, int numSamples) const
+void MasterBus::applyMasterGainAndPan (AudioBuffer<float>& buffer, int numSamples) const noexcept
 {
     // Master volume.
     buffer.applyGain (masterVolume.load());
