@@ -1,6 +1,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "RtSafety.h"
 #include <cmath>
 
 /**
@@ -84,7 +85,11 @@ private:
 
         using juce::SynthesiserVoice::renderNextBlock; // keep the double overload visible
 
-        void renderNextBlock (juce::AudioBuffer<float>& out, int startSample, int numSamples) override
+        // Leaf voice DSP (oscillator + one-pole LP + ADSR): allocation-free and
+        // lock-free, annotated for RTSan. The framework lock that RTSan would flag
+        // lives in juce::Synthesiser::renderNextBlock (the caller), which is NOT
+        // annotated — so the lock is acquired outside this nonblocking scope.
+        void renderNextBlock (juce::AudioBuffer<float>& out, int startSample, int numSamples) noexcept ZD_RT_NONBLOCKING override
         {
             if (! adsr.isActive())
                 return;

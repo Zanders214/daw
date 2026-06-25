@@ -23,6 +23,13 @@ public:
     void initialise();
     void shutdown();
 
+    /** Prepare the render pipeline for offline / headless use at a fixed stream
+        format, without opening an audio device. This is what `audioDeviceAboutToStart`
+        does, but driven by explicit params so a console driver (the rt_check /
+        perf_bench harness, and a future offline bounce) can prepare and then call
+        `audioDeviceIOCallbackWithContext` directly with its own buffers. */
+    void prepareOffline (double sampleRate, int blockSize);
+
     juce::AudioDeviceManager& getDeviceManager() { return deviceManager; }
     double getSampleRate() const { return currentSampleRate; }
     int getBlockSize() const { return currentBlockSize; }

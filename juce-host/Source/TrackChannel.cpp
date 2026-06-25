@@ -164,7 +164,7 @@ void TrackChannel::renderMidi (int numSamples, double blockStartBeats, double sp
     synth.renderInto (scratch.trackScratch, scratch.synthMidi, numSamples);
 }
 
-void TrackChannel::applyPan (int numSamples)
+void TrackChannel::applyPan (int numSamples) noexcept
 {
     // Stereo balance: unity at center, attenuate the opposite side toward an edge.
     if (const float p = pan.load(); scratch.trackScratch.getNumChannels() >= 2 && ! approximatelyEqual (p, 0.5f))
@@ -174,7 +174,7 @@ void TrackChannel::applyPan (int numSamples)
     }
 }
 
-void TrackChannel::mixToSends (AudioBuffer<float>* sendBuses, int numSendBuses, int numSamples, int srcCh)
+void TrackChannel::mixToSends (AudioBuffer<float>* sendBuses, int numSendBuses, int numSamples, int srcCh) noexcept
 {
     // Post-fader aux sends: add a scaled copy of this (gain+pan) block to each bus.
     const int ns = jmin (numSendBuses, (int) sends.size());
@@ -191,7 +191,7 @@ void TrackChannel::mixToSends (AudioBuffer<float>* sendBuses, int numSendBuses, 
     }
 }
 
-void TrackChannel::updateMeter (int numSamples, int srcCh)
+void TrackChannel::updateMeter (int numSamples, int srcCh) noexcept
 {
     float peak = 0.0f;
     for (int ch = 0; ch < srcCh; ++ch)

@@ -6,6 +6,7 @@
 #include <vector>
 #include "DeviceRack.h"
 #include "TrackSynth.h"
+#include "RtSafety.h"
 
 class GroupBus;
 
@@ -96,7 +97,7 @@ public:
                      int numSamples, bool audible,
                      double blockStartBeats, double bpm, bool playing);
     /** Decay the meter when the track is silent (muted / soloed-out / no file). */
-    void decayMeter() noexcept { level.store (level.load() * 0.88f); }
+    void decayMeter() noexcept ZD_RT_NONBLOCKING { level.store (level.load() * 0.88f); }
 
     // ---- public data (grouped contiguously; read by name from the engine) ----
     // ---- metadata (message thread only; for the arrange/mixer + session) ----
@@ -159,9 +160,10 @@ private:
     // ---- render helpers (audio thread; split out of renderInto for clarity) ----
     bool mixClips (int numSamples, double blockStartBeats, double spb, bool playing);
     void renderMidi (int numSamples, double blockStartBeats, double spb, bool playing);
-    void applyPan (int numSamples);
-    void mixToSends (juce::AudioBuffer<float>* sendBuses, int numSendBuses, int numSamples, int srcCh);
-    void updateMeter (int numSamples, int srcCh);
+    // Leaf DSP (pure float math + atomics): real-time-safe, annotated for RTSan.
+    void applyPan (int numSamples) noexcept ZD_RT_NONBLOCKING;
+    void mixToSends (juce::AudioBuffer<float>* sendBuses, int numSendBuses, int numSamples, int srcCh) noexcept ZD_RT_NONBLOCKING;
+    void updateMeter (int numSamples, int srcCh) noexcept ZD_RT_NONBLOCKING;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TrackChannel)
 };

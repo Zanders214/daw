@@ -85,3 +85,73 @@ target_link_libraries(ZandersDAW PRIVATE
     juce::juce_recommended_config_flags
     juce::juce_recommended_lto_flags
     juce::juce_recommended_warning_flags)
+
+# ----------------------------------------------------------------------------
+# Headless test / benchmark targets (CI only; OFF by default so normal and
+# release builds stay lean and untouched). They drive the AudioEngine render
+# path directly — no GUI, no WebView, no live audio device — via tests/.
+#
+#   ZD_RT_SANITIZE   -> rt_check     : clang RealtimeSanitizer (needs clang>=20)
+#   ZD_BUILD_SANITIZE-> engine_check : ASan / UBSan / TSan (pick via ZD_SANITIZER;
+#                                      ZD_SANITIZER=none builds a plain console app,
+#                                      handy for a local MSVC compile/smoke check)
+#   ZD_BUILD_BENCH   -> perf_bench   : nanobench micro-benchmark (added in perf PR)
+# ----------------------------------------------------------------------------
+option(ZD_RT_SANITIZE    "Build rt_check under clang RealtimeSanitizer (needs clang>=20)" OFF)
+option(ZD_BUILD_SANITIZE "Build engine_check under a sanitizer (see ZD_SANITIZER)"        OFF)
+set(ZD_SANITIZER "address" CACHE STRING "Sanitizer for ZD_BUILD_SANITIZE: address | undefined | thread | none")
+
+# Engine sources a headless driver needs (no GUI / WebView / EngineController).
+# The supporting types (GroupBus/DeviceRack/AutomationStore/TrackSynth/...) are
+# header-only and compile inline.
+set(ZD_ENGINE_SOURCES
+    Source/AudioEngine.cpp
+    Source/Mixer.cpp
+    Source/MasterBus.cpp
+    Source/TrackChannel.cpp)
+
+# Wire a console target to the engine: JUCE header, modules, defines, includes.
+# (No WebView, no plugin-format hosting — the harness loads no plugins.)
+function(zd_configure_engine_console target)
+    set_target_properties(${target} PROPERTIES EXCLUDE_FROM_ALL TRUE)
+    target_include_directories(${target} PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/Source
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+    target_compile_definitions(${target} PRIVATE
+        JUCE_WEB_BROWSER=0
+        JUCE_USE_CURL=0
+        JUCE_PLUGINHOST_VST3=0
+        JUCE_PLUGINHOST_AU=0
+        JUCE_PLUGINHOST_VST=0
+        JUCE_PLUGINHOST_LV2=0)
+    target_link_libraries(${target} PRIVATE
+        juce::juce_audio_utils
+        juce::juce_audio_processors
+        juce::juce_gui_extra
+        juce::juce_recommended_config_flags)
+    juce_generate_juce_header(${target})
+endfunction()
+
+if(ZD_RT_SANITIZE)
+    juce_add_console_app(rt_check PRODUCT_NAME "rt_check")
+    target_sources(rt_check PRIVATE tests/rt_check.cpp ${ZD_ENGINE_SOURCES})
+    zd_configure_engine_console(rt_check)
+    # CMake passes the brackets through fine inside the quoted define.
+    target_compile_definitions(rt_check PRIVATE "ZD_RT_NONBLOCKING=[[clang::nonblocking]]")
+    target_compile_options(rt_check PRIVATE -fsanitize=realtime)
+    target_link_options   (rt_check PRIVATE -fsanitize=realtime)
+endif()
+
+if(ZD_BUILD_SANITIZE)
+    juce_add_console_app(engine_check PRODUCT_NAME "engine_check")
+    target_sources(engine_check PRIVATE tests/rt_check.cpp ${ZD_ENGINE_SOURCES})
+    zd_configure_engine_console(engine_check)
+    if(NOT ZD_SANITIZER STREQUAL "none")
+        target_compile_options(engine_check PRIVATE -fsanitize=${ZD_SANITIZER} -fno-omit-frame-pointer -g)
+        target_link_options   (engine_check PRIVATE -fsanitize=${ZD_SANITIZER})
+        if(ZD_SANITIZER STREQUAL "thread")
+            # Spin a control thread so TSan has cross-thread access to inspect.
+            target_compile_definitions(engine_check PRIVATE ZD_CONCURRENT_CONTROL=1)
+        endif()
+    endif()
+endif()

@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include "DeviceRack.h"
+#include "RtSafety.h"
 
 /**
  * GroupBus — a sub-mix node (DRUMS / BASS / SYNTHS / VOX&FX). Member tracks
@@ -33,12 +34,19 @@ public:
     juce::AudioBuffer<float>& getBuffer() noexcept { return buffer; }
 
     /** Run group inserts, then apply the group's gain + pan, meter, and add into
-        the master bus. */
+        the master bus. The insert chain (try-lock + hosted plugins) is kept out of
+        the real-time-annotated region; the gain/pan/meter/sum tail is the leaf DSP. */
     void sumInto (juce::AudioBuffer<float>& master, int numSamples)
     {
         rackMidi.clear();
-        inserts.process (buffer, rackMidi);
+        inserts.process (buffer, rackMidi);   // try-lock + hosted plugins: not RT-annotated
+        applyGainPanMeterAndSum (master, numSamples);
+    }
 
+    /** Leaf DSP tail of sumInto: apply gain + pan, meter, and sum into `master`.
+        Pure float math + atomics: real-time-safe, annotated for RTSan. */
+    void applyGainPanMeterAndSum (juce::AudioBuffer<float>& master, int numSamples) noexcept ZD_RT_NONBLOCKING
+    {
         buffer.applyGain (gain.load());
 
         if (const float p = pan.load(); buffer.getNumChannels() >= 2 && ! juce::approximatelyEqual (p, 0.5f))
