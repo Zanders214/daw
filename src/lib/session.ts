@@ -49,6 +49,8 @@ export interface SessionUi {
   loopEnd: number;
   volumes: Record<string, number>;
   pans: Record<string, number>;
+  /** Per-track lane heights in px (v4+; absent → DEFAULT_TRACK_H). */
+  trackHeights?: Record<string, number>;
   mutes: Record<string, boolean>;
   solos: Record<string, boolean>;
   arms: Record<string, boolean>;
@@ -73,6 +75,9 @@ export interface SessionUi {
 export interface PrefsData {
   theme: ThemeName;
   tracksRight: boolean;
+  /** Expanded browser-panel width / device-rack height in px. */
+  browserWidth?: number;
+  rackHeight?: number;
   showGrid: boolean;
   vibrantClips: boolean;
   sampleRate: number;
@@ -104,6 +109,7 @@ export function serializeSession(s: DawState): SessionUi {
     loopEnd: s.loopEnd,
     volumes: s.volumes,
     pans: s.pans,
+    trackHeights: s.trackHeights,
     mutes: s.mutes,
     solos: s.solos,
     arms: s.arms,
@@ -130,6 +136,8 @@ export function serializePrefs(s: DawState): PrefsData {
   return {
     theme: s.theme,
     tracksRight: s.tracksRight,
+    browserWidth: s.browserWidth,
+    rackHeight: s.rackHeight,
     showGrid: s.showGrid,
     vibrantClips: s.vibrantClips,
     sampleRate: s.sampleRate,

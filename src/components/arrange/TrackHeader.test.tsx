@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { TrackHeader } from "./TrackHeader";
 import { useDawStore, type DawState } from "../../store/useDawStore";
-import { DEFAULT_VOLUME } from "../../lib/constants";
+import { DEFAULT_VOLUME, MIN_TRACK_H } from "../../lib/constants";
 
 // Snapshot every store slice TrackHeader reads or mutates so cases stay
 // order-independent. The store is a singleton seeded with demo data at import.
@@ -20,6 +20,7 @@ beforeEach(() => {
     sendsOpen: { ...s.sendsOpen },
     volumes: { ...s.volumes },
     pans: { ...s.pans },
+    trackHeights: { ...s.trackHeights },
     trackFiles: { ...s.trackFiles },
     tracks: s.tracks,
   };
@@ -31,12 +32,38 @@ afterEach(() => {
 
 const firstTrack = () => useDawStore.getState().tracks[0];
 
+// startUiResize attaches pointermove/pointerup to globalThis; happy-dom may lack
+// PointerEvent, so fall back to MouseEvent (the handler only reads clientY).
+const PtrEvent = (globalThis as { PointerEvent?: typeof MouseEvent }).PointerEvent ?? MouseEvent;
+const movePointerY = (clientY: number) =>
+  (globalThis as unknown as Window).dispatchEvent(new PtrEvent("pointermove", { clientY, clientX: 0, bubbles: true }));
+const releasePointer = () =>
+  (globalThis as unknown as Window).dispatchEvent(new PtrEvent("pointerup", { bubbles: true }));
+
 describe("TrackHeader", () => {
   it("renders the track name and IO label", () => {
     const track = firstTrack();
     render(<TrackHeader track={track} />);
     expect(screen.getByText(track.name)).toBeInTheDocument();
     expect(screen.getByText(track.io)).toBeInTheDocument();
+  });
+
+  it("dragging the bottom grip resizes track height and clamps to the minimum", () => {
+    const track = firstTrack();
+    render(<TrackHeader track={track} />);
+    const grip = screen.getByTitle("Drag to resize track height");
+
+    // Default height 108; drag down +100 → 208.
+    fireEvent.pointerDown(grip, { button: 0, clientX: 0, clientY: 20 });
+    movePointerY(120);
+    releasePointer();
+    expect(useDawStore.getState().trackHeights[track.id]).toBe(208);
+
+    // Drag far up (208 + (0 - 200) = 8) → clamps to MIN_TRACK_H.
+    fireEvent.pointerDown(grip, { button: 0, clientX: 0, clientY: 200 });
+    movePointerY(0);
+    releasePointer();
+    expect(useDawStore.getState().trackHeights[track.id]).toBe(MIN_TRACK_H);
   });
 
   it("renders the M / S / A mixer buttons and the arm dot", () => {

@@ -16,7 +16,15 @@ import type {
 import { TRACK_DEFS, GROUP_DEFS } from "../data/seed";
 import {
   BEATS_PER_BAR,
+  DEFAULT_BROWSER_W,
+  DEFAULT_RACK_H,
   DEFAULT_VOLUME,
+  MAX_BROWSER_W,
+  MAX_RACK_H,
+  MAX_TRACK_H,
+  MIN_BROWSER_W,
+  MIN_RACK_H,
+  MIN_TRACK_H,
   NOTE_STEP,
   PITCH_MAX,
   PITCH_MIN,
@@ -35,6 +43,8 @@ import type { PrefsData, SessionUi } from "../lib/session";
 
 type Bools = Record<string, boolean>;
 type Nums = Record<string, number>;
+
+const clamp = (x: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, x));
 
 /** Group that holds tracks created without an explicit group (created on demand). */
 const DEFAULT_GROUP: Group = { id: "g-tracks", name: "TRACKS", color: "#5e93ff", tracks: [] };
@@ -253,6 +263,7 @@ export interface DawState {
   arms: Bools;
   volumes: Nums;
   pans: Nums; // track id -> 0 (L) .. 0.5 (C) .. 1 (R)
+  trackHeights: Nums; // track id -> lane height in px (absent → DEFAULT_TRACK_H)
   trackFiles: TrackInfos;
 
   // ---- mixer / loop ----
@@ -270,6 +281,8 @@ export interface DawState {
   tab: BrowserTab;
   browserOpen: boolean;
   rackOpen: boolean;
+  browserWidth: number; // px width of the expanded browser panel
+  rackHeight: number; // px height of the expanded device rack
 
   // ---- workspace appearance ----
   theme: ThemeName;
@@ -456,6 +469,9 @@ export interface DawState {
   setTab: (t: BrowserTab) => void;
   toggleBrowser: () => void;
   toggleRack: () => void;
+  setBrowserWidth: (px: number) => void;
+  setRackHeight: (px: number) => void;
+  setTrackHeight: (id: string, px: number) => void;
 
   setTheme: (t: ThemeName) => void;
   cycleTheme: () => void;
@@ -536,6 +552,7 @@ export const useDawStore = create<DawState>((set, get) => ({
   arms: { kick: true },
   volumes: {},
   pans: {},
+  trackHeights: {},
   trackFiles: {},
 
   masterVolume: 1,
@@ -550,6 +567,8 @@ export const useDawStore = create<DawState>((set, get) => ({
   tab: "all",
   browserOpen: true,
   rackOpen: true,
+  browserWidth: DEFAULT_BROWSER_W,
+  rackHeight: DEFAULT_RACK_H,
 
   theme: "dark",
   tracksRight: false,
@@ -672,6 +691,7 @@ export const useDawStore = create<DawState>((set, get) => ({
         groups: dropTrackFromGroups(s.groups, id),
         volumes: omit(s.volumes, id),
         pans: omit(s.pans, id),
+        trackHeights: omit(s.trackHeights, id),
         mutes: omit(s.mutes, id),
         solos: omit(s.solos, id),
         arms: omit(s.arms, id),
@@ -1035,6 +1055,7 @@ export const useDawStore = create<DawState>((set, get) => ({
       loopEnd: ui.loopEnd ?? s.loopEnd,
       volumes: ui.volumes ?? s.volumes,
       pans: ui.pans ?? s.pans,
+      trackHeights: ui.trackHeights ?? s.trackHeights,
       mutes: ui.mutes ?? s.mutes,
       solos: ui.solos ?? s.solos,
       arms: ui.arms ?? s.arms,
@@ -1059,6 +1080,8 @@ export const useDawStore = create<DawState>((set, get) => ({
     set((s) => ({
       theme: p.theme ?? s.theme,
       tracksRight: p.tracksRight ?? s.tracksRight,
+      browserWidth: p.browserWidth ?? s.browserWidth,
+      rackHeight: p.rackHeight ?? s.rackHeight,
       showGrid: p.showGrid ?? s.showGrid,
       vibrantClips: p.vibrantClips ?? s.vibrantClips,
       sampleRate: p.sampleRate ?? s.sampleRate,
@@ -1080,6 +1103,7 @@ export const useDawStore = create<DawState>((set, get) => ({
       loopEnd: TOTAL_BEATS,
       volumes: {},
       pans: {},
+      trackHeights: {},
       mutes: {},
       solos: {},
       arms: {},
@@ -1158,6 +1182,10 @@ export const useDawStore = create<DawState>((set, get) => ({
   setTab: (t) => set({ tab: t }),
   toggleBrowser: () => set((s) => ({ browserOpen: !s.browserOpen })),
   toggleRack: () => set((s) => ({ rackOpen: !s.rackOpen })),
+  setBrowserWidth: (px) => set({ browserWidth: clamp(px, MIN_BROWSER_W, MAX_BROWSER_W) }),
+  setRackHeight: (px) => set({ rackHeight: clamp(px, MIN_RACK_H, MAX_RACK_H) }),
+  setTrackHeight: (id, px) =>
+    set((s) => ({ trackHeights: { ...s.trackHeights, [id]: clamp(px, MIN_TRACK_H, MAX_TRACK_H) } })),
 
   setTheme: (t) => set({ theme: t }),
   cycleTheme: () =>

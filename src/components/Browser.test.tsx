@@ -5,6 +5,7 @@ import { Browser } from "./Browser";
 import { useDawStore } from "../store/useDawStore";
 import { LIBRARY } from "../data/seed";
 import { ITEM_MIME } from "../lib/dnd";
+import { MAX_BROWSER_W } from "../lib/constants";
 import type { BrowserTab } from "../types";
 
 // Snapshot the slice of store state this component reads/mutates so tests stay
@@ -13,22 +14,48 @@ type BrowserSnapshot = {
   query: string;
   tab: BrowserTab;
   browserOpen: boolean;
+  browserWidth: number;
 };
 
 let snapshot: BrowserSnapshot;
 
 beforeEach(() => {
   const s = useDawStore.getState();
-  snapshot = { query: s.query, tab: s.tab, browserOpen: s.browserOpen };
-  // Known defaults: panel open, no query, ALL tab.
-  useDawStore.setState({ query: "", tab: "all", browserOpen: true });
+  snapshot = { query: s.query, tab: s.tab, browserOpen: s.browserOpen, browserWidth: s.browserWidth };
+  // Known defaults: panel open, no query, ALL tab, default width.
+  useDawStore.setState({ query: "", tab: "all", browserOpen: true, browserWidth: 288 });
 });
 
 afterEach(() => {
   useDawStore.setState(snapshot);
 });
 
+// startUiResize attaches pointermove/pointerup to globalThis; happy-dom may lack
+// PointerEvent, so fall back to MouseEvent (the handler only reads clientX).
+const PtrEvent = (globalThis as { PointerEvent?: typeof MouseEvent }).PointerEvent ?? MouseEvent;
+const movePointerX = (clientX: number) =>
+  (globalThis as unknown as Window).dispatchEvent(new PtrEvent("pointermove", { clientX, clientY: 0, bubbles: true }));
+const releasePointer = () =>
+  (globalThis as unknown as Window).dispatchEvent(new PtrEvent("pointerup", { bubbles: true }));
+
 describe("Browser", () => {
+  it("dragging the right-edge grip resizes the panel width and clamps to the max", () => {
+    render(<Browser />);
+    const grip = screen.getByTitle("Drag to resize the browser");
+
+    // Default width 288; drag right +80 → 368.
+    fireEvent.pointerDown(grip, { button: 0, clientX: 300, clientY: 0 });
+    movePointerX(380);
+    releasePointer();
+    expect(useDawStore.getState().browserWidth).toBe(368);
+
+    // Drag far right → clamps to MAX_BROWSER_W.
+    fireEvent.pointerDown(grip, { button: 0, clientX: 300, clientY: 0 });
+    movePointerX(3000);
+    releasePointer();
+    expect(useDawStore.getState().browserWidth).toBe(MAX_BROWSER_W);
+  });
+
   it("renders the BROWSER header, search box, and all tab labels", () => {
     render(<Browser />);
 

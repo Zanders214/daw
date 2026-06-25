@@ -2,8 +2,9 @@ import { useShallow } from "zustand/react/shallow";
 import { useDawStore } from "../../store/useDawStore";
 import { Meter, Slider, Dial } from "../../design-system";
 import { AutomationChips, TRACK_AUTO_PARAMS } from "./AutomationLane";
-import { DEFAULT_VOLUME, BEATS_PER_BAR } from "../../lib/constants";
+import { DEFAULT_VOLUME, BEATS_PER_BAR, DEFAULT_TRACK_H } from "../../lib/constants";
 import { engineActive } from "../../lib/engine";
+import { startUiResize } from "../../lib/uiDrag";
 import type { Track } from "../../types";
 
 // Stable fallback so the sends selector doesn't return a new array each render
@@ -84,6 +85,7 @@ export function TrackHeader({ track }: Readonly<{ track: Track }>) {
     sendsOpen,
     fileLoaded,
     fileName,
+    height,
     selectTrack,
     openTrackChain,
     toggleMute,
@@ -93,6 +95,7 @@ export function TrackHeader({ track }: Readonly<{ track: Track }>) {
     toggleSendsRow,
     setVolume,
     setPan,
+    setTrackHeight,
     pickTrackFile,
     pickClipFile,
     clearTrackFile,
@@ -107,6 +110,7 @@ export function TrackHeader({ track }: Readonly<{ track: Track }>) {
       pan: s.pans[id] ?? 0.5,
       autoOpen: !!s.autoLanes[id],
       sendsOpen: !!s.sendsOpen[id],
+      height: s.trackHeights[id] ?? DEFAULT_TRACK_H,
       fileLoaded: !!s.trackFiles[id]?.loaded,
       fileName: s.trackFiles[id]?.name,
       selectTrack: s.selectTrack,
@@ -118,6 +122,7 @@ export function TrackHeader({ track }: Readonly<{ track: Track }>) {
       toggleSendsRow: s.toggleSendsRow,
       setVolume: s.setVolume,
       setPan: s.setPan,
+      setTrackHeight: s.setTrackHeight,
       pickTrackFile: s.pickTrackFile,
       pickClipFile: s.pickClipFile,
       clearTrackFile: s.clearTrackFile,
@@ -138,6 +143,16 @@ export function TrackHeader({ track }: Readonly<{ track: Track }>) {
   const aStyle = { ...idleBtn, ...(armed ? { color: "var(--danger)", borderColor: "var(--danger)", boxShadow: "0 0 10px var(--danger-glow)" } : null) };
   const autoBtnStyle = { ...idleBtn, ...(autoOpen ? { background: "var(--accent-soft)", color: "var(--accent)", borderColor: "var(--accent-line)", boxShadow: "0 0 10px var(--accent-glow)" } : null) };
 
+  // Drag the bottom edge to resize this lane (header + arrange lane read the same
+  // stored height, so the two columns stay row-aligned).
+  const onResizeDown = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    if (e.button !== 0) return;
+    const startY = e.clientY;
+    const startH = height;
+    startUiResize((ev) => setTrackHeight(id, startH + (ev.clientY - startY)), "ns-resize");
+  };
+
   return (
     <>
       <div
@@ -147,7 +162,8 @@ export function TrackHeader({ track }: Readonly<{ track: Track }>) {
         onDoubleClick={(e) => { if (!(e.target as HTMLElement).closest("[data-ctl]")) openTrackChain(id); }}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectTrack(id); } }}
         style={{
-          height: 108,
+          position: "relative",
+          height,
           padding: "10px 16px",
           borderBottom: "1px solid var(--layer-2)",
           cursor: "pointer",
@@ -350,6 +366,21 @@ export function TrackHeader({ track }: Readonly<{ track: Track }>) {
             {volDb}
           </span>
         </div>
+        <div
+          data-ctl=""
+          onPointerDown={onResizeDown}
+          title="Drag to resize track height"
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: 6,
+            cursor: "ns-resize",
+            touchAction: "none",
+            zIndex: 3,
+          }}
+        />
       </div>
       {autoOpen && <AutomationChips nodeId={id} color={track.color} params={TRACK_AUTO_PARAMS} />}
       {sendsOpen && <SendRow id={id} />}

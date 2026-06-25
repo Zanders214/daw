@@ -1,6 +1,17 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { useDawStore } from "./useDawStore";
-import { DEFAULT_VOLUME, PITCH_MAX, PITCH_MIN, TOTAL_BEATS } from "../lib/constants";
+import {
+  DEFAULT_VOLUME,
+  MAX_BROWSER_W,
+  MAX_RACK_H,
+  MAX_TRACK_H,
+  MIN_BROWSER_W,
+  MIN_RACK_H,
+  MIN_TRACK_H,
+  PITCH_MAX,
+  PITCH_MIN,
+  TOTAL_BEATS,
+} from "../lib/constants";
 import { serializeSession } from "../lib/session";
 
 // The store is a singleton created at import time. Capture its pristine state
@@ -26,6 +37,51 @@ describe("useDawStore — initial state", () => {
     expect(s.loopEnd).toBe(TOTAL_BEATS);
     expect(s.devices).toEqual({ eq: true, tape: false, pre: true });
     expect(s.currentSessionName).toBeNull();
+  });
+});
+
+describe("useDawStore — layout sizing", () => {
+  it("setBrowserWidth clamps to [MIN_BROWSER_W, MAX_BROWSER_W]", () => {
+    get().setBrowserWidth(320);
+    expect(get().browserWidth).toBe(320);
+    get().setBrowserWidth(10);
+    expect(get().browserWidth).toBe(MIN_BROWSER_W);
+    get().setBrowserWidth(9999);
+    expect(get().browserWidth).toBe(MAX_BROWSER_W);
+  });
+
+  it("setRackHeight clamps to [MIN_RACK_H, MAX_RACK_H]", () => {
+    get().setRackHeight(360);
+    expect(get().rackHeight).toBe(360);
+    get().setRackHeight(0);
+    expect(get().rackHeight).toBe(MIN_RACK_H);
+    get().setRackHeight(9999);
+    expect(get().rackHeight).toBe(MAX_RACK_H);
+  });
+
+  it("setTrackHeight clamps per track and keeps other tracks independent", () => {
+    get().setTrackHeight("lead", 220);
+    expect(get().trackHeights.lead).toBe(220);
+    get().setTrackHeight("lead", 5); // below MIN_TRACK_H
+    expect(get().trackHeights.lead).toBe(MIN_TRACK_H);
+    get().setTrackHeight("bass", 9999); // above MAX_TRACK_H
+    expect(get().trackHeights.bass).toBe(MAX_TRACK_H);
+    expect(get().trackHeights.lead).toBe(MIN_TRACK_H); // unaffected by the bass edit
+  });
+
+  it("removeTrack drops the track's stored height", () => {
+    get().setTrackHeight("lead", 200);
+    expect(get().trackHeights.lead).toBe(200);
+    get().removeTrack("lead");
+    expect(get().trackHeights.lead).toBeUndefined();
+  });
+
+  it("hydratePrefs restores panel sizes; hydrateSession restores track heights", () => {
+    get().hydratePrefs({ browserWidth: 333, rackHeight: 444 });
+    expect(get().browserWidth).toBe(333);
+    expect(get().rackHeight).toBe(444);
+    get().hydrateSession({ trackHeights: { lead: 175 } });
+    expect(get().trackHeights.lead).toBe(175);
   });
 });
 

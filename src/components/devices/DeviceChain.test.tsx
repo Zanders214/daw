@@ -5,6 +5,7 @@ import { DeviceChain } from "./DeviceChain";
 import { DeviceModule } from "./DeviceModule";
 import { useDawStore } from "../../store/useDawStore";
 import { ITEM_MIME } from "../../lib/dnd";
+import { MIN_RACK_H } from "../../lib/constants";
 import type { NodeRacks } from "../../lib/engine";
 
 // Snapshot the slice DeviceChain / DeviceModule read & mutate so tests stay
@@ -12,6 +13,7 @@ import type { NodeRacks } from "../../lib/engine";
 type Snapshot = {
   selTrack: string;
   rackOpen: boolean;
+  rackHeight: number;
   nodeRacks: NodeRacks;
   devices: { eq: boolean; tape: boolean; pre: boolean };
 };
@@ -23,16 +25,25 @@ beforeEach(() => {
   snapshot = {
     selTrack: s.selTrack,
     rackOpen: s.rackOpen,
+    rackHeight: s.rackHeight,
     nodeRacks: s.nodeRacks,
     devices: { ...s.devices },
   };
   // Known baseline for these tests.
-  useDawStore.setState({ rackOpen: true, nodeRacks: {} });
+  useDawStore.setState({ rackOpen: true, rackHeight: 300, nodeRacks: {} });
 });
 
 afterEach(() => {
   useDawStore.setState(snapshot);
 });
+
+// startUiResize attaches pointermove/pointerup to globalThis; happy-dom may lack
+// PointerEvent, so fall back to MouseEvent (the handler only reads clientY).
+const PtrEvent = (globalThis as { PointerEvent?: typeof MouseEvent }).PointerEvent ?? MouseEvent;
+const movePointerY = (clientY: number) =>
+  (globalThis as unknown as Window).dispatchEvent(new PtrEvent("pointermove", { clientY, clientX: 0, bubbles: true }));
+const releasePointer = () =>
+  (globalThis as unknown as Window).dispatchEvent(new PtrEvent("pointerup", { bubbles: true }));
 
 /** Build a DataTransfer-ish stub that carries (or doesn't) one of our items. */
 function makeDataTransfer(item?: { kind: string; name: string }): DataTransfer {
@@ -48,6 +59,31 @@ function makeDataTransfer(item?: { kind: string; name: string }): DataTransfer {
     },
   } as unknown as DataTransfer;
 }
+
+describe("DeviceChain — resize", () => {
+  it("dragging the top grip up grows the rack; dragging well past the floor clamps to the min", () => {
+    render(<DeviceChain />);
+    const grip = screen.getByTitle("Drag to resize the device chain");
+
+    // Default height 300; drag the top edge UP by 100 (clientY 400 → 300) → 400.
+    fireEvent.pointerDown(grip, { button: 0, clientX: 0, clientY: 400 });
+    movePointerY(300);
+    releasePointer();
+    expect(useDawStore.getState().rackHeight).toBe(400);
+
+    // Drag the top edge far DOWN → clamps to MIN_RACK_H.
+    fireEvent.pointerDown(grip, { button: 0, clientX: 0, clientY: 100 });
+    movePointerY(3000);
+    releasePointer();
+    expect(useDawStore.getState().rackHeight).toBe(MIN_RACK_H);
+  });
+
+  it("renders no resize grip when the rack is collapsed", () => {
+    useDawStore.setState({ rackOpen: false });
+    render(<DeviceChain />);
+    expect(screen.queryByTitle("Drag to resize the device chain")).not.toBeInTheDocument();
+  });
+});
 
 describe("DeviceChain — header", () => {
   it("renders the DEVICE CHAIN header and signal-flow hint", () => {

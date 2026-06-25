@@ -4,6 +4,7 @@ import { useDawStore } from "../store/useDawStore";
 import { LIBRARY, KIND_COLOR } from "../data/seed";
 import { hexA } from "../lib/color";
 import { setDragItem } from "../lib/dnd";
+import { startUiResize } from "../lib/uiDrag";
 import type { BrowserTab } from "../types";
 
 const TABS: [BrowserTab, string][] = [
@@ -31,16 +32,25 @@ function tabStyle(active: boolean): React.CSSProperties {
 }
 
 export function Browser() {
-  const { query, tab, browserOpen, onSearch, setTab, toggleBrowser } = useDawStore(
+  const { query, tab, browserOpen, browserWidth, onSearch, setTab, toggleBrowser, setBrowserWidth } = useDawStore(
     useShallow((s) => ({
       query: s.query,
       tab: s.tab,
       browserOpen: s.browserOpen,
+      browserWidth: s.browserWidth,
       onSearch: s.onSearch,
       setTab: s.setTab,
       toggleBrowser: s.toggleBrowser,
+      setBrowserWidth: s.setBrowserWidth,
     })),
   );
+
+  const onResizeDown = (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    const startX = e.clientX;
+    const startW = browserWidth;
+    startUiResize((ev) => setBrowserWidth(startW + (ev.clientX - startX)), "col-resize");
+  };
 
   const categories = useMemo(() => {
     const q = (query || "").trim().toLowerCase();
@@ -95,7 +105,8 @@ export function Browser() {
   return (
     <div
       style={{
-        width: 288,
+        position: "relative",
+        width: browserWidth,
         flex: "none",
         borderRight: "1px solid var(--layer-3)",
         background: "var(--app-surface)",
@@ -104,6 +115,21 @@ export function Browser() {
         overflow: "hidden",
       }}
     >
+      {/* right-edge resize grip */}
+      <div
+        onPointerDown={onResizeDown}
+        title="Drag to resize the browser"
+        style={{
+          position: "absolute",
+          top: 0,
+          bottom: 0,
+          right: 0,
+          width: 6,
+          cursor: "col-resize",
+          touchAction: "none",
+          zIndex: 5,
+        }}
+      />
       {/* header */}
       <div
         style={{

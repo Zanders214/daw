@@ -139,6 +139,17 @@ describe("Sessions", () => {
     expect(useDawStore.getState().sessionsOpen).toBe(false);
   });
 
+  // Regression: outside-click dismissal must live on the backdrop, NOT a
+  // document-level click listener — such a listener catches the very click that
+  // opened the panel (the toolbar button is outside it) and closes it instantly.
+  it("registers no document-level click listener while open", () => {
+    const addSpy = vi.spyOn(document, "addEventListener");
+    useDawStore.setState({ sessionsOpen: true });
+    render(<Sessions />);
+    expect(addSpy.mock.calls.filter(([type]) => type === "click")).toHaveLength(0);
+    addSpy.mockRestore();
+  });
+
   it("hides the native Export/Import buttons in the browser backend (canUseFiles false)", () => {
     useDawStore.setState({ sessionsOpen: true });
     render(<Sessions />);
